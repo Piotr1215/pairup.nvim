@@ -1,0 +1,42 @@
+name: Test
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 2 * * 0' # Weekly on Sunday at 2 AM
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Install Neovim
+      uses: rhysd/action-setup-vim@v1
+      with:
+        neovim: true
+        version: stable
+    
+    - name: Install dependencies
+      run: |
+        mkdir -p ~/.local/share/nvim/site/pack/vendor/start
+        git clone https://github.com/nvim-lua/plenary.nvim ~/.local/share/nvim/site/pack/vendor/start/plenary.nvim
+    
+    - name: Install stylua
+      run: |
+        wget https://github.com/JohnnyMorganz/StyLua/releases/latest/download/stylua-linux-x86_64.zip
+        unzip stylua-linux-x86_64.zip
+        chmod +x stylua
+        sudo mv stylua /usr/local/bin/
+    
+    - name: Format check
+      run: |
+        stylua --check .
+    
+    - name: Run tests
+      run: make test
+    
+    - name: Health check
+      run: |
+        nvim --headless -c "lua require('pairup').setup()" -c "checkhealth pairup" -c "qa!"

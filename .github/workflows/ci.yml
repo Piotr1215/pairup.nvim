@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        neovim_version: ['stable', 'nightly']
+      fail-fast: false
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Neovim
+      uses: rhysd/action-setup-vim@v1
+      with:
+        neovim: true
+        version: ${{ matrix.neovim_version }}
+    
+    - name: Install Plenary
+      run: |
+        mkdir -p ~/.local/share/nvim/site/pack/vendor/start
+        git clone --depth 1 https://github.com/nvim-lua/plenary.nvim ~/.local/share/nvim/site/pack/vendor/start/plenary.nvim
+    
+    - name: Run tests
+      run: |
+        export CI=true
+        make test
+    
+    - name: Check plugin loads
+      run: |
+        nvim --headless -c "lua vim.g.pairup_test_mode = true; require('pairup').setup({ provider = 'claude' })" -c "qa!"
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Neovim
+      uses: rhysd/action-setup-vim@v1
+      with:
+        neovim: true
+        version: stable
+    
+    - name: Install stylua
+      uses: JohnnyMorganz/stylua-action@v3
+      with:
+        token: ${{ github.token }}
+        version: latest
+        args: --check .
+    
+    continue-on-error: true  # Don't fail on lint errors for now
+
+  documentation:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Check README exists
+      run: test -f README.md
+    
+    - name: Check for broken links
+      uses: gaurav-nelson/github-action-markdown-link-check@v1
+      with:
+        config-file: '.github/markdown-link-check.json'
+      continue-on-error: true

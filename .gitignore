@@ -1,0 +1,15 @@
+# Test artifacts
+/tmp/
+*.log
+
+# Neovim
+.netrwhist
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor directories
+.vscode/
+.idea/

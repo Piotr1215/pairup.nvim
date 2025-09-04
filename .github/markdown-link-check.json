@@ -1,0 +1,13 @@
+{
+  "ignorePatterns": [
+    {
+      "pattern": "^https://github.com/Piotr1215/pairup.nvim"
+    },
+    {
+      "pattern": "^https://www.youtube.com"
+    }
+  ],
+  "timeout": "10s",
+  "retryOn429": true,
+  "retryCount": 3
+}

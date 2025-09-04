@@ -1,0 +1,215 @@
+*pairup.txt*	AI pair programming for Neovim
+
+Author: Piotr1215
+License: MIT
+
+==============================================================================
+CONTENTS                                                    *pairup-contents*
+
+1. Introduction........................|pairup-introduction|
+2. Requirements........................|pairup-requirements|
+3. Installation........................|pairup-installation|
+4. Configuration.......................|pairup-configuration|
+5. Commands............................|pairup-commands|
+6. Functions...........................|pairup-functions|
+7. Examples............................|pairup-examples|
+
+==============================================================================
+1. INTRODUCTION                                         *pairup-introduction*
+
+Pairup.nvim is a Neovim plugin that provides real-time AI assistance through
+git diffs and context awareness. It integrates with Claude Code and other AI
+providers to give you an intelligent pair programming experience.
+
+Key features:
+- Real-time git diff streaming to AI
+- Context-aware assistance
+- Terminal integration
+- Multiple AI provider support (Claude, OpenAI, Ollama planned)
+- Automatic directory and file context
+
+==============================================================================
+2. REQUIREMENTS                                         *pairup-requirements*
+
+- Neovim 0.8+
+- Git (for diff functionality)
+- AI provider CLI (e.g., Claude CLI for Claude integration)
+
+==============================================================================
+3. INSTALLATION                                         *pairup-installation*
+
+Using lazy.nvim: >
+    {
+      "Piotr1215/pairup.nvim",
+      config = function()
+        require("pairup").setup({
+          provider = "claude",
+          providers = {
+            claude = {
+              path = vim.fn.exepath("claude") or "claude",
+            },
+          },
+        })
+      end,
+    }
+
+Using packer.nvim: >
+    use {
+      "Piotr1215/pairup.nvim",
+      config = function()
+        require("pairup").setup()
+      end
+    }
+
+==============================================================================
+4. CONFIGURATION                                       *pairup-configuration*
+
+Setup function: >
+    require("pairup").setup({
+      -- AI provider ('claude', 'openai', 'ollama')
+      provider = 'claude',
+      
+      -- Provider-specific configurations
+      providers = {
+        claude = {
+          path = 'claude',  -- Path to Claude CLI
+          permission_mode = 'acceptEdits',
+          add_dir_on_start = true,
+        },
+      },
+      
+      -- Git diff context lines
+      diff_context_lines = 10,
+      
+      -- Enable/disable automatic diff sending
+      enabled = true,
+      
+      -- Terminal settings
+      terminal = {
+        split_position = 'left',  -- 'left' or 'right'
+        split_width = 0.4,        -- 40% for AI, 60% for editor
+        auto_insert = true,
+        auto_scroll = true,
+      },
+      
+      -- Filtering settings
+      filter = {
+        ignore_whitespace_only = true,
+        ignore_comment_only = false,
+        min_change_lines = 0,
+        batch_delay_ms = 500,
+      },
+    })
+
+Default configuration values are used if not specified.
+
+==============================================================================
+5. COMMANDS                                                 *pairup-commands*
+
+*:PairupStart* [provider]
+    Start AI pair programming assistant. Optional provider argument
+    (claude, openai, ollama).
+
+*:PairupToggle*
+    Toggle AI assistant window visibility.
+
+*:PairupStop*
+    Stop AI assistant completely and close terminal.
+
+*:PairupContext*
+    Send current file's git diff to AI assistant (force send).
+
+*:PairupSay* {message}
+    Send a message to AI assistant. Supports special prefixes:
+    - `!command` - Execute shell command and send output
+    - `:command` - Execute vim command and send output
+
+*:PairupToggleDiff*
+    Toggle automatic git diff sending on file save.
+
+*:PairupStatus*
+    Send comprehensive git status with diffs to AI assistant.
+
+*:PairupFileInfo*
+    Send current file's git info and metadata to AI assistant.
+
+*:PairupAddDir*
+    Add current git root or working directory to AI assistant context.
+
+*:PairupStartUpdates* [minutes]
+    Start periodic status updates (default 10 minutes).
+
+*:PairupStopUpdates*
+    Stop periodic status updates.
+
+*:PairupReadUnstaged*
+    Ask AI assistant to read untracked/unstaged files.
+
+==============================================================================
+6. FUNCTIONS                                               *pairup-functions*
+
+*require('pairup').setup*({opts})
+    Initialize the plugin with configuration options.
+
+*require('pairup').start*([provider])
+    Start AI assistant programmatically.
+
+*require('pairup').toggle*()
+    Toggle AI assistant window programmatically.
+
+*require('pairup').stop*()
+    Stop AI assistant programmatically.
+
+*require('pairup').send_message*(message)
+    Send message to AI assistant programmatically.
+
+*require('pairup').send_context*(force)
+    Send git diff context programmatically.
+
+==============================================================================
+7. EXAMPLES                                                 *pairup-examples*
+
+Basic setup with keymaps: >
+    -- In your init.lua or plugin configuration
+    require("pairup").setup({
+      provider = "claude",
+      providers = {
+        claude = {
+          path = vim.fn.exepath("claude") or "claude",
+        },
+      },
+    })
+    
+    -- Create your own keymaps
+    vim.keymap.set('n', '<leader>ct', ':PairupToggle<cr>')
+    vim.keymap.set('n', '<leader>cc', ':PairupContext<cr>')
+    vim.keymap.set('n', '<leader>cs', ':PairupSay ')
+
+Advanced configuration: >
+    require("pairup").setup({
+      provider = "claude",
+      providers = {
+        claude = {
+          path = "/path/to/claude",
+          permission_mode = "acceptEdits",
+          add_dir_on_start = true,
+        },
+      },
+      terminal = {
+        split_position = "right",
+        split_width = 0.3,
+        auto_insert = false,
+      },
+      filter = {
+        ignore_whitespace_only = true,
+        min_change_lines = 5,
+      },
+    })
+
+Using shell commands with PairupSay: >
+    :PairupSay !ls -la
+    :PairupSay :help pairup
+    :PairupSay Please review this function
+
+==============================================================================
+vim:tw=78:ts=8:ft=help:norl:
