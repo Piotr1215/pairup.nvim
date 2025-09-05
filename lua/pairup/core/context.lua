@@ -76,8 +76,7 @@ local function format_context_update(filepath, diff)
       message = message .. '\nLSP Diagnostics:\n'
       for _, diag in ipairs(diagnostics) do
         local severity = ({ 'ERROR', 'WARN', 'INFO', 'HINT' })[diag.severity]
-        message = message .. string.format('• Line %d: [%s] %s\n', 
-          diag.lnum + 1, severity, diag.message)
+        message = message .. string.format('• Line %d: [%s] %s\n', diag.lnum + 1, severity, diag.message)
       end
     end
   end

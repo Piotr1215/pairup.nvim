@@ -50,18 +50,18 @@ end
 function M.start_with_resume()
   local provider_name = config.get_provider()
   local provider = M.get(provider_name)
-  
+
   if not provider then
     vim.notify(string.format("Provider '%s' not found", provider_name), vim.log.levels.ERROR)
     return false
   end
-  
+
   -- Check if provider supports resume
   if not provider.start_with_resume then
     vim.notify(string.format("Provider '%s' does not support resume", provider_name), vim.log.levels.WARN)
     return false
   end
-  
+
   M.current = provider
   return provider.start_with_resume()
 end

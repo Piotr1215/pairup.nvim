@@ -66,46 +66,46 @@ function M.start_with_resume()
     -- Claude assistant already running
     return false
   end
-  
+
   -- Clear tracked directories for fresh session
   state.clear_directories()
-  
+
   -- Get directory for Claude - prefer git root, fallback to cwd
   local git = require('pairup.utils.git')
   local git_root = git.get_root()
   local cwd = git_root or vim.fn.getcwd()
-  
+
   -- Track initial directory as already added
   state.add_directory(cwd)
-  
+
   -- Get Claude configuration
   local claude_config = config.get_provider_config('claude')
-  
+
   -- Build claude command with --resume flag for interactive session picker
   local claude_cmd = claude_config.path .. ' --resume'
-  
+
   -- Calculate split size
   local width = math.floor(vim.o.columns * config.get('terminal.split_width'))
   local position = config.get('terminal.split_position') == 'left' and 'leftabove' or 'rightbelow'
-  
+
   -- Open terminal with --resume flag
   vim.cmd(string.format('%s %dvsplit term://%s//%s', position, width, cwd, claude_cmd))
-  
+
   -- Mark this terminal as pairup assistant with Claude provider
   local buf = vim.api.nvim_get_current_buf()
   vim.b[buf].is_pairup_assistant = true
   vim.b[buf].provider = 'claude'
   vim.b[buf].terminal_job_id = vim.b[buf].terminal_job_id or vim.api.nvim_buf_get_var(buf, 'terminal_job_id')
-  
+
   -- Store state
   state.set('claude_buf', buf)
   state.set('claude_win', vim.api.nvim_get_current_win())
   state.set('claude_job_id', vim.b[buf].terminal_job_id)
-  
+
   -- Setup terminal behavior
   if config.get('terminal.auto_insert') then
     vim.cmd('startinsert')
-    
+
     vim.api.nvim_create_autocmd('BufEnter', {
       buffer = buf,
       callback = function()
@@ -113,21 +113,21 @@ function M.start_with_resume()
       end,
     })
   end
-  
+
   -- Setup terminal navigation keymaps
   M.setup_terminal_keymaps(buf)
-  
+
   -- Don't populate intent since user is resuming
-  
+
   -- Return to previous window but keep terminal in insert mode
   if config.get('terminal.auto_insert') then
     vim.cmd('stopinsert')
   end
   vim.cmd('wincmd p')
-  
+
   -- Update indicator
   require('pairup.utils.indicator').update()
-  
+
   return true
 end
 
@@ -388,12 +388,12 @@ function M.populate_intent()
     -- Check if RPC instructions are available
     local rpc = require('pairup.rpc')
     local rpc_instructions = rpc.get_instructions()
-    
+
     -- Combine RPC instructions and intent if both exist
     local combined_text
     if rpc_instructions then
       -- Add the intent text directly after RPC instructions with proper newlines
-      combined_text = rpc_instructions .. "\n\n" .. intent_text
+      combined_text = rpc_instructions .. '\n\n' .. intent_text
     else
       combined_text = intent_text
     end

@@ -24,7 +24,6 @@ function M.setup()
     desc = 'Stop AI assistant',
   })
 
-
   -- Send context command
   vim.api.nvim_create_user_command('PairupContext', function()
     pairup.send_context()
@@ -35,16 +34,16 @@ function M.setup()
   -- Send message command with shell/vim command support
   vim.api.nvim_create_user_command('PairupSay', function(opts)
     local message = opts.args
-    
+
     -- Check for shell command (starts with !)
     if message:sub(1, 1) == '!' then
       local cmd = message:sub(2)
       -- Expand vim filename modifiers (%, #, etc.)
       cmd = vim.fn.expandcmd(cmd)
       local output = vim.fn.system(cmd)
-      local formatted_message = string.format("Shell command output for `%s`:\n```\n%s\n```", cmd, output)
+      local formatted_message = string.format('Shell command output for `%s`:\n```\n%s\n```', cmd, output)
       pairup.send_message(formatted_message)
-      
+
     -- Check for vim command (starts with :)
     elseif message:sub(1, 1) == ':' then
       local cmd = message:sub(2)
@@ -52,14 +51,14 @@ function M.setup()
       local ok, output = pcall(function()
         return vim.fn.execute(cmd)
       end)
-      
+
       if ok then
-        local formatted_message = string.format("Vim command output for `:%s`:\n```\n%s\n```", cmd, output)
+        local formatted_message = string.format('Vim command output for `:%s`:\n```\n%s\n```', cmd, output)
         pairup.send_message(formatted_message)
       else
-        vim.notify("Error executing vim command: " .. tostring(output), vim.log.levels.ERROR)
+        vim.notify('Error executing vim command: ' .. tostring(output), vim.log.levels.ERROR)
       end
-      
+
     -- Regular message
     else
       pairup.send_message(message)

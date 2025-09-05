@@ -185,55 +185,55 @@ function M.get_all_project_sessions()
     local claude_sessions_dir = vim.fn.expand('~/.claude/projects/' .. project_path .. '/')
 
     if vim.fn.isdirectory(claude_sessions_dir) == 1 then
-    local claude_files = vim.fn.glob(claude_sessions_dir .. '*.jsonl', false, true)
+      local claude_files = vim.fn.glob(claude_sessions_dir .. '*.jsonl', false, true)
 
-    for _, claude_file in ipairs(claude_files) do
-      local session_id = vim.fn.fnamemodify(claude_file, ':t:r')
+      for _, claude_file in ipairs(claude_files) do
+        local session_id = vim.fn.fnamemodify(claude_file, ':t:r')
 
-      -- Skip if we already have this session
-      local already_have = false
-      for _, s in ipairs(sessions) do
-        if s.claude_session_id == session_id then
-          already_have = true
-          break
-        end
-      end
-
-      if not already_have then
-        -- Read Claude session to get summary
-        local file = io.open(claude_file, 'r')
-        if file then
-          local summary = nil
-          local first_line_count = 0
-
-          for line in file:lines() do
-            first_line_count = first_line_count + 1
-            if first_line_count > 10 then
-              break
-            end -- Only check first 10 lines
-
-            local ok, data = pcall(vim.json.decode, line)
-            if ok and data and data.type == 'summary' and data.summary then
-              summary = data.summary
-              break
-            end
+        -- Skip if we already have this session
+        local already_have = false
+        for _, s in ipairs(sessions) do
+          if s.claude_session_id == session_id then
+            already_have = true
+            break
           end
-          file:close()
+        end
 
-          -- Create a lightweight session entry
-          local stat = vim.loop.fs_stat(claude_file)
-          table.insert(sessions, {
-            id = session_id,
-            claude_session_id = session_id,
-            description = summary or ('Claude session ' .. session_id:sub(1, 8)),
-            intent = '',
-            files = {},
-            created_at = stat and stat.mtime.sec or os.time(),
-            is_claude_only = true, -- Mark as Claude-only session
-          })
+        if not already_have then
+          -- Read Claude session to get summary
+          local file = io.open(claude_file, 'r')
+          if file then
+            local summary = nil
+            local first_line_count = 0
+
+            for line in file:lines() do
+              first_line_count = first_line_count + 1
+              if first_line_count > 10 then
+                break
+              end -- Only check first 10 lines
+
+              local ok, data = pcall(vim.json.decode, line)
+              if ok and data and data.type == 'summary' and data.summary then
+                summary = data.summary
+                break
+              end
+            end
+            file:close()
+
+            -- Create a lightweight session entry
+            local stat = vim.loop.fs_stat(claude_file)
+            table.insert(sessions, {
+              id = session_id,
+              claude_session_id = session_id,
+              description = summary or ('Claude session ' .. session_id:sub(1, 8)),
+              intent = '',
+              files = {},
+              created_at = stat and stat.mtime.sec or os.time(),
+              is_claude_only = true, -- Mark as Claude-only session
+            })
+          end
         end
       end
-    end
     end
   end
 
@@ -277,57 +277,57 @@ function M.get_sessions_for_file(filepath)
     local claude_sessions_dir = vim.fn.expand('~/.claude/projects/' .. project_path .. '/')
 
     if vim.fn.isdirectory(claude_sessions_dir) == 1 then
-    local claude_files = vim.fn.glob(claude_sessions_dir .. '*.jsonl', false, true)
+      local claude_files = vim.fn.glob(claude_sessions_dir .. '*.jsonl', false, true)
 
-    for _, claude_file in ipairs(claude_files) do
-      local session_id = vim.fn.fnamemodify(claude_file, ':t:r')
+      for _, claude_file in ipairs(claude_files) do
+        local session_id = vim.fn.fnamemodify(claude_file, ':t:r')
 
-      -- Skip if we already have this session
-      local already_have = false
-      for _, s in ipairs(sessions) do
-        if s.claude_session_id == session_id then
-          already_have = true
-          break
+        -- Skip if we already have this session
+        local already_have = false
+        for _, s in ipairs(sessions) do
+          if s.claude_session_id == session_id then
+            already_have = true
+            break
+          end
         end
-      end
 
-      if not already_have then
-        -- Read Claude session to get summary
-        local file = io.open(claude_file, 'r')
-        if file then
-          local summary = nil
-          local first_line_count = 0
+        if not already_have then
+          -- Read Claude session to get summary
+          local file = io.open(claude_file, 'r')
+          if file then
+            local summary = nil
+            local first_line_count = 0
 
-          for line in file:lines() do
-            first_line_count = first_line_count + 1
-            if first_line_count > 10 then
-              break
-            end -- Only check first 10 lines
+            for line in file:lines() do
+              first_line_count = first_line_count + 1
+              if first_line_count > 10 then
+                break
+              end -- Only check first 10 lines
 
-            local ok, data = pcall(vim.json.decode, line)
-            if ok and data and data.type == 'summary' and data.summary then
-              summary = data.summary
-              break
+              local ok, data = pcall(vim.json.decode, line)
+              if ok and data and data.type == 'summary' and data.summary then
+                summary = data.summary
+                break
+              end
+            end
+            file:close()
+
+            if summary then
+              -- Create a lightweight session entry
+              local stat = vim.loop.fs_stat(claude_file)
+              table.insert(sessions, {
+                id = session_id,
+                claude_session_id = session_id,
+                description = summary,
+                intent = '',
+                files = { abs_path },
+                created_at = stat and stat.mtime.sec or os.time(),
+                is_claude_only = true, -- Mark as Claude-only session
+              })
             end
           end
-          file:close()
-
-          if summary then
-            -- Create a lightweight session entry
-            local stat = vim.loop.fs_stat(claude_file)
-            table.insert(sessions, {
-              id = session_id,
-              claude_session_id = session_id,
-              description = summary,
-              intent = '',
-              files = { abs_path },
-              created_at = stat and stat.mtime.sec or os.time(),
-              is_claude_only = true, -- Mark as Claude-only session
-            })
-          end
         end
       end
-    end
     end
   end
 

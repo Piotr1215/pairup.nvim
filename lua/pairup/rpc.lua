@@ -6,7 +6,7 @@ local state = {
   terminal_window = nil,
   main_window = nil,
   main_buffer = nil,
-  rpc_port = "127.0.0.1:6666"
+  rpc_port = '127.0.0.1:6666',
 }
 
 -- Check if RPC server is available
@@ -14,47 +14,48 @@ function M.check_rpc_available()
   -- The servername doesn't show TCP listen address, so we need a different approach
   -- Check if we can get the list of channels and see if any are listening on TCP
   local channels = vim.api.nvim_list_chans()
-  
+
   for _, chan in ipairs(channels) do
     -- Check if this channel is a TCP server listening on our port
-    if chan.stream == "tcp" and chan.mode == "rpc" and chan.server then
-      local addr = chan.addr or ""
-      if addr:match("6666") then
+    if chan.stream == 'tcp' and chan.mode == 'rpc' and chan.server then
+      local addr = chan.addr or ''
+      if addr:match('6666') then
         return true
       end
     end
   end
-  
+
   -- Alternative: Just check if servername exists (meaning --listen was used)
   -- and assume user used the right port
-  local servername = vim.v.servername or ""
-  return servername ~= ""
+  local servername = vim.v.servername or ''
+  return servername ~= ''
 end
 
 -- Initialize RPC support when pairup starts
 function M.setup()
-  
   -- Auto-detect RPC on startup
   if M.check_rpc_available() then
     state.enabled = true
-    
+
     -- Track window layout
     M.update_layout()
-    
+
     -- Set up auto-tracking
-    vim.api.nvim_create_autocmd({"WinEnter", "BufEnter"}, {
-      group = vim.api.nvim_create_augroup("PairupRPC", { clear = true }),
+    vim.api.nvim_create_autocmd({ 'WinEnter', 'BufEnter' }, {
+      group = vim.api.nvim_create_augroup('PairupRPC', { clear = true }),
       callback = function()
         M.update_layout()
-      end
+      end,
     })
   end
 end
 
 -- Update layout tracking
 function M.update_layout()
-  if not state.enabled then return end
-  
+  if not state.enabled then
+    return
+  end
+
   -- Find terminal buffer (pairup assistant)
   for _, win in ipairs(vim.api.nvim_list_wins()) do
     local buf = vim.api.nvim_win_get_buf(win)
@@ -63,7 +64,7 @@ function M.update_layout()
     else
       -- Track the main editing window
       local bufname = vim.api.nvim_buf_get_name(buf)
-      if bufname ~= "" and not bufname:match("^term://") then
+      if bufname ~= '' and not bufname:match('^term://') then
         state.main_window = vim.api.nvim_win_get_number(win)
         state.main_buffer = buf
       end
@@ -87,7 +88,7 @@ function M.get_context()
     main_file = state.main_buffer and vim.api.nvim_buf_get_name(state.main_buffer) or nil,
     modified = state.main_buffer and vim.api.nvim_buf_get_option(state.main_buffer, 'modified') or false,
     cwd = vim.fn.getcwd(),
-    windows = M.get_window_info()
+    windows = M.get_window_info(),
   })
 end
 
@@ -101,8 +102,8 @@ function M.get_window_info()
       win = vim.api.nvim_win_get_number(win),
       buf = buf,
       name = bufname,
-      type = bufname:match("^term://") and "terminal" or "file",
-      is_pairup = vim.b[buf].is_pairup_assistant or false
+      type = bufname:match('^term://') and 'terminal' or 'file',
+      is_pairup = vim.b[buf].is_pairup_assistant or false,
     })
   end
   return windows
@@ -111,12 +112,12 @@ end
 -- Read the main file buffer (not the terminal!)
 function M.read_main_buffer(start_line, end_line)
   if not state.main_buffer then
-    return vim.json.encode({ error = "No main buffer found" })
+    return vim.json.encode({ error = 'No main buffer found' })
   end
-  
+
   start_line = start_line or 1
   end_line = end_line or -1
-  
+
   local lines = vim.api.nvim_buf_get_lines(state.main_buffer, start_line - 1, end_line, false)
   return vim.json.encode(lines)
 end
@@ -124,91 +125,91 @@ end
 -- Execute command in main window (not terminal!)
 function M.execute_in_main(command)
   if not state.main_window then
-    return vim.json.encode({ error = "No main window found" })
+    return vim.json.encode({ error = 'No main window found' })
   end
-  
+
   -- Save current window
   local current_win = vim.api.nvim_get_current_win()
-  
+
   -- Execute in main window
-  vim.cmd(state.main_window .. "wincmd w")
+  vim.cmd(state.main_window .. 'wincmd w')
   local ok, result = pcall(vim.cmd, command)
-  
+
   -- Restore window
   vim.api.nvim_set_current_win(current_win)
-  
-  return vim.json.encode({ 
-    success = ok, 
+
+  return vim.json.encode({
+    success = ok,
     result = result,
-    executed_in_window = state.main_window
+    executed_in_window = state.main_window,
   })
 end
 
 -- Search in main buffer
 function M.search(pattern, flags)
   if not state.main_buffer then
-    return vim.json.encode({ error = "No main buffer found" })
+    return vim.json.encode({ error = 'No main buffer found' })
   end
-  
-  flags = flags or ""
+
+  flags = flags or ''
   local lines = vim.api.nvim_buf_get_lines(state.main_buffer, 0, -1, false)
   local matches = {}
-  
+
   for i, line in ipairs(lines) do
     if vim.fn.match(line, pattern) >= 0 then
       table.insert(matches, { line = i, text = line })
     end
   end
-  
+
   return vim.json.encode(matches)
 end
 
--- Replace in main buffer  
+-- Replace in main buffer
 function M.replace(pattern, replacement, flags)
   if not state.main_window then
-    return vim.json.encode({ error = "No main window found" })
+    return vim.json.encode({ error = 'No main window found' })
   end
-  
-  flags = flags or "g"
-  local cmd = string.format("%%s/%s/%s/%s", pattern, replacement, flags)
+
+  flags = flags or 'g'
+  local cmd = string.format('%%s/%s/%s/%s', pattern, replacement, flags)
   return M.execute_in_main(cmd)
 end
 
 -- Save main buffer
 function M.save()
   if not state.main_window then
-    return vim.json.encode({ error = "No main window found" })
+    return vim.json.encode({ error = 'No main window found' })
   end
-  
-  return M.execute_in_main("w")
+
+  return M.execute_in_main('w')
 end
 
 -- Jump to line in main buffer
 function M.goto_line(line)
   if not state.main_window then
-    return vim.json.encode({ error = "No main window found" })
+    return vim.json.encode({ error = 'No main window found' })
   end
-  
+
   return M.execute_in_main(tostring(line))
 end
 
 -- Get buffer statistics
 function M.get_stats()
   if not state.main_buffer then
-    return vim.json.encode({ error = "No main buffer found" })
+    return vim.json.encode({ error = 'No main buffer found' })
   end
-  
+
   -- Switch to main window for wordcount
   local current_win = vim.api.nvim_get_current_win()
-  vim.cmd(state.main_window .. "wincmd w")
+  vim.cmd(state.main_window .. 'wincmd w')
   local wc = vim.fn.wordcount()
   vim.api.nvim_set_current_win(current_win)
-  
+
   return vim.json.encode({
     lines = vim.api.nvim_buf_line_count(state.main_buffer),
     words = wc.words,
     chars = wc.chars,
-    bytes = wc.bytes
+    bytes = wc.bytes,
   })
 end
 
@@ -227,7 +228,7 @@ function M.get_instructions()
   if not state.enabled then
     return nil
   end
-  
+
   return [[
 
 ========================================
@@ -297,35 +298,35 @@ function M.get_capabilities()
     plugins = {},
     commands = {},
     lsp_clients = {},
-    keymaps = {}
+    keymaps = {},
   }
-  
+
   -- Get plugins if lazy.nvim is available
-  local ok, lazy = pcall(require, "lazy.core.config")
+  local ok, lazy = pcall(require, 'lazy.core.config')
   if ok then
     caps.plugins = vim.tbl_keys(lazy.plugins)
   end
-  
+
   -- Get user commands
   caps.commands = vim.tbl_keys(vim.api.nvim_get_commands({}))
-  
+
   -- Get active LSP clients
   for _, client in pairs(vim.lsp.get_active_clients()) do
     table.insert(caps.lsp_clients, client.name)
   end
-  
+
   -- Get leader key mappings (sample)
   local maps = vim.api.nvim_get_keymap('n')
   for _, map in ipairs(maps) do
-    if map.lhs:match("^<leader>") then
+    if map.lhs:match('^<leader>') then
       table.insert(caps.keymaps, {
         lhs = map.lhs,
-        rhs = map.rhs or map.callback and "[Lua function]" or "",
-        desc = map.desc
+        rhs = map.rhs or map.callback and '[Lua function]' or '',
+        desc = map.desc,
       })
     end
   end
-  
+
   return vim.json.encode(caps)
 end
 
