@@ -32,7 +32,7 @@ function M.setup()
   end
 
   -- Mock vim.wait to not actually wait in tests
-  vim.wait = function(time, callback)
+  vim.wait = function(_, callback)
     if callback then
       return callback()
     end
@@ -40,6 +40,8 @@ function M.setup()
   end
 
   -- Mock vim.cmd for terminal commands
+  local original_cmd = M.original_cmd
+  ---@diagnostic disable-next-line: duplicate-set-field
   vim.cmd = function(cmd_str)
     if type(cmd_str) == 'string' and cmd_str:match('term://') then
       -- Create mock terminal buffer
@@ -64,7 +66,7 @@ function M.setup()
     if type(cmd_str) == 'string' and cmd_str:match('^%s*checktime') then
       return -- Ignore file reload in tests
     end
-    return M.original_cmd(cmd_str)
+    return original_cmd(cmd_str)
   end
 
   -- Mock vim.fn functions
@@ -99,11 +101,11 @@ function M.setup()
       end
       return 0
     end,
-    isdirectory = function(dir)
+    isdirectory = function(_)
       -- Mock directories as existing
       return 1
     end,
-    filereadable = function(file)
+    filereadable = function(_)
       -- Mock files as not existing for session tests
       return 0
     end,

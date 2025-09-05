@@ -67,6 +67,21 @@ local function format_context_update(filepath, diff)
     message = message .. 'File saved (not in git repository)\n'
   end
 
+  -- Add LSP diagnostics if enabled
+  if config.get('lsp.enabled') and config.get('lsp.include_diagnostics') then
+    -- Get current buffer number (more reliable than filepath lookup)
+    local bufnr = vim.api.nvim_get_current_buf()
+    local diagnostics = vim.diagnostic.get(bufnr)
+    if #diagnostics > 0 then
+      message = message .. '\nLSP Diagnostics:\n'
+      for _, diag in ipairs(diagnostics) do
+        local severity = ({ 'ERROR', 'WARN', 'INFO', 'HINT' })[diag.severity]
+        message = message .. string.format('• Line %d: [%s] %s\n', 
+          diag.lnum + 1, severity, diag.message)
+      end
+    end
+  end
+
   message = message .. config.get('fyi_suffix')
   message = message .. '=== End Context Update ===\n\n'
   return message

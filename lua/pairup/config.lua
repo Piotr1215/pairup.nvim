@@ -62,7 +62,7 @@ local defaults = {
 
   -- LSP integration
   lsp = {
-    enabled = false,
+    enabled = true,
     include_diagnostics = true,
     include_hover_info = true,
     include_references = true,

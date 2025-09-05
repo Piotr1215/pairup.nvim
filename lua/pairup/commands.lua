@@ -76,6 +76,16 @@ function M.setup()
     desc = 'Toggle automatic git diff sending',
   })
 
+  -- Toggle LSP diagnostics
+  vim.api.nvim_create_user_command('PairupToggleLSP', function()
+    local config = require('pairup.config')
+    config.values.lsp.enabled = not config.values.lsp.enabled
+    local status = config.values.lsp.enabled and 'enabled' or 'disabled'
+    vim.notify('Pairup LSP diagnostics ' .. status, vim.log.levels.INFO)
+  end, {
+    desc = 'Toggle LSP diagnostics in context updates',
+  })
+
   -- Update intent command
   vim.api.nvim_create_user_command('PairupIntent', function(opts)
     local intent = opts.args
