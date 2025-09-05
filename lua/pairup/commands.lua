@@ -39,6 +39,8 @@ function M.setup()
     -- Check for shell command (starts with !)
     if message:sub(1, 1) == '!' then
       local cmd = message:sub(2)
+      -- Expand vim filename modifiers (%, #, etc.)
+      cmd = vim.fn.expandcmd(cmd)
       local output = vim.fn.system(cmd)
       local formatted_message = string.format("Shell command output for `%s`:\n```\n%s\n```", cmd, output)
       pairup.send_message(formatted_message)
