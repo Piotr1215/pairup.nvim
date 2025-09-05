@@ -31,6 +31,9 @@ M.setup = function(opts)
   -- Initialize sessions module
   sessions.setup()
 
+  -- Initialize RPC support (auto-detects and enables Claude superpowers)
+  require('pairup.rpc').setup()
+
   -- Setup autocmds
   require('pairup.core.autocmds').setup()
 

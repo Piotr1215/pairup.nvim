@@ -374,7 +374,7 @@ function M.populate_intent()
   if win then
     vim.api.nvim_set_current_win(win)
 
-    -- Get current file name
+    -- Get current file name first
     local current_file = vim.fn.expand('#:t')
     if current_file == '' then
       current_file = 'the current file'
@@ -385,6 +385,19 @@ function M.populate_intent()
       or "This is just an intent declaration. I'm planning to work on the file `%s` to..."
     local intent_text = string.format(intent_template, current_file)
 
+    -- Check if RPC instructions are available
+    local rpc = require('pairup.rpc')
+    local rpc_instructions = rpc.get_instructions()
+    
+    -- Combine RPC instructions and intent if both exist
+    local combined_text
+    if rpc_instructions then
+      -- Add the intent text directly after RPC instructions with proper newlines
+      combined_text = rpc_instructions .. "\n\n" .. intent_text
+    else
+      combined_text = intent_text
+    end
+
     -- Update the session intent if we have one
     if config.get('persist_sessions') then
       local current_session = sessions.get_current_session()
@@ -394,8 +407,8 @@ function M.populate_intent()
       end
     end
 
-    -- Send the text to the terminal
-    vim.fn.chansend(job_id, intent_text)
+    -- Send everything in one go
+    vim.fn.chansend(job_id, combined_text)
 
     -- Place cursor at end of intent for user to continue typing
     vim.cmd('startinsert!')
