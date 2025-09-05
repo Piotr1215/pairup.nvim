@@ -32,12 +32,39 @@ function M.setup()
     desc = 'Send current context to AI assistant',
   })
 
-  -- Send message command
+  -- Send message command with shell/vim command support
   vim.api.nvim_create_user_command('PairupSay', function(opts)
-    pairup.send_message(opts.args)
+    local message = opts.args
+    
+    -- Check for shell command (starts with !)
+    if message:sub(1, 1) == '!' then
+      local cmd = message:sub(2)
+      local output = vim.fn.system(cmd)
+      local formatted_message = string.format("Shell command output for `%s`:\n```\n%s\n```", cmd, output)
+      pairup.send_message(formatted_message)
+      
+    -- Check for vim command (starts with :)
+    elseif message:sub(1, 1) == ':' then
+      local cmd = message:sub(2)
+      -- Capture vim command output
+      local ok, output = pcall(function()
+        return vim.fn.execute(cmd)
+      end)
+      
+      if ok then
+        local formatted_message = string.format("Vim command output for `:%s`:\n```\n%s\n```", cmd, output)
+        pairup.send_message(formatted_message)
+      else
+        vim.notify("Error executing vim command: " .. tostring(output), vim.log.levels.ERROR)
+      end
+      
+    -- Regular message
+    else
+      pairup.send_message(message)
+    end
   end, {
     nargs = '+',
-    desc = 'Send message to AI assistant',
+    desc = 'Send message to AI assistant (use ! for shell, : for vim commands)',
   })
 
   -- Toggle git diff sending
@@ -64,7 +91,7 @@ function M.setup()
         sessions.save_session(current_session)
       end
 
-      vim.notify('Session intent updated', vim.log.levels.INFO)
+      -- Session intent updated
     end
   end, {
     nargs = '*',

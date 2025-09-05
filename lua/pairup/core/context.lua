@@ -234,7 +234,7 @@ function M.add_current_directory()
 
   -- Check if already added
   if state.has_directory(dir_to_add) then
-    vim.notify('Directory already added: ' .. dir_to_add, vim.log.levels.INFO)
+    -- Directory already added
     return
   end
 
@@ -243,7 +243,7 @@ function M.add_current_directory()
   local add_dir_msg = string.format('/add-dir %s', dir_to_add)
   providers.send_to_provider(add_dir_msg)
 
-  vim.notify('Added directory to AI assistant: ' .. dir_to_add, vim.log.levels.INFO)
+  -- Added directory to AI assistant
 end
 
 return M

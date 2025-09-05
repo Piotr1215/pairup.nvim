@@ -31,11 +31,6 @@ function M.setup()
         local current_session = sessions.get_current_session()
         if current_session then
           sessions.add_file_to_session(filepath)
-          vim.notify('File added to session: ' .. vim.fn.fnamemodify(filepath, ':t'), vim.log.levels.DEBUG)
-        else
-          -- No current session, this might be the first file being edited
-          -- We'll create a session later when Claude starts
-          vim.notify('No active session yet', vim.log.levels.DEBUG)
         end
       end
 

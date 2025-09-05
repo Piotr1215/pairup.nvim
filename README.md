@@ -2,17 +2,16 @@
 
 **🤖 Real-time AI pair programming with intelligent context awareness for Neovim.**
 
-[![Demo Video](https://img.youtube.com/vi/placeholder/0.jpg)](https://www.youtube.com/watch?v=placeholder)
-
 `pairup.nvim` transforms your Neovim into an AI-powered pair programming environment with real-time git diff streaming, intelligent code awareness, and seamless workflow integration.
 
-Without pairup: `[1] Make changes → [2] Copy context → [3] Switch to AI → [4] Paste → [5] Wait → [6] Copy response → [7] Apply`
+> Pair programming is a software development technique in which two programmers work together at one workstation. One, the driver, **writes code** while the other, the observer or navigator, **reviews each line of code as it is typed in**. The two programmers switch roles frequently.
+<p style="text-align: center;"><small>Wikipedia pair programming</small></p>
 
-With pairup: `[1] :PairupStart → [2] Code normally → AI sees everything in real-time`
+![demo](./static/demo.png) 
 
 <div align="center">
 
-[![CI](https://github.com/Piotr1215/pairup.nvim/actions/workflows/ci.yml/badge.svg)](https://github.com/Piotr1215/pairup.nvim/actions/workflows/ci.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/Piotr1215/pairup.nvim/.github%2Fworkflows%2Fci.yml)](https://github.com/Piotr1215/pairup.nvim/actions/workflows/ci.yml)
 [![Neovim](https://img.shields.io/badge/Neovim-0.8+-green.svg?style=flat-square&logo=neovim)](https://neovim.io)
 [![Lua](https://img.shields.io/badge/Lua-5.1+-blue.svg?style=flat-square&logo=lua)](https://www.lua.org)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
@@ -26,7 +25,7 @@ With pairup: `[1] :PairupStart → [2] Code normally → AI sees everything in r
 :PairupContext        " Send current file's diff to AI
 :PairupStatus         " Send git status and recent commits
 :PairupSay Fix this   " Direct message to AI
-<leader>ct              " Toggle AI window visibility
+<leader>ct            " Toggle AI window visibility
 ```
 
 ## Installation
@@ -66,8 +65,8 @@ use {
 - **Staged/Unstaged Workflow** - Once you stage changes, they disappear from updates
 - **Critical Notifications** - AI can alert you via `notify-send` for important issues
 - **Auto-reload Buffers** - Files automatically refresh when AI makes edits
-- **Workspace Awareness** - Shows all modified files, not just current one
-- **Provider Abstraction** - Designed for multiple AI providers (Claude, OpenAI, Ollama)
+- **Workspace Awareness** - Shows current file diff with info about other changes
+- **Provider Abstraction** - Designed for multiple AI providers (Claude, OpenAI, Ollama) *(roadmap)*
 - **Intelligent Context** - Uses git staging area to track work progress
 - **Periodic Updates** - Optional automatic status updates at intervals
 - **Shell/Vim Command Integration** - Send command outputs directly to AI
@@ -310,32 +309,6 @@ The plugin deeply integrates with git:
 :PairupSay :messages           " Recent messages
 :PairupSay :ls                 " Buffer list
 ```
-
-## Roadmap: Future Features
-
-These are planned enhancements that would take AI pair programming to the next level:
-
-### Semantic Context Radar 🎯 (Planned)
-Transform raw diffs into semantic understanding using Treesitter + LSP:
-- Hook into Treesitter to detect WHAT changed semantically
-- Use LSP to include type information and references
-- Send ripple effects: "This change affects 3 call sites"
-
-### Proactive Test Guardian 🛡️ (Planned)
-Continuous test awareness:
-- Run tests on file changes
-- Stream results to AI in real-time
-- AI suggests test cases for uncovered paths
-- Test-driven dialogue with AI
-
-### Codebase Memory Graph 🧠 (Planned)
-Persistent knowledge that grows with your project:
-- Track architectural decisions
-- Remember refactoring history
-- Build semantic relationships
-- Answer "why" questions weeks later
-
-**Want to contribute?** These features are open for implementation! Check the issues or start a discussion.
 
 ## Troubleshooting
 

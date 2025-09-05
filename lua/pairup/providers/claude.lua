@@ -63,7 +63,7 @@ function M.start_with_resume()
   -- Check if already running
   local existing_buf = M.find_terminal()
   if existing_buf then
-    vim.notify('Claude assistant already running', vim.log.levels.INFO)
+    -- Claude assistant already running
     return false
   end
   
@@ -136,7 +136,7 @@ function M.start(intent_mode, session_id)
   -- Check if already running
   local existing_buf = M.find_terminal()
   if existing_buf then
-    vim.notify('Claude assistant already running', vim.log.levels.INFO)
+    -- Claude assistant already running
     return false
   end
 
@@ -146,7 +146,7 @@ function M.start(intent_mode, session_id)
     local all_sessions = sessions.get_all_project_sessions()
     for _, sess in ipairs(all_sessions) do
       if sess.id == session_id or sess.claude_session_id == session_id then
-        vim.notify('📚 Context: ' .. (sess.description or 'Previous session'):sub(1, 80), vim.log.levels.INFO)
+        -- Loading context from previous session
         -- Store for reference
         vim.g.pairup_context_session = sess.description
         break
@@ -175,7 +175,7 @@ function M.start(intent_mode, session_id)
   if session_id then
     -- Try to use --resume with the session ID
     claude_cmd = claude_cmd .. ' --resume ' .. session_id
-    vim.notify('Attempting to resume session: ' .. session_id:sub(1, 8), vim.log.levels.INFO)
+    -- Attempting to resume session
   end
   -- Otherwise start Claude normally
 
@@ -322,7 +322,7 @@ function M.wait_and_populate_intent(buf)
   local check_count = 0
   local max_checks = 100 -- 10 seconds max wait
 
-  vim.notify('Waiting for Claude to be ready...', vim.log.levels.INFO)
+  -- Waiting for Claude to be ready
 
   local function check_ready()
     check_count = check_count + 1
@@ -349,7 +349,7 @@ function M.wait_and_populate_intent(buf)
 
     if ready then
       -- Claude is ready, now populate intent
-      vim.notify('Claude is ready! Populating intent...', vim.log.levels.INFO)
+      -- Claude is ready, populate intent
       vim.defer_fn(function()
         M.populate_intent()
       end, 300) -- Small delay to ensure terminal is ready for input
@@ -402,7 +402,7 @@ function M.populate_intent()
 
     -- Notify user that intent is ready to be completed
     vim.defer_fn(function()
-      vim.notify('Complete your intent and press Enter', vim.log.levels.INFO)
+      -- Ready for intent
     end, 100)
   end
 end
@@ -435,7 +435,7 @@ function M.stop()
   local buf, win, job_id = M.find_terminal()
 
   if not buf then
-    vim.notify('Claude is not running', vim.log.levels.INFO)
+    -- Claude is not running
     return
   end
 
@@ -459,7 +459,7 @@ function M.stop()
   -- Update indicator
   require('pairup.utils.indicator').update()
 
-  vim.notify('Claude session stopped', vim.log.levels.INFO)
+  -- Claude session stopped
 end
 
 -- Extract Claude's session summary and save to pairup session store
@@ -537,7 +537,7 @@ function M.detect_and_save_claude_session()
 
       -- Save the session
       sessions.save_session(pairup_session)
-      vim.notify('Session saved: ' .. (summary or 'Claude session'), vim.log.levels.INFO)
+      -- Session saved
       return true
     end
   end

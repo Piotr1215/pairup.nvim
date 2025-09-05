@@ -58,7 +58,7 @@ local defaults = {
   },
 
   -- FYI suffix for context updates
-  fyi_suffix = '\nThis is FYI only - DO NOT take any action. Wait for explicit instructions.\n',
+  fyi_suffix = '\nYou have received a git diff, it is your turn now to be active it our pair programming session. Take over and suggest improvements\n',
 
   -- LSP integration
   lsp = {
@@ -118,17 +118,7 @@ function M.validate()
   end
 
   -- Provider-specific validation (skip in test mode or CI)
-  if provider == 'claude' and not (vim.g.pairup_test_mode or vim.env.CI) then
-    if vim.fn.executable(provider_config.path) == 0 then
-      vim.notify(
-        string.format(
-          'Claude CLI not found at %s. Please install Claude CLI or configure the path.',
-          provider_config.path
-        ),
-        vim.log.levels.WARN
-      )
-    end
-  end
+  -- Silently skip if Claude CLI not found
 
   -- Validate terminal split width
   if M.values.terminal.split_width <= 0 or M.values.terminal.split_width >= 1 then

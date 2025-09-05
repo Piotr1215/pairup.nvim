@@ -177,13 +177,14 @@ function M.get_all_project_sessions()
     end
   end
 
-  -- Also load Claude's sessions from project directory
-  local cwd = vim.fn.getcwd()
-  -- Claude sanitizes the path - replaces / and . with - (keeps leading dash)
-  local project_path = cwd:gsub('[/.]', '-')
-  local claude_sessions_dir = vim.fn.expand('~/.claude/projects/' .. project_path .. '/')
+  -- Also load Claude's sessions from project directory (skip in test mode)
+  if not vim.g.pairup_test_mode then
+    local cwd = vim.fn.getcwd()
+    -- Claude sanitizes the path - replaces / and . with - (keeps leading dash)
+    local project_path = cwd:gsub('[/.]', '-')
+    local claude_sessions_dir = vim.fn.expand('~/.claude/projects/' .. project_path .. '/')
 
-  if vim.fn.isdirectory(claude_sessions_dir) == 1 then
+    if vim.fn.isdirectory(claude_sessions_dir) == 1 then
     local claude_files = vim.fn.glob(claude_sessions_dir .. '*.jsonl', false, true)
 
     for _, claude_file in ipairs(claude_files) do
@@ -233,6 +234,7 @@ function M.get_all_project_sessions()
         end
       end
     end
+    end
   end
 
   -- Sort by creation time (newest first)
@@ -267,13 +269,14 @@ function M.get_sessions_for_file(filepath)
     M.save_file_index()
   end
 
-  -- Also load Claude's sessions from project directory
-  local cwd = vim.fn.getcwd()
-  -- Claude sanitizes the path - replaces / and . with - (keeps leading dash)
-  local project_path = cwd:gsub('[/.]', '-')
-  local claude_sessions_dir = vim.fn.expand('~/.claude/projects/' .. project_path .. '/')
+  -- Also load Claude's sessions from project directory (skip in test mode)
+  if not vim.g.pairup_test_mode then
+    local cwd = vim.fn.getcwd()
+    -- Claude sanitizes the path - replaces / and . with - (keeps leading dash)
+    local project_path = cwd:gsub('[/.]', '-')
+    local claude_sessions_dir = vim.fn.expand('~/.claude/projects/' .. project_path .. '/')
 
-  if vim.fn.isdirectory(claude_sessions_dir) == 1 then
+    if vim.fn.isdirectory(claude_sessions_dir) == 1 then
     local claude_files = vim.fn.glob(claude_sessions_dir .. '*.jsonl', false, true)
 
     for _, claude_file in ipairs(claude_files) do
@@ -324,6 +327,7 @@ function M.get_sessions_for_file(filepath)
           end
         end
       end
+    end
     end
   end
 
@@ -386,7 +390,7 @@ function M.wipe_all_sessions()
   -- Save empty index
   M.save_file_index()
 
-  vim.notify('All pairup sessions wiped', vim.log.levels.INFO)
+  -- All pairup sessions wiped
 end
 
 function M.wipe_old_sessions(days)
@@ -412,7 +416,7 @@ function M.wipe_old_sessions(days)
   if removed_count > 0 then
     M.load_file_index()
     M.save_file_index()
-    vim.notify(string.format('Wiped %d old sessions (>%d days)', removed_count, days), vim.log.levels.INFO)
+    -- Wiped old sessions
   end
 end
 
