@@ -33,25 +33,45 @@ function M.get(name)
 end
 
 -- Start AI assistant with configured provider
-function M.start(provider_name)
-  provider_name = provider_name or config.get_provider()
+function M.start(intent_mode, session_id)
+  local provider_name = config.get_provider()
   local provider = M.get(provider_name)
 
   if not provider then
     vim.notify(string.format("Provider '%s' not found", provider_name), vim.log.levels.ERROR)
-    return
+    return false
   end
 
   M.current = provider
-  provider.start()
+  return provider.start(intent_mode, session_id)
+end
+
+-- Start AI assistant with resume flag (Claude-specific)
+function M.start_with_resume()
+  local provider_name = config.get_provider()
+  local provider = M.get(provider_name)
+  
+  if not provider then
+    vim.notify(string.format("Provider '%s' not found", provider_name), vim.log.levels.ERROR)
+    return false
+  end
+  
+  -- Check if provider supports resume
+  if not provider.start_with_resume then
+    vim.notify(string.format("Provider '%s' does not support resume", provider_name), vim.log.levels.WARN)
+    return false
+  end
+  
+  M.current = provider
+  return provider.start_with_resume()
 end
 
 -- Toggle AI assistant window
-function M.toggle()
+function M.toggle(intent_mode, session_id)
   if M.current then
-    M.current.toggle()
+    return M.current.toggle(intent_mode, session_id)
   else
-    M.start()
+    return M.start(intent_mode, session_id)
   end
 end
 

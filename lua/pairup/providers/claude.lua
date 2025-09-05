@@ -3,6 +3,7 @@
 local M = {}
 local config = require('pairup.config')
 local state = require('pairup.utils.state')
+local sessions = require('pairup.core.sessions')
 
 -- Provider name
 M.name = 'claude'
@@ -57,13 +58,100 @@ function M.send_to_terminal(message)
   return true
 end
 
--- Start Claude assistant
-function M.start()
+-- Start Claude assistant with resume flag
+function M.start_with_resume()
   -- Check if already running
   local existing_buf = M.find_terminal()
   if existing_buf then
     vim.notify('Claude assistant already running', vim.log.levels.INFO)
     return false
+  end
+  
+  -- Clear tracked directories for fresh session
+  state.clear_directories()
+  
+  -- Get directory for Claude - prefer git root, fallback to cwd
+  local git = require('pairup.utils.git')
+  local git_root = git.get_root()
+  local cwd = git_root or vim.fn.getcwd()
+  
+  -- Track initial directory as already added
+  state.add_directory(cwd)
+  
+  -- Get Claude configuration
+  local claude_config = config.get_provider_config('claude')
+  
+  -- Build claude command with --resume flag for interactive session picker
+  local claude_cmd = claude_config.path .. ' --resume'
+  
+  -- Calculate split size
+  local width = math.floor(vim.o.columns * config.get('terminal.split_width'))
+  local position = config.get('terminal.split_position') == 'left' and 'leftabove' or 'rightbelow'
+  
+  -- Open terminal with --resume flag
+  vim.cmd(string.format('%s %dvsplit term://%s//%s', position, width, cwd, claude_cmd))
+  
+  -- Mark this terminal as pairup assistant with Claude provider
+  local buf = vim.api.nvim_get_current_buf()
+  vim.b[buf].is_pairup_assistant = true
+  vim.b[buf].provider = 'claude'
+  vim.b[buf].terminal_job_id = vim.b[buf].terminal_job_id or vim.api.nvim_buf_get_var(buf, 'terminal_job_id')
+  
+  -- Store state
+  state.set('claude_buf', buf)
+  state.set('claude_win', vim.api.nvim_get_current_win())
+  state.set('claude_job_id', vim.b[buf].terminal_job_id)
+  
+  -- Setup terminal behavior
+  if config.get('terminal.auto_insert') then
+    vim.cmd('startinsert')
+    
+    vim.api.nvim_create_autocmd('BufEnter', {
+      buffer = buf,
+      callback = function()
+        vim.cmd('startinsert')
+      end,
+    })
+  end
+  
+  -- Setup terminal navigation keymaps
+  M.setup_terminal_keymaps(buf)
+  
+  -- Don't populate intent since user is resuming
+  
+  -- Return to previous window but keep terminal in insert mode
+  if config.get('terminal.auto_insert') then
+    vim.cmd('stopinsert')
+  end
+  vim.cmd('wincmd p')
+  
+  -- Update indicator
+  require('pairup.utils.indicator').update()
+  
+  return true
+end
+
+-- Start Claude assistant
+function M.start(intent_mode, session_id)
+  -- Check if already running
+  local existing_buf = M.find_terminal()
+  if existing_buf then
+    vim.notify('Claude assistant already running', vim.log.levels.INFO)
+    return false
+  end
+
+  -- If session_id provided, show which context we're working with
+  if session_id then
+    -- Look up the session to get its summary
+    local all_sessions = sessions.get_all_project_sessions()
+    for _, sess in ipairs(all_sessions) do
+      if sess.id == session_id or sess.claude_session_id == session_id then
+        vim.notify('📚 Context: ' .. (sess.description or 'Previous session'):sub(1, 80), vim.log.levels.INFO)
+        -- Store for reference
+        vim.g.pairup_context_session = sess.description
+        break
+      end
+    end
   end
 
   -- Clear tracked directories for fresh session
@@ -83,6 +171,14 @@ function M.start()
   -- Build claude command with directory permissions and auto-accept edits
   local claude_cmd = claude_config.path
 
+  -- If session_id provided, try to resume it
+  if session_id then
+    -- Try to use --resume with the session ID
+    claude_cmd = claude_cmd .. ' --resume ' .. session_id
+    vim.notify('Attempting to resume session: ' .. session_id:sub(1, 8), vim.log.levels.INFO)
+  end
+  -- Otherwise start Claude normally
+
   -- In test mode, use a simple echo command instead of actual Claude
   if vim.g.pairup_test_mode then
     claude_cmd = "echo 'Mock Claude CLI running'"
@@ -92,9 +188,9 @@ function M.start()
       claude_cmd = claude_cmd .. ' --add-dir ' .. vim.fn.shellescape(cwd)
     end
 
-    if claude_config.permission_mode then
-      claude_cmd = claude_cmd .. ' --permission-mode ' .. claude_config.permission_mode
-    end
+    -- Default to plan mode unless configured otherwise
+    local permission_mode = claude_config.permission_mode or 'plan'
+    claude_cmd = claude_cmd .. ' --permission-mode ' .. permission_mode
   end
 
   -- Calculate split size
@@ -130,6 +226,11 @@ function M.start()
   -- Setup terminal navigation keymaps
   M.setup_terminal_keymaps(buf)
 
+  -- Setup intent population when Claude is ready
+  if intent_mode ~= false and config.get('auto_populate_intent') ~= false then
+    M.wait_and_populate_intent(buf)
+  end
+
   -- Return to previous window but keep terminal in insert mode
   if config.get('terminal.auto_insert') then
     vim.cmd('stopinsert')
@@ -163,7 +264,7 @@ function M.setup_terminal_keymaps(buf)
 end
 
 -- Toggle Claude window
-function M.toggle()
+function M.toggle(intent_mode, session_id)
   local buf, win = M.find_terminal()
 
   if win then
@@ -181,16 +282,152 @@ function M.toggle()
     local position = config.get('terminal.split_position') == 'left' and 'leftabove' or 'rightbelow'
     vim.cmd(string.format('%s %dvsplit', position, width))
     vim.api.nvim_set_current_buf(buf)
-    vim.cmd('wincmd p')
+
+    -- If intent mode requested and Claude is ready, populate intent
+    if intent_mode and config.get('auto_populate_intent') then
+      -- Check if Claude is ready immediately (already running)
+      local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+      local ready_pattern = config.get('claude_ready_pattern') or 'PAIR PROGRAMMING MODE ACTIVATED!'
+      local is_ready = false
+
+      for _, line in ipairs(lines) do
+        if line:match(vim.pesc(ready_pattern)) or line:match('🎯') and line:match('PAIR PROGRAMMING MODE') then
+          is_ready = true
+          break
+        end
+      end
+
+      if is_ready then
+        vim.defer_fn(function()
+          M.populate_intent()
+        end, 100)
+      end
+    else
+      vim.cmd('wincmd p')
+    end
+
     config.set('enabled', true)
     require('pairup.utils.indicator').update()
     return false -- shown
   else
     -- No Claude session exists, start one
-    M.start()
+    M.start(intent_mode, session_id)
     require('pairup.utils.indicator').update()
     return false -- shown
   end
+end
+
+-- Wait for Claude to be ready, then populate intent
+function M.wait_and_populate_intent(buf)
+  local check_count = 0
+  local max_checks = 100 -- 10 seconds max wait
+
+  vim.notify('Waiting for Claude to be ready...', vim.log.levels.INFO)
+
+  local function check_ready()
+    check_count = check_count + 1
+
+    if check_count > max_checks then
+      vim.notify('Claude took too long to start', vim.log.levels.WARN)
+      return
+    end
+
+    -- Get buffer lines to check for ready signal
+    local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+    local ready = false
+
+    -- Get the pattern to wait for
+    local ready_pattern = config.get('claude_ready_pattern') or 'PAIR PROGRAMMING MODE ACTIVATED!'
+
+    for _, line in ipairs(lines) do
+      -- Check for the configured pattern (handle both with and without emoji)
+      if line:match(vim.pesc(ready_pattern)) or line:match('🎯') and line:match('PAIR PROGRAMMING MODE') then
+        ready = true
+        break
+      end
+    end
+
+    if ready then
+      -- Claude is ready, now populate intent
+      vim.notify('Claude is ready! Populating intent...', vim.log.levels.INFO)
+      vim.defer_fn(function()
+        M.populate_intent()
+      end, 300) -- Small delay to ensure terminal is ready for input
+    else
+      -- Check again in 100ms
+      vim.defer_fn(check_ready, 100)
+    end
+  end
+
+  -- Start checking
+  vim.defer_fn(check_ready, 500) -- Initial delay to let terminal start
+end
+
+-- Populate intent in Claude input
+function M.populate_intent()
+  local buf, win, job_id = M.find_terminal()
+  if not buf or not job_id then
+    return
+  end
+
+  -- Focus the terminal window
+  if win then
+    vim.api.nvim_set_current_win(win)
+
+    -- Get current file name
+    local current_file = vim.fn.expand('#:t')
+    if current_file == '' then
+      current_file = 'the current file'
+    end
+
+    -- Get intent template
+    local intent_template = config.get('intent_template')
+      or "This is just an intent declaration. I'm planning to work on the file `%s` to..."
+    local intent_text = string.format(intent_template, current_file)
+
+    -- Update the session intent if we have one
+    if config.get('persist_sessions') then
+      local current_session = sessions.get_current_session()
+      if current_session then
+        current_session.intent = intent_text .. ' [to be completed by user]'
+        -- Will be updated when user completes and sends
+      end
+    end
+
+    -- Send the text to the terminal
+    vim.fn.chansend(job_id, intent_text)
+
+    -- Place cursor at end of intent for user to continue typing
+    vim.cmd('startinsert!')
+
+    -- Notify user that intent is ready to be completed
+    vim.defer_fn(function()
+      vim.notify('Complete your intent and press Enter', vim.log.levels.INFO)
+    end, 100)
+  end
+end
+
+-- Prompt for session choice
+function M.prompt_session_choice(existing_sessions)
+  local choices = {}
+  for i, session in ipairs(existing_sessions) do
+    local date = os.date('%b %d', session.created_at)
+    local desc = session.description or string.sub(session.intent or 'No intent', 1, 50)
+    table.insert(choices, string.format('[%d] %s (%s)', i, desc, date))
+  end
+  table.insert(choices, string.format('[%d] Start a new session', #choices + 1))
+
+  local prompt = 'Previous sessions involving this file:\n' .. table.concat(choices, '\n') .. '\nChoice: '
+  local choice_str = vim.fn.input(prompt)
+  local choice_num = tonumber(choice_str)
+
+  if choice_num and choice_num > 0 and choice_num <= #existing_sessions then
+    return existing_sessions[choice_num].id
+  elseif choice_num == #existing_sessions + 1 then
+    return 'new'
+  end
+
+  return nil
 end
 
 -- Stop Claude completely
@@ -223,6 +460,88 @@ function M.stop()
   require('pairup.utils.indicator').update()
 
   vim.notify('Claude session stopped', vim.log.levels.INFO)
+end
+
+-- Extract Claude's session summary and save to pairup session store
+function M.detect_and_save_claude_session()
+  -- Get the current project directory path for Claude
+  local cwd = vim.fn.getcwd()
+  -- Claude sanitizes the path - replaces / and . with - (keeps leading dash)
+  local project_path = cwd:gsub('[/.]', '-')
+
+  -- Claude saves sessions in ~/.claude/projects/<project-path>/
+  local claude_sessions_dir = vim.fn.expand('~/.claude/projects/' .. project_path .. '/')
+
+  -- Check if the directory exists
+  if vim.fn.isdirectory(claude_sessions_dir) == 0 then
+    return false
+  end
+
+  -- Find the most recent session file
+  local session_files = vim.fn.glob(claude_sessions_dir .. '*.jsonl', false, true)
+
+  if #session_files > 0 then
+    -- Sort by modification time to get the most recent
+    table.sort(session_files, function(a, b)
+      local a_stat = vim.loop.fs_stat(a)
+      local b_stat = vim.loop.fs_stat(b)
+      return (a_stat and a_stat.mtime.sec or 0) > (b_stat and b_stat.mtime.sec or 0)
+    end)
+
+    local latest_session = session_files[1]
+    local session_id = vim.fn.fnamemodify(latest_session, ':t:r')
+
+    -- Read the JSONL session file to extract summary
+    local file = io.open(latest_session, 'r')
+    if file then
+      local summary = nil
+      local first_user_message = nil
+      local mentioned_files = {}
+
+      -- Read all lines to find summary and extract info
+      for line in file:lines() do
+        local ok, data = pcall(vim.json.decode, line)
+        if ok and data then
+          -- Look for summary entries
+          if data.type == 'summary' and data.summary then
+            summary = data.summary
+          end
+          -- Get first user message
+          if not first_user_message and data.type == 'user' and data.message then
+            if data.message.content and type(data.message.content) == 'string' then
+              first_user_message = data.message.content:sub(1, 200)
+            elseif data.message.content and data.message.content[1] and data.message.content[1].text then
+              first_user_message = data.message.content[1].text:sub(1, 200)
+            end
+          end
+        end
+      end
+      file:close()
+
+      -- Save to our own session store with Claude's summary
+      local pairup_session = {
+        id = session_id,
+        claude_session_id = session_id,
+        description = summary or 'Claude session',
+        intent = first_user_message or 'No intent captured',
+        files = {},
+        created_at = os.time(),
+        ended_at = os.time(),
+      }
+
+      -- Add current file if available
+      local current_file = vim.fn.expand('%:p')
+      if current_file ~= '' then
+        table.insert(pairup_session.files, current_file)
+      end
+
+      -- Save the session
+      sessions.save_session(pairup_session)
+      vim.notify('Session saved: ' .. (summary or 'Claude session'), vim.log.levels.INFO)
+      return true
+    end
+  end
+  return false
 end
 
 -- Send arbitrary message

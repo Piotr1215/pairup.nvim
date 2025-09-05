@@ -1,12 +1,28 @@
 #!/usr/bin/env -S nvim -l
 -- Test runner script using Plenary
 
+-- PREVENT ALL BLOCKING - Critical for CI/automated tests
+vim.g.pairup_test_mode = true
+vim.fn.input = function()
+  return ''
+end
+vim.fn.inputlist = function()
+  return 1
+end
+vim.fn.confirm = function()
+  return 1
+end
+vim.fn.getchar = function()
+  return 13
+end
+
 -- Completely reset environment
 vim.cmd('set rtp=')
 vim.cmd('set packpath=')
 
 -- Add only what we need
 vim.cmd('set rtp+=.') -- pairup.nvim itself
+vim.cmd('set rtp+=./test') -- test directory for mocks
 
 -- Find and add Plenary
 local plenary_paths = {
@@ -32,12 +48,14 @@ end
 -- Add Neovim runtime last
 vim.cmd('set rtp+=' .. vim.env.VIMRUNTIME)
 
--- Load Plenary's test runner
-local results = require('plenary.test_harness').test_directory('test', {
+-- Load Plenary's test runner with timeout
+local results = require('plenary.test_harness').test_directory('test/pairup', {
   minimal_init = 'test/plenary_init.lua',
   sequential = true,
+  timeout = 5000, -- 5 second timeout per test
 })
 
--- Exit with proper code
-vim.wait(100) -- Small delay to ensure output is flushed
-os.exit(results and 0 or 1)
+-- Force exit after short delay
+vim.defer_fn(function()
+  os.exit(results and 0 or 1)
+end, 100)

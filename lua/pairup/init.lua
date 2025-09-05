@@ -15,6 +15,7 @@ local config = require('pairup.config')
 local providers = require('pairup.providers')
 local context = require('pairup.core.context')
 local git = require('pairup.utils.git')
+local sessions = require('pairup.core.sessions')
 
 -- Public API
 M.setup = function(opts)
@@ -27,17 +28,32 @@ M.setup = function(opts)
   -- Initialize context module
   context.setup()
 
+  -- Initialize sessions module
+  sessions.setup()
+
   -- Setup autocmds
   require('pairup.core.autocmds').setup()
+
+  -- Setup commands
+  require('pairup.commands').setup()
 
   -- Initialize indicator
   require('pairup.utils.indicator').update()
 end
 
 -- Exported functions for external use
-M.start = providers.start
-M.toggle = providers.toggle
-M.stop = providers.stop
+M.start = function(intent_mode, session_id)
+  return providers.start(intent_mode, session_id)
+end
+M.toggle = function(intent_mode, session_id)
+  return providers.toggle(intent_mode, session_id)
+end
+M.start_with_resume = function()
+  return providers.start_with_resume()
+end
+M.stop = function()
+  return providers.stop()
+end
 M.send_context = context.send_context
 M.send_message = providers.send_message
 M.send_git_status = git.send_git_status
@@ -47,8 +63,8 @@ M.toggle_git_diff_send = function()
 end
 
 -- Legacy Claude-specific aliases (for backward compatibility)
-M.start_claude = providers.start
-M.toggle_claude = providers.toggle
-M.stop_claude = providers.stop
+M.start_claude = M.start
+M.toggle_claude = M.toggle
+M.stop_claude = M.stop
 
 return M

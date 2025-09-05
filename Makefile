@@ -3,7 +3,7 @@
 # Run tests with Plenary (default)
 test:
 	@echo "Running tests with Plenary..."
-	@nvim --headless -l test/run_tests.lua 2>&1 | tee /tmp/pairup-test-output.txt
+	@nvim --headless -c "PlenaryBustedDirectory test/pairup/ {minimal_init='test/minimal_init.vim'}" -c "qa!" 2>&1 | tee /tmp/pairup-test-output.txt
 	@echo ""
 	@echo "============================================"
 	@echo "TEST SUMMARY"

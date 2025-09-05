@@ -4,6 +4,7 @@ local M = {}
 local config = require('pairup.config')
 local context = require('pairup.core.context')
 local providers = require('pairup.providers')
+local sessions = require('pairup.core.sessions')
 
 -- Setup autocmds
 function M.setup()
@@ -25,14 +26,34 @@ function M.setup()
         return
       end
 
+      -- Track file in current session if enabled
+      if config.get('persist_sessions') then
+        local current_session = sessions.get_current_session()
+        if current_session then
+          sessions.add_file_to_session(filepath)
+          vim.notify('File added to session: ' .. vim.fn.fnamemodify(filepath, ':t'), vim.log.levels.DEBUG)
+        else
+          -- No current session, this might be the first file being edited
+          -- We'll create a session later when Claude starts
+          vim.notify('No active session yet', vim.log.levels.DEBUG)
+        end
+      end
+
       -- Only send if AI assistant is running
       local buf = providers.find_terminal()
       if buf then
-        context.send_context()
+        -- Send context with suggestions flag if in suggestion mode
+        local opts = {}
+        if config.get('suggestion_mode') then
+          opts.suggestions_only = true
+        end
+        context.send_context(opts)
       end
     end,
     desc = 'Send git diff to AI assistant on file save',
   })
+
+  -- Claude handles its own session saving, no need for VimLeavePre
 
   -- Auto-reload files when changed externally (by AI)
   if config.get('auto_refresh.enabled') then

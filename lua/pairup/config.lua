@@ -7,13 +7,22 @@ local defaults = {
   -- Default AI provider (will support 'claude', 'openai', 'ollama', etc.)
   provider = 'claude',
 
+  -- Session management
+  persist_sessions = true,
+  prompt_session_resume = false, -- Use :PairupSessions to manually select sessions
+  auto_populate_intent = true,
+  intent_template = "This is just an intent declaration. I'm planning to work on the file `%s` to...",
+  claude_ready_pattern = 'PAIR PROGRAMMING MODE ACTIVATED!', -- Text to wait for before sending intent
+  suggestion_mode = true, -- Claude only provides suggestions, doesn't edit
+
   -- Provider-specific configurations
   providers = {
     claude = {
       path = vim.fn.exepath('claude') or '/home/decoder/.npm-global/bin/claude',
       -- Claude-specific settings
-      permission_mode = 'acceptEdits',
+      permission_mode = 'plan', -- Start in plan mode by default
       add_dir_on_start = true,
+      default_args = {}, -- Additional default arguments
     },
     -- Future providers will go here
     openai = {

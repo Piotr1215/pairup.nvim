@@ -1,0 +1,16 @@
+{
+  "workspace.library": [
+    "${3rd}/luv/library",
+    "${3rd}/busted/library",
+    "${3rd}/luassert/library"
+  ],
+  "runtime.version": "LuaJIT",
+  "workspace.checkThirdParty": false,
+  "diagnostics.globals": [
+    "vim",
+    "describe",
+    "it",
+    "before_each",
+    "after_each"
+  ]
+}
