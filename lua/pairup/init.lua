@@ -32,7 +32,9 @@ M.setup = function(opts)
   sessions.setup()
 
   -- Initialize RPC support (auto-detects and enables Claude superpowers)
-  require('pairup.rpc').setup()
+  require('pairup.rpc').setup({
+    rpc_port = (config.options and config.options.rpc_port) or '127.0.0.1:6666',
+  })
 
   -- Setup autocmds
   require('pairup.core.autocmds').setup()

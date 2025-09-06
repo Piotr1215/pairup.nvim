@@ -41,6 +41,9 @@ local defaults = {
   -- Enable/disable automatic diff sending
   enabled = true,
 
+  -- RPC settings for remote control
+  rpc_port = '127.0.0.1:6666', -- Expected TCP port when using nvim --listen
+
   -- Terminal settings
   terminal = {
     split_position = 'left',

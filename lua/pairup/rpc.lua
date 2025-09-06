@@ -11,28 +11,33 @@ local state = {
 
 -- Check if RPC server is available
 function M.check_rpc_available()
-  -- The servername doesn't show TCP listen address, so we need a different approach
-  -- Check if we can get the list of channels and see if any are listening on TCP
-  local channels = vim.api.nvim_list_chans()
+  -- Only check for TCP server on the configured port
+  -- vim.v.servername contains the address when started with --listen
+  local servername = vim.v.servername or ''
 
-  for _, chan in ipairs(channels) do
-    -- Check if this channel is a TCP server listening on our port
-    if chan.stream == 'tcp' and chan.mode == 'rpc' and chan.server then
-      local addr = chan.addr or ''
-      if addr:match('6666') then
-        return true
-      end
-    end
+  -- Check if servername is a TCP address (contains IP:port or just :port)
+  -- Examples: "127.0.0.1:6666", "localhost:6666", ":6666"
+  -- Unix sockets look like: "/run/user/1000/nvim.xxxxx.0"
+  if servername:match('^[^/]*:%d+$') then
+    -- Extract port from servername
+    local port = servername:match(':(%d+)$')
+    -- Check if it matches our expected port (just the number part)
+    local expected_port = state.rpc_port:match('(%d+)$') or '6666'
+    return port == expected_port
   end
 
-  -- Alternative: Just check if servername exists (meaning --listen was used)
-  -- and assume user used the right port
-  local servername = vim.v.servername or ''
-  return servername ~= ''
+  return false
 end
 
 -- Initialize RPC support when pairup starts
-function M.setup()
+function M.setup(opts)
+  opts = opts or {}
+
+  -- Allow configuring the expected RPC port
+  if opts.rpc_port then
+    state.rpc_port = opts.rpc_port
+  end
+
   -- Auto-detect RPC on startup
   if M.check_rpc_available() then
     state.enabled = true
