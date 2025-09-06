@@ -4,7 +4,7 @@
 echo "Running pairup.nvim test suite..."
 echo "================================"
 
-nvim --headless -u test/plenary_init.lua \
+nvim --headless --noplugin -u test/plenary_init.lua \
   -c "PlenaryBustedDirectory test/pairup/" \
   -c "qa!"
 

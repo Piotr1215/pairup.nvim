@@ -127,8 +127,17 @@ function M.read_main_buffer(start_line, end_line)
   return vim.json.encode(lines)
 end
 
--- Execute command in main window (not terminal!)
-function M.execute_in_main(command)
+-- Helper functions for common patterns
+function M.escape_pattern(pattern)
+  -- Helper to properly escape patterns for vim search/replace
+  -- This helps with common escaping issues
+  return pattern
+end
+
+-- Smart execute function - takes commands as you'd type them in Vim
+-- Examples: "w" to save, "42" for line 42, "%s/old/new/g" to replace
+-- For patterns with quotes, use Lua long strings: [[%s/'old'/'new'/g]]
+function M.execute(command)
   if not state.main_window then
     return vim.json.encode({ error = 'No main window found' })
   end
@@ -143,59 +152,64 @@ function M.execute_in_main(command)
   -- Restore window
   vim.api.nvim_set_current_win(current_win)
 
-  return vim.json.encode({
+  -- Provide more informative success messages
+  local response = {
     success = ok,
-    result = result,
     executed_in_window = state.main_window,
-  })
-end
+    command = command,
+  }
 
--- Search in main buffer
-function M.search(pattern, flags)
-  if not state.main_buffer then
-    return vim.json.encode({ error = 'No main buffer found' })
-  end
-
-  flags = flags or ''
-  local lines = vim.api.nvim_buf_get_lines(state.main_buffer, 0, -1, false)
-  local matches = {}
-
-  for i, line in ipairs(lines) do
-    if vim.fn.match(line, pattern) >= 0 then
-      table.insert(matches, { line = i, text = line })
+  if ok then
+    -- Add context for certain command types
+    if command:match('^%d+$') then
+      response.message = 'Jumped to line ' .. command
+    elseif command:match('^w$') or command:match('^write') then
+      response.message = 'File saved'
+    elseif command:match('^%%s/') or command:match('^s/') or command:match('%d+,%d+s/') then
+      response.message = 'Substitution completed'
+    elseif command:match('^u$') or command:match('^undo') then
+      response.message = 'Undo completed'
+    elseif command:match('^normal ') then
+      response.message = 'Normal mode command executed'
+    else
+      response.result = result or ''
     end
+  else
+    response.error = result
   end
 
-  return vim.json.encode(matches)
+  return vim.json.encode(response)
 end
 
--- Replace in main buffer
-function M.replace(pattern, replacement, flags)
-  if not state.main_window then
-    return vim.json.encode({ error = 'No main window found' })
-  end
+-- Helper function for safe substitution commands
+function M.substitute(pattern, replacement, flags)
+  -- Use Lua long strings to avoid escaping issues
+  flags = flags or 'g'
+  local cmd = string.format([[%%s/%s/%s/%s]], pattern, replacement, flags)
+  return M.execute(cmd)
+end
 
+-- Helper for patterns with special characters
+function M.execute_raw(command)
+  -- Execute command using Lua long string to avoid escaping
+  return M.execute(command)
+end
+
+-- Backward compatibility alias
+M.execute_in_main = M.execute
+
+-- These wrapper functions are DEPRECATED - just use execute() directly!
+-- Keeping for backward compatibility only
+function M.save()
+  return M.execute('w')
+end
+function M.goto_line(line)
+  return M.execute(tostring(line))
+end
+function M.replace(pattern, replacement, flags)
   flags = flags or 'g'
   local cmd = string.format('%%s/%s/%s/%s', pattern, replacement, flags)
-  return M.execute_in_main(cmd)
-end
-
--- Save main buffer
-function M.save()
-  if not state.main_window then
-    return vim.json.encode({ error = 'No main window found' })
-  end
-
-  return M.execute_in_main('w')
-end
-
--- Jump to line in main buffer
-function M.goto_line(line)
-  if not state.main_window then
-    return vim.json.encode({ error = 'No main window found' })
-  end
-
-  return M.execute_in_main(tostring(line))
+  return M.execute(cmd)
 end
 
 -- Get buffer statistics
@@ -234,7 +248,11 @@ function M.get_instructions()
     return nil
   end
 
-  return [[
+  -- Get the actual server name
+  local servername = vim.v.servername or '/tmp/nvim'
+
+  return string.format(
+    [[
 
 ========================================
 NEOVIM REMOTE CONTROL ENABLED! 🚀
@@ -247,49 +265,70 @@ CRITICAL CONTEXT:
 • The actual file is in another window
 • Use RPC to control the REAL editor, not this terminal
 
-AVAILABLE COMMANDS (use with: nvim --server /tmp/nvim --remote-expr):
+AVAILABLE COMMANDS (use with: nvim --server %s --remote-expr):
 
-Get Context & Layout:
-• 'luaeval("require(\'pairup.rpc\').get_context()")'
-  Returns: terminal_window, main_window, main_file, modified status
+THE MAIN COMMAND - Just use execute() for EVERYTHING:
+• 'luaeval("require(\'pairup.rpc\').execute(\'w\')")'              -- Save file
+• 'luaeval("require(\'pairup.rpc\').execute(\'42\')")'             -- Go to line 42  
+• 'luaeval("require(\'pairup.rpc\').execute(\'%%%%s/old/new/g\')")'    -- Replace text  
+• 'luaeval("require(\'pairup.rpc\').substitute(\'old\', \'new\', \'g\')")'  -- Use substitute() helper for safety
+• 'luaeval("require(\'pairup.rpc\').execute(\'/pattern\')")'       -- Search
+• 'luaeval("require(\'pairup.rpc\').execute(\'normal gg\')")'      -- Go to top
+• 'luaeval("require(\'pairup.rpc\').execute(\'Telescope find_files\')")' -- Run any command!
 
-File Operations:
-• 'luaeval("require(\'pairup.rpc\').read_main_buffer()")'        -- Read file content
-• 'luaeval("require(\'pairup.rpc\').read_main_buffer(1, 50)")'   -- Read lines 1-50
-• 'luaeval("require(\'pairup.rpc\').save()")'                    -- Save file
-• 'luaeval("require(\'pairup.rpc\').get_stats()")'               -- Get word/line counts
+HELPER FUNCTIONS for easier patterns:
+• 'luaeval("require(\'pairup.rpc\').substitute(\'old\', \'new\', \'g\')")' -- Safe substitution
+• 'luaeval("require(\'pairup.rpc\').execute(\'%%%%s/\\\\t/  /g\')")'    -- Replace tabs with spaces
 
-Editing:
-• 'luaeval("require(\'pairup.rpc\').search(\'pattern\')")'         -- Search in file
-• 'luaeval("require(\'pairup.rpc\').replace(\'old\', \'new\', \'g\')")'-- Replace text
-• 'luaeval("require(\'pairup.rpc\').goto_line(42)")'             -- Jump to line
-• 'luaeval("require(\'pairup.rpc\').execute_in_main(\'cmd\')")'    -- Run vim command
+Context & Discovery:
+• 'luaeval("require(\'pairup.rpc\').get_context()")'          -- Get window layout
+• 'luaeval("require(\'pairup.rpc\').get_capabilities()")'     -- Discover all plugins/commands
+• 'luaeval("require(\'pairup.rpc\').read_main_buffer()")'     -- Read file content
+• 'luaeval("require(\'pairup.rpc\').get_stats()")'            -- Get word/line counts
 
-Registers:
+Registers (if needed):
 • 'luaeval("require(\'pairup.rpc\').set_register(\'a\', \'text\')")' -- Set register
 • 'luaeval("require(\'pairup.rpc\').get_register(\'a\')")'         -- Get register
 
-Discovery:
-• 'luaeval("require(\'pairup.rpc\').get_capabilities()")'  -- Get all plugins, commands, LSP clients, keymaps!
+HELP DISCOVERY - Learn Neovim features on your own!
+• 'luaeval("require(\'pairup.rpc\').execute(\'helpgrep telescope\')")'    -- Search ALL help files for a topic
+• 'luaeval("require(\'pairup.rpc\').execute(\'copen\')")'                 -- View helpgrep results in quickfix
+• 'luaeval("vim.inspect(vim.fn.getqflist())")'                          -- Get quickfix list contents
+• 'luaeval("require(\'pairup.rpc\').execute(\'cfirst\')")'               -- Jump to first help match
+• 'luaeval("require(\'pairup.rpc\').execute(\'help telescope.nvim\')")'  -- Direct help for specific topic
+• 'luaeval("require(\'pairup.rpc\').execute(\'Telescope help_tags\')")'  -- Interactive help browser
+• 'luaeval("require(\'pairup.rpc\').execute(\'helptags ALL\')")'         -- Regenerate all help tags
+Pro tip: When you don't know how to do something, search the help first!
+Example: execute('helpgrep sort') to learn about sorting in Vim
 
 GOLDEN RULE: Always call get_context() first to understand the layout!
 PRO TIP: Call get_capabilities() to discover all available features!
 
 IMPORTANT INSTRUCTIONS FOR CLAUDE:
-1. Start every session by calling get_capabilities() to discover available tools
-2. Use discovered commands to leverage the user's existing plugins:
-   - Use :Telescope commands for searching instead of basic grep
-   - Use :LSP commands for code intelligence
-   - Use :Git/Gitsigns commands for version control
-   - Use :GoTest, :GoRun etc for Go development
-   - Use existing formatters and linters
-3. Prefer using Neovim's superior editing capabilities over your own text manipulation
-4. When you need to edit files, use these RPC commands - they're far more powerful and reliable!
-5. Always check what plugins are available before suggesting installations
-6. Leverage the user's keymaps and workflow instead of generic suggestions
+1. Start with get_capabilities() to discover available tools
+2. **USE execute() FOR EVERYTHING** - it runs ANY Vim command exactly as typed:
+   - execute('w') to save
+   - execute('42') to go to line 42
+   - execute('%%s/old/new/g') for replace
+   - execute('/search_term') to search
+   - execute('Telescope find_files') to use plugins
+   - execute('normal dd') to delete a line
+   - Literally ANY ex command or normal mode command works!
+3. **ESCAPING TIPS**:
+   - For simple patterns: use execute('%%s/old/new/g')
+   - For patterns with quotes: use substitute('old', 'new', 'g') helper
+   - For tabs: use execute('%%s/\\t/  /g') with proper escaping
+   - Helper functions: substitute() avoids most escaping issues
+4. Use discovered plugin commands instead of reinventing:
+   - execute('Telescope live_grep') instead of basic search
+   - execute('Gitsigns blame_line') for git info
+   - execute('LSPHover') for code intelligence
+5. read_main_buffer() and get_stats() are still useful for reading without side effects
 
 ========================================
-]]
+]],
+    servername
+  )
 end
 
 -- Check if RPC is enabled

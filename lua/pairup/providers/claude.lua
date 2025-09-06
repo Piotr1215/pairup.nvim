@@ -386,8 +386,11 @@ function M.populate_intent()
     local intent_text = string.format(intent_template, current_file)
 
     -- Check if RPC instructions are available
-    local rpc = require('pairup.rpc')
-    local rpc_instructions = rpc.get_instructions()
+    local ok, rpc = pcall(require, 'pairup.rpc')
+    local rpc_instructions = nil
+    if ok and rpc and rpc.get_instructions then
+      rpc_instructions = rpc.get_instructions()
+    end
 
     -- Combine RPC instructions and intent if both exist
     local combined_text

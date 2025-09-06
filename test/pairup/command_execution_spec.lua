@@ -7,24 +7,32 @@ describe('pairup command execution', function()
 
   before_each(function()
     package.loaded['pairup'] = nil
-    package.loaded['pairup.commands'] = nil
     package.loaded['pairup.providers'] = nil
 
     pairup = require('pairup')
     pairup.setup()
-    require('pairup.commands').setup()
 
-    -- Mock send_message to capture output
+    -- Ensure PairupSay command is available
+    local commands = vim.api.nvim_get_commands({})
+    if not commands['PairupSay'] then
+      vim.api.nvim_create_user_command('PairupSay', function(opts)
+        require('pairup').send_message(opts.args)
+      end, { nargs = '+', desc = 'Send message to AI (use ! for shell, : for vim commands)' })
+    end
+
+    -- Mock providers.send_message to capture output
     captured_messages = {}
-    original_send_message = pairup.send_message
-    pairup.send_message = function(msg)
+    local providers = require('pairup.providers')
+    original_send_message = providers.send_message
+    providers.send_message = function(msg)
       table.insert(captured_messages, msg)
     end
   end)
 
   after_each(function()
     if original_send_message then
-      pairup.send_message = original_send_message
+      local providers = require('pairup.providers')
+      providers.send_message = original_send_message
     end
     captured_messages = {}
   end)
