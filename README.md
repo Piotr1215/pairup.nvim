@@ -146,12 +146,12 @@ local buffer.
 When RPC is enabled, Claude can use these helper functions:
 
 ```lua
-require("pairup.rpc").get_context()     -- Know which window is which
-require("pairup.rpc").read_main_buffer() -- Always reads the right file
-require("pairup.rpc").search("pattern")  -- Search in the correct buffer
-require("pairup.rpc").replace("old", "new") -- Replace in main file
-require("pairup.rpc").save()            -- Save the actual file
-require("pairup.rpc").get_stats()       -- Get word/line counts
+require("pairup.rpc").get_context()       -- Get window layout and buffer info
+require("pairup.rpc").read_main_buffer()  -- Read file content without side effects
+require("pairup.rpc").execute("command")  -- Execute any Vim command
+require("pairup.rpc").substitute("old", "new", "g") -- Safe text substitution
+require("pairup.rpc").get_stats()         -- Get word/line counts
+require("pairup.rpc").get_capabilities()  -- Discover plugins and commands
 ```
 
 See [`lua/pairup/rpc.lua`](lua/pairup/rpc.lua) for full RPC documentation.

@@ -32,6 +32,11 @@ function M.get(name)
   return M.providers[name]
 end
 
+-- Get current active provider
+function M.get_current()
+  return M.current
+end
+
 -- Start AI assistant with configured provider
 function M.start(intent_mode, session_id)
   local provider_name = config.get_provider()

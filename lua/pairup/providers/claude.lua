@@ -568,4 +568,46 @@ function M.send_message(message)
   return false
 end
 
+-- Restore window layout to configured split width
+function M.restore_layout()
+  local buf, win = M.find_terminal()
+
+  if not win then
+    vim.notify('Claude window is not visible', vim.log.levels.WARN)
+    return false
+  end
+
+  -- Get configured split width (default to 0.4 if not set)
+  local split_width = config.get('terminal.split_width') or 0.4
+  local target_width = math.floor(vim.o.columns * split_width)
+
+  -- Get current window width
+  local current_width = vim.api.nvim_win_get_width(win)
+
+  -- Calculate the resize amount
+  local resize_amount = target_width - current_width
+
+  if resize_amount == 0 then
+    return true
+  end
+
+  -- Save current window
+  local current_win = vim.api.nvim_get_current_win()
+
+  -- Focus the Claude window to resize it
+  vim.api.nvim_set_current_win(win)
+
+  -- Resize the window
+  if resize_amount > 0 then
+    vim.cmd(string.format('vertical resize +%d', math.abs(resize_amount)))
+  else
+    vim.cmd(string.format('vertical resize -%d', math.abs(resize_amount)))
+  end
+
+  -- Return to previous window
+  vim.api.nvim_set_current_win(current_win)
+
+  return true
+end
+
 return M

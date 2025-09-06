@@ -63,3 +63,7 @@ end, { nargs = '*', desc = 'Update or set the current session intent' })
 vim.api.nvim_create_user_command('PairupResume', function()
   require('pairup').start_with_resume()
 end, { desc = 'Start with interactive session picker (--resume)' })
+
+vim.api.nvim_create_user_command('PairupRestoreLayout', function()
+  require('pairup').restore_layout()
+end, { desc = 'Restore Claude/buffer window split to configured width' })

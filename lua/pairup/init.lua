@@ -95,6 +95,15 @@ M.send_message = function(message)
   end
 end
 
+-- Restore claude/buffer window split layout
+M.restore_layout = function()
+  local provider = providers.get_current()
+  if provider and provider.restore_layout then
+    return provider.restore_layout()
+  end
+  vim.notify('No active assistant to restore layout', vim.log.levels.WARN)
+end
+
 -- Toggle LSP diagnostics
 M.toggle_lsp = function()
   config.values.lsp.enabled = not config.values.lsp.enabled
