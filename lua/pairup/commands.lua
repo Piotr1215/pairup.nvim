@@ -135,25 +135,6 @@ function M.setup()
     end,
     desc = 'Wipe sessions (all or older than N days)',
   })
-
-  -- Legacy Claude-specific commands for backward compatibility
-  vim.api.nvim_create_user_command('ClaudeStart', function()
-    pairup.start()
-  end, {
-    desc = '[Deprecated] Use :PairupStart instead',
-  })
-
-  vim.api.nvim_create_user_command('ClaudeToggle', function()
-    pairup.toggle()
-  end, {
-    desc = '[Deprecated] Use :PairupToggle instead',
-  })
-
-  vim.api.nvim_create_user_command('ClaudeStop', function()
-    pairup.stop()
-  end, {
-    desc = '[Deprecated] Use :PairupStop instead',
-  })
 end
 
 return M

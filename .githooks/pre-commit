@@ -1,0 +1,58 @@
+#!/bin/sh
+# Pre-commit hook to format Lua files and run tests
+
+# Find stylua - check common locations
+STYLUA=""
+if command -v stylua >/dev/null 2>&1; then
+    STYLUA="stylua"
+elif [ -x "$HOME/.cargo/bin/stylua" ]; then
+    STYLUA="$HOME/.cargo/bin/stylua"
+else
+    echo "stylua is not installed. Please install it first."
+    echo "  cargo install stylua"
+    exit 1
+fi
+
+# Get list of staged Lua files
+STAGED_LUA_FILES=$(git diff --cached --name-only --diff-filter=ACM '*.lua')
+
+if [ -n "$STAGED_LUA_FILES" ]; then
+    echo "Formatting staged Lua files with stylua..."
+    # Only format the staged files
+    echo "$STAGED_LUA_FILES" | xargs $STYLUA
+    
+    # Check if any of the staged files were modified by stylua
+    FORMATTED_STAGED_FILES=""
+    for file in $STAGED_LUA_FILES; do
+        if [ -n "$(git diff --name-only "$file")" ]; then
+            FORMATTED_STAGED_FILES="$FORMATTED_STAGED_FILES $file"
+        fi
+    done
+    
+    if [ -n "$FORMATTED_STAGED_FILES" ]; then
+        echo "Staged files were formatted. Adding formatting changes to commit..."
+        # Only add the formatted staged files
+        git add $FORMATTED_STAGED_FILES
+    fi
+fi
+
+# Check if README.md is being committed
+if git diff --cached --name-only | grep -q "README.md"; then
+    echo ""
+    echo "⚠️  WARNING: README.md is being committed!"
+    echo "   Don't forget to update doc/pairup.txt if needed."
+    echo "   The documentation should stay in sync with README changes."
+    echo ""
+    echo "   Press Enter to continue or Ctrl-C to abort..."
+    read -r dummy
+fi
+
+# Run tests to ensure nothing broke
+echo "Running tests..."
+if ! make test > /dev/null 2>&1; then
+    echo "Tests failed! Please fix the issues before committing."
+    exit 1
+fi
+
+echo "Pre-commit checks passed!"
+exit 0

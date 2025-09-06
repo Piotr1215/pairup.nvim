@@ -230,7 +230,7 @@ require('pairup').setup({
   persist_sessions = true,                                        -- Save sessions for later resume
   prompt_session_resume = false,                                  -- Use :PairupSessions to manually select sessions
   auto_populate_intent = true,                                    -- Auto-populate intent when starting
-  intent_template = "I'm planning to work on the file `%s` to...",
+  intent_template = "I'm planning to work on the file `%s` to...",-- Starting text to prompt claude for task
   claude_ready_pattern = 'PAIR PROGRAMMING MODE ACTIVATED!',      -- Text to wait for before sending intent
   suggestion_mode = true,                                         -- Claude only provides suggestions, doesn't edit directly
                                                                   
@@ -244,12 +244,12 @@ require('pairup').setup({
     },                                                            
                                                                   -- Future providers (not yet implemented)
     openai = {                                                    
-                                                                  -- api_key = "",                     -- OpenAI API key (future)
-                                                                  -- model = "gpt-4",                   -- Model selection (future)
+       -- api_key = "",                                           -- OpenAI API key (future)
+       -- model = "gpt-4",                                        -- Model selection (future)
     },                                                            
     ollama = {                                                    
-                                                                  -- host = "localhost:11434",         -- Ollama host (future)
-                                                                  -- model = "codellama",               -- Ollama model (future)
+       -- host = "localhost:11434",                               -- Ollama host (future)
+       -- model = "codellama",                                    -- Ollama model (future)
     },                                                            
   },                                                              
                                                                   

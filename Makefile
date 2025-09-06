@@ -32,6 +32,7 @@ install-hooks:
 	@git config core.hooksPath .githooks
 	@echo "Git hooks installed. Pre-commit hook will:"
 	@echo "  - Format code with stylua"
+	@echo "  - Remind to update docs when README changes"
 	@echo "  - Run tests"
 
 # Clean test artifacts
