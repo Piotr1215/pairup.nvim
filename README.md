@@ -18,7 +18,7 @@
 
 </div>
 
-## Quick Examples
+##  Quick Examples
 
 ```vim
 :PairupStart          " Start AI pair programmer in split window
@@ -28,7 +28,7 @@
 <leader>ct            " Toggle AI window visibility
 ```
 
-## Installation
+##  Installation
 
 ### Using [lazy.nvim](https://github.com/folke/lazy.nvim)
 
@@ -37,7 +37,7 @@
   "Piotr1215/pairup.nvim",
   config = function()
     require("pairup").setup({
-      provider = "claude",  -- Currently supports 'claude', future: 'openai', 'ollama'
+      provider = "claude",
     })
   end,
 }
@@ -56,22 +56,72 @@ use {
 }
 ```
 
-**Note:** The plugin requires explicit setup to configure AI providers and keybindings. Currently Claude is supported with OpenAI and Ollama support planned.
+Run `:checkhealth pairup` to verify installation.
 
-## Features
+##  Features
 
+- **Neovim RPC Control** - AI can directly control your Neovim instance via RPC
 - **Real-time Git Diff Streaming** - Automatically sends unstaged changes as you save
 - **Smart Batching** - Groups multiple saves within 1.5s to reduce noise
 - **Staged/Unstaged Workflow** - Once you stage changes, they disappear from updates
 - **Critical Notifications** - AI can alert you via `notify-send` for important issues
 - **Auto-reload Buffers** - Files automatically refresh when AI makes edits
 - **Workspace Awareness** - Shows current file diff with info about other changes
-- **Provider Abstraction** - Designed for multiple AI providers (Claude, OpenAI, Ollama) *(roadmap)*
+- **Provider Abstraction** - Extensible provider architecture
 - **Intelligent Context** - Uses git staging area to track work progress
 - **Periodic Updates** - Optional automatic status updates at intervals
 - **Shell/Vim Command Integration** - Send command outputs directly to AI
 
-## Usage
+##  Neovim RPC Control
+
+```bash
+:help rpc
+```
+
+> RPC is the main way to control Nvim programmatically.  Nvim implements the
+MessagePack-RPC protocol with these extra (out-of-spec) constraints:
+
+> 1. Responses must be given in reverse order of requests (like "unwinding
+   a stack").
+> 2. Nvim processes all messages (requests and notifications) in the order they
+   are received.
+
+This enables the following scenarios.
+
+1. Local instances with different ports - you could have multiple nvim instances:
+  - nvim --listen 127.0.0.1:6666 → RPC enabled
+  - nvim --listen 127.0.0.1:7777 → RPC disabled (wrong port)
+  - nvim → RPC disabled (no TCP server)
+2. Remote servers - if you start nvim on a remote machine:
+  - nvim --listen 0.0.0.0:6666 (listens on all interfaces)
+  - nvim --listen <remote-ip>:6666
+  - The servername would show the actual bind address, and our detection would work
+3. Network scenarios:
+  - SSH tunneling: ssh -L 6666:localhost:6666 remote-host then connect to the remote nvim
+  - Docker containers: nvim --listen 0.0.0.0:6666 inside container
+  - WSL/VMs: Same TCP detection works across boundaries
+
+For remote network scenarios claude an run either locally in neovim buffer and operate on remote neovim instance or run in remote server and operate on the local buffer.
+
+> [!NOTE]
+> Complimentary to this setup a [nvim MCP server](https://github.com/calebfroese/mcpserver.nvim) can be used
+
+### RPC Helper Methods
+
+When RPC is enabled, Claude can use these helper functions:
+
+```lua
+require("pairup.rpc").get_context()     -- Know which window is which
+require("pairup.rpc").read_main_buffer() -- Always reads the right file
+require("pairup.rpc").search("pattern")  -- Search in the correct buffer
+require("pairup.rpc").replace("old", "new") -- Replace in main file
+require("pairup.rpc").save()            -- Save the actual file
+require("pairup.rpc").get_stats()       -- Get word/line counts
+```
+
+See [`lua/pairup/rpc.lua`](lua/pairup/rpc.lua) for full RPC documentation.
+
+##  Usage
 
 ### How it Works
 
@@ -80,31 +130,62 @@ use {
 3. Stage completed work with `git add` - removes from AI updates
 4. Continue working - AI only sees new unstaged changes
 
-### Basic Commands
+### All Available Commands
 
-| Command | Description |
-|---------|-------------|
-| `:PairupStart` | Start AI in vertical split (40% width) |
-| `:PairupToggle` | Toggle AI window visibility |
-| `:PairupContext` | Manually send current file's diff |
-| `:PairupStatus` | Send git status, branch, and commits |
-| `:PairupSay [text]` | Send a message to AI |
-| `:PairupSay ![cmd]` | Execute shell command and send output |
-| `:PairupSay :[cmd]` | Execute vim command and send output |
-| `:PairupStartUpdates [min]` | Start periodic updates (default 10 min) |
-| `:PairupStopUpdates` | Stop periodic updates |
-| `:PairupToggleGitDiffSend` | Pause/resume automatic diff sending |
+```vim
+" Core Commands
+:PairupStart                    " Start AI assistant in vertical split window
+:PairupToggle                   " Toggle AI window visibility (hide/show)
+:PairupStop                     " Stop AI assistant completely and close window
+:PairupResume                   " Resume a previous Claude session (interactive picker)
 
-### Keybindings
+" Context & Communication Commands
+:PairupContext                  " Send current file's unstaged git diff to AI
+:PairupStatus                   " Send git status, current branch, and recent commits to AI
+:PairupFileInfo                 " Send detailed information about current file to AI
+:PairupSay [message]            " Send a direct message to AI
+:PairupSay ![shell cmd]         " Execute shell command and send output to AI (e.g., :PairupSay !npm test)
+:PairupSay :[vim cmd]           " Execute vim command and send output to AI (e.g., :PairupSay :messages)
 
-Default keybindings (customizable in setup):
+" Feature Toggles
+:PairupToggleDiff               " Toggle automatic git diff sending on/off
+:PairupToggleLSP                " Toggle LSP diagnostics sending on/off
 
-| Keys | Description |
-|------|-------------|
-| `<leader>ct` | Toggle AI window |
-| `<leader>cc` | Send context manually |
-| `<leader>cs` | Send git status |
-| `<leader>cm` | Send message to AI |
+" Session Management
+:PairupIntent [text]            " Set or update the intent for current session
+:PairupWipeSessions             " Clear all saved sessions
+:PairupWipeSessions [pattern]   " Clear sessions matching pattern
+
+" Directory Management
+:PairupAddDir                   " Add current directory to Claude's context
+
+" Alias Commands (for backward compatibility)
+:ClaudeStart                    " Alias for :PairupStart
+:ClaudeToggle                   " Alias for :PairupToggle
+:ClaudeStop                     " Alias for :PairupStop
+```
+
+#### Command Examples
+
+```vim
+" Start AI and describe your task
+:PairupStart
+:PairupIntent I want to refactor the authentication module
+
+" Send specific context
+:PairupSay !git log --oneline -10      " Send last 10 commits
+:PairupSay :LSPInfo                     " Send LSP server info
+:PairupSay Can you help me optimize this function?
+
+" Control what AI sees
+:PairupToggleDiff                       " Pause automatic diff updates
+" ... make many changes ...
+:PairupToggleDiff                       " Resume diff updates
+:PairupContext                          " Manually send accumulated changes
+
+" Resume previous work
+:PairupResume                           " Shows list of previous sessions to continue
+```
 
 ### The Staged/Unstaged Philosophy
 
@@ -115,144 +196,111 @@ This integration uses git's staging area intelligently:
 
 This prevents repetitive large diffs - once you stage a refactor, AI only sees new changes on top.
 
-### AI Provider Capabilities
+##  Configuration
 
-#### Claude (Current)
-- Receives only unstaged changes in real-time
-- Can fix issues in code you just modified
-- Uses `notify-send` for critical alerts
-- Can run git commands to understand repository
-- Helps with selective staging (`git add -p`)
-- Auto-accepts edits with permission mode
+### Quick Start with RPC
 
-#### OpenAI (Planned)
-- GPT-4 integration with streaming responses
-- Function calling for structured operations
-- Vision capabilities for screenshots
+1. Start Neovim with RPC enabled:
+   ```bash
+   nvim --listen 127.0.0.1:6666  # or use alias: rvim
+   ```
 
-#### Ollama (Planned)
-- Local LLM support for privacy
-- Multiple model selection
-- Custom model configurations
+2. Configure the plugin with your desired settings (see complete configuration below)
 
-## Configuration
+### Complete Configuration
 
-> **Note**: The source of truth for all configuration options is [`lua/pairup/config.lua`](lua/pairup/config.lua). The examples below show the default values.
-
-### Default Setup
+All available configuration options with defaults and descriptions:
 
 ```lua
 require('pairup').setup({
-  -- Provider selection
-  provider = "claude",              -- 'claude', 'openai' (future), 'ollama' (future)
+  -- AI Provider Selection
+  provider = 'claude',                      -- Currently only 'claude' is supported
   
-  -- Window settings
-  split_cmd = "vsplit",            -- Split command for AI window
-  split_width = 0.4,               -- Width as percentage (0.4 = 40%)
+  -- Session Management
+  persist_sessions = true,                  -- Save sessions for later resume
+  prompt_session_resume = false,            -- Use :PairupSessions to manually select sessions
+  auto_populate_intent = true,              -- Auto-populate intent when starting
+  intent_template = "This is just an intent declaration. I'm planning to work on the file `%s` to...",
+  claude_ready_pattern = 'PAIR PROGRAMMING MODE ACTIVATED!', -- Text to wait for before sending intent
+  suggestion_mode = true,                   -- Claude only provides suggestions, doesn't edit directly
   
-  -- Git integration
-  batch_delay_ms = 1500,           -- Delay for batching multiple saves
-  context_lines = 10,              -- Lines of context in diffs
-  ignore_patterns = {              -- Patterns to ignore in diffs
-    "%.git/",
-    "%.svg$",
-    "%.png$",
-    "%.jpg$",
-    "%.jpeg$",
-    "%.gif$",
-    "%.ico$",
-    "package%-lock%.json$",
-    "yarn%.lock$",
+  -- Provider-specific configurations
+  providers = {
+    claude = {
+      path = vim.fn.exepath('claude'),      -- Path to Claude CLI executable
+      permission_mode = 'plan',             -- 'plan' or 'acceptEdits' (auto-accept edits)
+      add_dir_on_start = true,              -- Automatically add project directory on start
+      default_args = {},                    -- Additional CLI arguments
+    },
+    -- Future providers (not yet implemented)
+    openai = {
+      -- api_key = "",                     -- OpenAI API key (future)
+      -- model = "gpt-4",                   -- Model selection (future)
+    },
+    ollama = {
+      -- host = "localhost:11434",         -- Ollama host (future)
+      -- model = "codellama",               -- Ollama model (future)
+    },
   },
   
-  -- Behavior
-  enable_default_keymaps = true,   -- Use default keybindings
-  auto_reload_delay_ms = 500,      -- Check for external changes interval
-  update_time_ms = 1000,           -- Update frequency for git checks
-  git_diff_enabled_on_start = true,-- Auto-start diff streaming
+  -- Git Integration
+  diff_context_lines = 10,                  -- Lines of context around changes in diffs
+  enabled = true,                           -- Enable/disable automatic diff sending
   
-  -- Keymaps (when enable_default_keymaps = true)
-  keymaps = {
-    toggle = "<leader>ct",
-    send_context = "<leader>cc",
-    send_status = "<leader>cs",
-    send_message = "<leader>cm",
+  -- RPC Settings
+  rpc_port = '127.0.0.1:6666',             -- Expected TCP port for nvim --listen
+  
+  -- Terminal Window Settings
+  terminal = {
+    split_position = 'left',                -- 'left' or 'right' side of screen
+    split_width = 0.4,                      -- 40% for AI, 60% for editor
+    auto_insert = true,                     -- Auto-enter insert mode in terminal
+    auto_scroll = true,                     -- Auto-scroll to bottom on new output
+  },
+  
+  -- Filtering Settings
+  filter = {
+    ignore_whitespace_only = true,          -- Ignore whitespace-only changes
+    ignore_comment_only = false,            -- Don't ignore comment-only changes
+    min_change_lines = 0,                   -- Minimum lines changed to trigger update
+    batch_delay_ms = 500,                   -- Delay for batching multiple saves
+  },
+  
+  -- Context Update Settings
+  fyi_suffix = '\nYou have received a git diff...',  -- Message appended to context updates
+  
+  -- LSP Integration
+  lsp = {
+    enabled = true,                         -- Enable LSP integration
+    include_diagnostics = true,             -- Include LSP diagnostics in context
+    include_hover_info = true,              -- Include hover information
+    include_references = true,              -- Include reference information
+  },
+  
+  -- Auto-refresh Settings
+  auto_refresh = {
+    enabled = true,                         -- Auto-refresh on external changes
+    interval_ms = 500,                      -- Check interval in milliseconds
+  },
+  
+  -- Periodic Updates
+  periodic_updates = {
+    enabled = false,                        -- Send periodic status updates
+    interval_minutes = 10,                  -- Update interval in minutes
   },
 })
 ```
 
-### Provider-Specific Configuration
+### Keymaps
+
+The plugin doesn't set default keymaps. Add these to your config:
 
 ```lua
-require('pairup').setup({
-  provider = "claude",
-  
-  -- Provider configurations
-  providers = {
-    claude = {
-      path = vim.fn.exepath('claude'),      -- Path to claude CLI
-      permission_mode = "acceptEdits",       -- Auto-accept edits
-      add_dir_on_start = true,              -- Auto-add project directory
-      extra_args = {},                      -- Additional CLI arguments
-    },
-    openai = {                              -- Future
-      api_key = os.getenv("OPENAI_API_KEY"),
-      model = "gpt-4",
-      temperature = 0.7,
-    },
-    ollama = {                              -- Future
-      host = "http://localhost:11434",
-      model = "llama2",
-      context_window = 4096,
-    },
-  },
-})
-```
-
-### Advanced Configuration
-
-```lua
-require('pairup').setup({
-  -- Core settings
-  provider = "claude",
-  
-  -- Custom keybindings
-  enable_default_keymaps = false,   -- Disable defaults
-  keymaps = {
-    toggle = "<C-a>",               -- Custom toggle key
-    send_context = "<C-c>",         -- Custom context key
-    -- Leave others undefined
-  },
-  
-  -- Performance tuning
-  batch_delay_ms = 2000,            -- Longer batching window
-  update_time_ms = 2000,            -- Less frequent updates
-  auto_reload_delay_ms = 1000,      -- Slower reload checks
-  
-  -- Git workflow
-  git_diff_enabled_on_start = false,-- Manual diff control
-  context_lines = 20,               -- More context in diffs
-  
-  -- Custom ignore patterns
-  ignore_patterns = {
-    "%.git/",
-    "node_modules/",
-    "dist/",
-    "build/",
-    "%.test%.js$",
-    "%.spec%.ts$",
-  },
-  
-  -- Provider settings
-  providers = {
-    claude = {
-      path = "/usr/local/bin/claude",
-      permission_mode = "ask",      -- Ask before edits
-      add_dir_on_start = false,     -- Manual directory control
-      extra_args = { "--verbose" },
-    },
-  },
-})
+-- Recommended keymaps
+vim.keymap.set('n', '<leader>ct', ':PairupToggle<cr>', { desc = 'Toggle AI assistant' })
+vim.keymap.set('n', '<leader>cc', ':PairupContext<cr>', { desc = 'Send context to AI' })
+vim.keymap.set('n', '<leader>cs', ':PairupStatus<cr>', { desc = 'Send git status to AI' })
+vim.keymap.set('n', '<leader>cm', ':PairupSay ', { desc = 'Send message to AI' })
 ```
 
 ### Statusline Integration
@@ -274,7 +322,7 @@ sections = {
 vim.opt.statusline:append('%{luaeval("require(\'pairup.utils.indicator\').get()")}')
 ```
 
-## Integration with Other Tools
+##  Integration with Other Tools
 
 ### Git Integration
 
@@ -310,7 +358,7 @@ The plugin deeply integrates with git:
 :PairupSay :ls                 " Buffer list
 ```
 
-## Troubleshooting
+##  Troubleshooting
 
 ### Quick health check
 Run `:checkhealth pairup` to diagnose common issues.
@@ -330,23 +378,14 @@ Run `:checkhealth pairup` to diagnose common issues.
 - Check keybindings: `:verbose nmap <leader>ct`
 - Verify setup was called: Check your plugin configuration
 
-## Why This is Better Than Cursor
-
-- **True pair programming** - AI watches actual git diffs, not just cursor position
-- **Respects your workflow** - Uses YOUR editor, YOUR keybindings
-- **Smart notifications** - Only alerts for critical issues
-- **Git-aware** - Understands staged vs unstaged changes
-- **Multi-provider ready** - Not locked to one AI service
-- **Open source** - Customize and extend as needed
-
-## Requirements
+##  Requirements
 
 - Neovim 0.8+
 - Git repository for diff tracking
 - AI provider CLI (currently Claude)
 - `notify-send` for system notifications (optional)
 
-## License
+##  License
 
 MIT
 
