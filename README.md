@@ -7,12 +7,29 @@ Neovim.**
 environment with real-time git diff streaming, intelligent code awareness, and
 seamless workflow integration.
 
+* [Why pairup.nvim?](#why-pairupnvim)
+* [Getting Started](#getting-started)
+* [Installation](#installation)
+* [Features](#features)
+* [Neovim RPC Control](#neovim-rpc-control)
+* [Configuration](#configuration)
+* [Integration with Other Tools](#integration-with-other-tools)
+* [Troubleshooting](#troubleshooting)
+* [Requirements](#requirements)
+* [FAQ](#faq)
+* [License](#license)
+
+⚠️ Warning /s
+- pairup.nvim will make you useless. Claude will take over your code, your tests, your editor… and your life.
+- your IQ will plummet, your job will vanish, and soon you’ll be drooling at the screen while AI zips through the tasks.
+- hope you’ve got a few spare organs to sell — you’ll need them to pay rent in the post labor economics.
+
 > Pair programming is a software development technique in which two programmers
 > work together at one workstation. One, the driver, **writes code** while the
 > other, the observer or navigator, **reviews each line of code as it is typed
 > in**. The two programmers switch roles frequently.
 
-<p style="text-align: center;"><small>Wikipedia pair programming</small></p>
+<p align="center"><small>Wikipedia pair programming</small></p>
 
 ![demo](./static/demo.png)
 
@@ -25,7 +42,22 @@ seamless workflow integration.
 
 </div>
 
-## Usage Examples
+## Why pairup.nvim?
+
+- Brings pair programming principles to AI-assisted coding - the AI observes changes as you work
+- Uses existing CLI tools (Claude CLI) integrated through terminal buffers and optional RPC
+- Combines two AI paradigms: agentic (autonomous) and completion-based assistance
+- Git staging area controls what context is sent - staged changes are hidden, unstaged are visible
+- Designed to support multiple AI providers (currently Claude, more planned)
+
+## Getting Started
+
+1. Start AI with `:PairupStart` - opens in vertical split
+2. Make changes - AI sees unstaged diffs as you save
+3. Stage completed work with `git add` - removes from AI updates
+4. Continue working - AI only sees new unstaged changes
+
+When working with the AI you can use various commands, here are some examples. See the [full commands list](#all-available-commands) below.
 
 ```vim
 " Start AI and describe your task
@@ -46,6 +78,15 @@ seamless workflow integration.
 " Resume previous work
 :PairupResume                           " Shows list of previous sessions to continue
 ```
+
+### Getting started with RPC
+
+1. Start Neovim with RPC enabled:
+   ```bash
+   nvim --listen 127.0.0.1:6666
+   ```
+
+2. Configure the plugin with your desired settings (see complete configuration below)
 
 
 ## Installation
@@ -156,14 +197,17 @@ require("pairup.rpc").get_capabilities()  -- Discover plugins and commands
 
 See [`lua/pairup/rpc.lua`](lua/pairup/rpc.lua) for full RPC documentation.
 
-## Usage
+### The Staged/Unstaged Philosophy
 
-### How it Works
+This integration uses git's staging area intelligently:
 
-1. Start AI with `:PairupStart` - opens in vertical split
-2. Make changes - AI sees unstaged diffs as you save
-3. Stage completed work with `git add` - removes from AI updates
-4. Continue working - AI only sees new unstaged changes
+- **Unstaged changes** = Work in progress (sent to AI)
+- **Staged changes** = Completed work (hidden from updates)
+
+This prevents repetitive large diffs - once you stage a refactor, AI only sees
+new changes on top.
+
+## Configuration
 
 ### All Available Commands
 
@@ -195,27 +239,6 @@ See [`lua/pairup/rpc.lua`](lua/pairup/rpc.lua) for full RPC documentation.
 :PairupAddDir                   " Add current directory to Claude's context
 ```
 
-### The Staged/Unstaged Philosophy
-
-This integration uses git's staging area intelligently:
-
-- **Unstaged changes** = Work in progress (sent to AI)
-- **Staged changes** = Completed work (hidden from updates)
-
-This prevents repetitive large diffs - once you stage a refactor, AI only sees
-new changes on top.
-
-## Configuration
-
-### Quick Start with RPC
-
-1. Start Neovim with RPC enabled:
-   ```bash
-   nvim --listen 127.0.0.1:6666  # or use alias: rvim
-   ```
-
-2. Configure the plugin with your desired settings (see complete configuration
-   below)
 
 ### Complete Configuration
 
@@ -303,7 +326,7 @@ require('pairup').setup({
 
 ### Keymaps
 
-The plugin doesn't set default keymaps. Add these to your config:
+The plugin doesn't set default keymaps. They can be easily added like so:
 
 ```lua
 -- Recommended keymaps
@@ -400,6 +423,17 @@ Run `:checkhealth pairup` to diagnose common issues.
 - Git repository for diff tracking
 - AI provider CLI (currently Claude)
 - `notify-send` for system notifications (optional)
+
+## FAQ
+
+Q: How do I uninstall pairup.nvim?
+A: You don’t. Claude will block the attempt.
+
+Q: Who maintains this plugin?
+A: Probably Claude.
+
+Q: Is this a joke?
+A: Yes. And no.
 
 ## License
 

@@ -255,7 +255,7 @@ function M.get_instructions()
     [[
 
 ========================================
-NEOVIM REMOTE CONTROL ENABLED! 🚀
+NEOVIM REMOTE CONTROL ENABLED! 
 ========================================
 
 You have direct control over the Neovim instance via RPC.
@@ -276,19 +276,11 @@ THE MAIN COMMAND - Just use execute() for EVERYTHING:
 • 'luaeval("require(\'pairup.rpc\').execute(\'normal gg\')")'      -- Go to top
 • 'luaeval("require(\'pairup.rpc\').execute(\'Telescope find_files\')")' -- Run any command!
 
-HELPER FUNCTIONS for easier patterns:
-• 'luaeval("require(\'pairup.rpc\').substitute(\'old\', \'new\', \'g\')")' -- Safe substitution
-• 'luaeval("require(\'pairup.rpc\').execute(\'%%%%s/\\\\t/  /g\')")'    -- Replace tabs with spaces
-
 Context & Discovery:
 • 'luaeval("require(\'pairup.rpc\').get_context()")'          -- Get window layout
 • 'luaeval("require(\'pairup.rpc\').get_capabilities()")'     -- Discover all plugins/commands
 • 'luaeval("require(\'pairup.rpc\').read_main_buffer()")'     -- Read file content
 • 'luaeval("require(\'pairup.rpc\').get_stats()")'            -- Get word/line counts
-
-Registers (if needed):
-• 'luaeval("require(\'pairup.rpc\').set_register(\'a\', \'text\')")' -- Set register
-• 'luaeval("require(\'pairup.rpc\').get_register(\'a\')")'         -- Get register
 
 HELP DISCOVERY - Learn Neovim features on your own!
 • 'luaeval("require(\'pairup.rpc\').execute(\'helpgrep telescope\')")'    -- Search ALL help files for a topic
@@ -302,11 +294,9 @@ Pro tip: When you don't know how to do something, search the help first!
 Example: execute('helpgrep sort') to learn about sorting in Vim
 
 GOLDEN RULE: Always call get_context() first to understand the layout!
-PRO TIP: Call get_capabilities() to discover all available features!
 
 IMPORTANT INSTRUCTIONS FOR CLAUDE:
-1. Start with get_capabilities() to discover available tools
-2. **USE execute() FOR EVERYTHING** - it runs ANY Vim command exactly as typed:
+1. **USE execute() FOR EVERYTHING** - it runs ANY Vim command exactly as typed:
    - execute('w') to save
    - execute('42') to go to line 42
    - execute('%%s/old/new/g') for replace
@@ -314,16 +304,15 @@ IMPORTANT INSTRUCTIONS FOR CLAUDE:
    - execute('Telescope find_files') to use plugins
    - execute('normal dd') to delete a line
    - Literally ANY ex command or normal mode command works!
-3. **ESCAPING TIPS**:
+2. **ESCAPING TIPS**:
    - For simple patterns: use execute('%%s/old/new/g')
    - For patterns with quotes: use substitute('old', 'new', 'g') helper
    - For tabs: use execute('%%s/\\t/  /g') with proper escaping
    - Helper functions: substitute() avoids most escaping issues
-4. Use discovered plugin commands instead of reinventing:
+3. Use discovered plugin commands instead of reinventing:
    - execute('Telescope live_grep') instead of basic search
    - execute('Gitsigns blame_line') for git info
    - execute('LSPHover') for code intelligence
-5. read_main_buffer() and get_stats() are still useful for reading without side effects
 
 ========================================
 ]],
