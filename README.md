@@ -49,6 +49,7 @@ seamless workflow integration.
 - Combines two AI paradigms: agentic (autonomous) and completion-based assistance
 - Git staging area controls what context is sent - staged changes are hidden, unstaged are visible
 - Designed to support multiple AI providers (currently Claude, more planned)
+- Purpose-built for Neovim (not a generic editor plugin)
 
 ## Getting Started
 
@@ -254,7 +255,6 @@ require('pairup').setup({
   prompt_session_resume = false,                                  -- Use :PairupSessions to manually select sessions
   auto_populate_intent = true,                                    -- Auto-populate intent when starting
   intent_template = "I'm planning to work on the file `%s` to...",-- Starting text to prompt claude for task
-  claude_ready_pattern = 'PAIR PROGRAMMING MODE ACTIVATED!',      -- Text to wait for before sending intent
   suggestion_mode = true,                                         -- Claude only provides suggestions, doesn't edit directly
                                                                   
                                                                   -- Provider-specific configurations
@@ -437,6 +437,8 @@ A: Yes. And no.
 
 ## License
 
+xxx
+
 MIT
 
 ---
@@ -447,3 +449,9 @@ MIT
 [Request Feature](https://github.com/Piotr1215/pairup.nvim/issues)
 
 </div>
+## 🚀 Live RPC Demo
+
+
+## 🚀 Live RPC Demo
+
+This section was added by Claude via RPC while you watched!

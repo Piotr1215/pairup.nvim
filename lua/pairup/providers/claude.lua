@@ -8,6 +8,70 @@ local sessions = require('pairup.core.sessions')
 -- Provider name
 M.name = 'claude'
 
+-- Check if Claude process is actually running
+function M.is_process_running(job_id)
+  if not job_id then
+    return false
+  end
+  -- jobwait with timeout 0 returns -1 if still running
+  local result = vim.fn.jobwait({ job_id }, 0)[1]
+  return result == -1
+end
+
+-- Wait for Claude process to be ready
+function M.wait_for_process_ready(buf, callback)
+  local job_id = vim.b[buf].terminal_job_id
+  if not job_id then
+    return
+  end
+
+  local check_count = 0
+  local max_checks = 300 -- 30 seconds max (Claude can take time to start)
+
+  local function check_process()
+    check_count = check_count + 1
+
+    if check_count > max_checks then
+      vim.notify('Claude process took too long to start (30s timeout)', vim.log.levels.WARN)
+      return
+    end
+
+    -- Check if process is running
+    if M.is_process_running(job_id) then
+      -- Process is running, but let's also check if the buffer has content
+      -- This helps ensure Claude has actually started and is ready
+      local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+      local has_content = false
+      for _, line in ipairs(lines) do
+        -- Check if there's any non-empty line (Claude has output something)
+        if line ~= '' then
+          has_content = true
+          break
+        end
+      end
+
+      if has_content then
+        -- Claude has started and produced output, now safe to send commands
+        -- Add a small delay to ensure it's fully ready
+        vim.defer_fn(function()
+          if callback then
+            callback()
+          end
+        end, 500)
+      else
+        -- Process running but no output yet, keep waiting
+        vim.defer_fn(check_process, 100)
+      end
+    else
+      -- Process not running yet, check again
+      vim.defer_fn(check_process, 100)
+    end
+  end
+
+  -- Start checking after initial delay
+  vim.defer_fn(check_process, 2000) -- Wait 2 seconds before first check
+end
+
 -- Find Claude terminal buffer
 function M.find_terminal()
   -- First check if buffer is in a window
@@ -226,9 +290,11 @@ function M.start(intent_mode, session_id)
   -- Setup terminal navigation keymaps
   M.setup_terminal_keymaps(buf)
 
-  -- Setup intent population when Claude is ready
+  -- Wait for Claude process to be ready before populating intent
   if intent_mode ~= false and config.get('auto_populate_intent') ~= false then
-    M.wait_and_populate_intent(buf)
+    M.wait_for_process_ready(buf, function()
+      M.populate_intent()
+    end)
   end
 
   -- Return to previous window but keep terminal in insert mode
@@ -283,24 +349,19 @@ function M.toggle(intent_mode, session_id)
     vim.cmd(string.format('%s %dvsplit', position, width))
     vim.api.nvim_set_current_buf(buf)
 
-    -- If intent mode requested and Claude is ready, populate intent
+    -- If intent mode requested and Claude process is ready, populate intent
     if intent_mode and config.get('auto_populate_intent') then
-      -- Check if Claude is ready immediately (already running)
-      local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
-      local ready_pattern = config.get('claude_ready_pattern') or 'PAIR PROGRAMMING MODE ACTIVATED!'
-      local is_ready = false
-
-      for _, line in ipairs(lines) do
-        if line:match(vim.pesc(ready_pattern)) or line:match('🎯') and line:match('PAIR PROGRAMMING MODE') then
-          is_ready = true
-          break
-        end
-      end
-
-      if is_ready then
+      local job_id = vim.b[buf].terminal_job_id
+      -- Check if Claude process is already running
+      if M.is_process_running(job_id) then
         vim.defer_fn(function()
           M.populate_intent()
         end, 100)
+      else
+        -- Wait for process to be ready
+        M.wait_for_process_ready(buf, function()
+          M.populate_intent()
+        end)
       end
     else
       vim.cmd('wincmd p')
@@ -317,58 +378,18 @@ function M.toggle(intent_mode, session_id)
   end
 end
 
--- Wait for Claude to be ready, then populate intent
-function M.wait_and_populate_intent(buf)
-  local check_count = 0
-  local max_checks = 100 -- 10 seconds max wait
-
-  -- Waiting for Claude to be ready
-
-  local function check_ready()
-    check_count = check_count + 1
-
-    if check_count > max_checks then
-      vim.notify('Claude took too long to start', vim.log.levels.WARN)
-      return
-    end
-
-    -- Get buffer lines to check for ready signal
-    local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
-    local ready = false
-
-    -- Get the pattern to wait for
-    local ready_pattern = config.get('claude_ready_pattern') or 'PAIR PROGRAMMING MODE ACTIVATED!'
-
-    for _, line in ipairs(lines) do
-      -- Check for the configured pattern (handle both with and without emoji)
-      if line:match(vim.pesc(ready_pattern)) or line:match('🎯') and line:match('PAIR PROGRAMMING MODE') then
-        ready = true
-        break
-      end
-    end
-
-    if ready then
-      -- Claude is ready, now populate intent
-      -- Claude is ready, populate intent
-      vim.defer_fn(function()
-        M.populate_intent()
-      end, 300) -- Small delay to ensure terminal is ready for input
-    else
-      -- Check again in 100ms
-      vim.defer_fn(check_ready, 100)
-    end
-  end
-
-  -- Start checking
-  vim.defer_fn(check_ready, 500) -- Initial delay to let terminal start
-end
-
 -- Populate intent in Claude input
 function M.populate_intent()
   local buf, win, job_id = M.find_terminal()
   if not buf or not job_id then
     return
   end
+
+  -- Prevent double population
+  if vim.b[buf].intent_populated then
+    return
+  end
+  vim.b[buf].intent_populated = true
 
   -- Focus the terminal window
   if win then

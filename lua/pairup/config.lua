@@ -12,7 +12,6 @@ local defaults = {
   prompt_session_resume = false, -- Use :PairupSessions to manually select sessions
   auto_populate_intent = true,
   intent_template = "This is just an intent declaration. I'm planning to work on the file `%s` to...",
-  claude_ready_pattern = 'PAIR PROGRAMMING MODE ACTIVATED!', -- Text to wait for before sending intent
   suggestion_mode = true, -- Claude only provides suggestions, doesn't edit
 
   -- Provider-specific configurations

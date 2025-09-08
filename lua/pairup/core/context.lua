@@ -236,9 +236,10 @@ end
 -- Add current directory to AI assistant
 function M.add_current_directory()
   local providers = require('pairup.providers')
+  local claude = require('pairup.providers.claude')
 
   -- Only proceed if AI is running
-  local buf = providers.find_terminal()
+  local buf, _, job_id = providers.find_terminal()
   if not buf then
     return
   end
@@ -252,12 +253,21 @@ function M.add_current_directory()
     return
   end
 
-  -- Mark as added and send command (Claude-specific for now)
-  state.add_directory(dir_to_add)
-  local add_dir_msg = string.format('/add-dir %s', dir_to_add)
-  providers.send_to_provider(add_dir_msg)
+  -- Function to send the add-dir command
+  local function send_add_dir()
+    -- Mark as added and send command (Claude-specific for now)
+    state.add_directory(dir_to_add)
+    local add_dir_msg = string.format('/add-dir %s', dir_to_add)
+    providers.send_to_provider(add_dir_msg)
+  end
 
-  -- Added directory to AI assistant
+  -- Check if Claude process is running, if not wait for it
+  if claude.is_process_running(job_id) then
+    send_add_dir()
+  else
+    -- Wait for process to be ready before sending command
+    claude.wait_for_process_ready(buf, send_add_dir)
+  end
 end
 
 return M
