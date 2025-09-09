@@ -7,7 +7,7 @@ Neovim.**
 environment with real-time git diff streaming, intelligent code awareness, and
 seamless workflow integration.
 
-* [Why pairup.nvim?](#why-pairupnvim)
+* [Why pairup.nvim?](#why-pairup.nvim?)
 * [Getting Started](#getting-started)
 * [Installation](#installation)
 * [Features](#features)
@@ -17,6 +17,7 @@ seamless workflow integration.
 * [Troubleshooting](#troubleshooting)
 * [Requirements](#requirements)
 * [FAQ](#faq)
+* [Trademarks & Third‑party Tools](#trademarks-&-third‑party-tools)
 * [License](#license)
 
 ⚠️ Warning /s
@@ -435,9 +436,11 @@ A: Probably Claude.
 Q: Is this a joke?
 A: Yes. And no.
 
-## License
+## Trademarks & Third‑party Tools
 
-xxx
+This project integrates with the Claude CLI, which is a separate tool owned and distributed by Anthropic. All trademarks, service marks, and trade names—including "Claude" and "Claude Code"—are the property of their respective owners. This project is not affiliated with or endorsed by Anthropic.
+
+## License
 
 MIT
 
@@ -449,9 +452,3 @@ MIT
 [Request Feature](https://github.com/Piotr1215/pairup.nvim/issues)
 
 </div>
-## 🚀 Live RPC Demo
-
-
-## 🚀 Live RPC Demo
-
-This section was added by Claude via RPC while you watched!
