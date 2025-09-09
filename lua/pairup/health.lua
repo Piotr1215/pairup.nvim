@@ -53,7 +53,7 @@ function M.check()
     else
       if current_provider == 'claude' then
         vim.health.error('Claude CLI not found at: ' .. claude_config.path, {
-          'Install Claude CLI: npm install -g @anthropic-ai/claude-cli',
+          'Install Claude CLI: npm install -g @anthropic-ai/claude-code',
           'Or configure the path in setup()',
         })
       else
