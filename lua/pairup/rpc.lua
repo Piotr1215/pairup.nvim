@@ -276,6 +276,21 @@ THE MAIN COMMAND - Just use execute() for EVERYTHING:
 • 'luaeval("require(\'pairup.rpc\').execute(\'normal gg\')")'      -- Go to top
 • 'luaeval("require(\'pairup.rpc\').execute(\'Telescope find_files\')")' -- Run any command!
 
+VISUAL OVERLAY SUGGESTIONS - YOUR KILLER FEATURE!:
+• 'luaeval("require(\'pairup.rpc\').show_overlay(10, \'old line\', \'new suggested line\')")' -- Simple cases
+• 'luaeval("require(\'pairup.rpc\').show_overlay_json(\'{\\\'line\\\':10,\\\'old_text\\\':\\\'old\\\',\\\'new_text\\\':\\\'new\\\'}\')")' -- JSON format
+• 'luaeval("require(\'pairup.rpc\').apply_overlay(10)")'         -- Apply suggestion at line 10
+• 'luaeval("require(\'pairup.rpc\').clear_overlays()")'          -- Clear all overlays
+
+ESCAPING SOLUTIONS (use in order of preference):
+1. For simple text: show_overlay() with basic escaping
+2. For complex text: Write JSON to /tmp/overlay.json, then show_overlay_file('/tmp/overlay.json')
+3. For moderate complexity: show_overlay_json() with JSON string
+4. Last resort: show_overlay_base64() with base64 encoding
+
+IMPORTANT: Overlays show your suggestions as visual hints WITHOUT modifying the file!
+User can accept/reject/navigate between them with their own keybindings.
+
 Context & Discovery:
 • 'luaeval("require(\'pairup.rpc\').get_context()")'          -- Get window layout
 • 'luaeval("require(\'pairup.rpc\').get_capabilities()")'     -- Discover all plugins/commands
@@ -323,6 +338,141 @@ end
 -- Check if RPC is enabled
 function M.is_enabled()
   return state.enabled
+end
+
+-- Show overlay suggestion in buffer (with base64 encoding to avoid escaping issues)
+function M.show_overlay_base64(line_num, old_text_b64, new_text_b64)
+  local overlay = require('pairup.overlay')
+  overlay.setup()
+
+  -- Use main buffer if available
+  if not state.main_buffer then
+    return vim.json.encode({ error = 'No main buffer found' })
+  end
+
+  -- Decode base64 strings safely
+  local old_text = nil
+  local new_text = nil
+
+  if old_text_b64 and old_text_b64 ~= '' then
+    old_text = vim.fn.decode(vim.fn.split(old_text_b64, '\zs'), 'base64')
+  end
+
+  if new_text_b64 and new_text_b64 ~= '' then
+    new_text = vim.fn.decode(vim.fn.split(new_text_b64, '\zs'), 'base64')
+  end
+
+  overlay.show_suggestion(state.main_buffer, line_num, old_text, new_text)
+  return vim.json.encode({ success = true, message = 'Overlay shown at line ' .. line_num })
+end
+
+-- Show overlay suggestion in buffer (original version for backward compatibility)
+function M.show_overlay(line_num, old_text, new_text)
+  local overlay = require('pairup.overlay')
+  overlay.setup()
+
+  -- Use main buffer if available
+  if not state.main_buffer then
+    return vim.json.encode({ error = 'No main buffer found' })
+  end
+
+  overlay.show_suggestion(state.main_buffer, line_num, old_text, new_text)
+  return vim.json.encode({ success = true, message = 'Overlay shown at line ' .. line_num })
+end
+
+-- Clear all overlays
+function M.clear_overlays()
+  require('pairup.overlay').clear_overlays()
+  return vim.json.encode({ success = true })
+end
+
+-- Show multiline overlay (for complex changes)
+function M.show_multiline_overlay(start_line, end_line, old_lines_json, new_lines_json)
+  local overlay = require('pairup.overlay')
+  overlay.setup()
+
+  if not state.main_buffer then
+    return vim.json.encode({ error = 'No main buffer found' })
+  end
+
+  -- Parse JSON arrays
+  local ok_old, old_lines = pcall(vim.json.decode, old_lines_json or '[]')
+  local ok_new, new_lines = pcall(vim.json.decode, new_lines_json or '[]')
+
+  if not ok_old or not ok_new then
+    return vim.json.encode({ error = 'Invalid JSON arrays' })
+  end
+
+  overlay.show_multiline_suggestion(state.main_buffer, start_line, end_line, old_lines, new_lines)
+  return vim.json.encode({ success = true, message = 'Multiline overlay shown' })
+end
+
+-- Show overlay via JSON (avoids ALL escaping issues)
+function M.show_overlay_json(json_str)
+  local overlay = require('pairup.overlay')
+  overlay.setup()
+
+  if not state.main_buffer then
+    return vim.json.encode({ error = 'No main buffer found' })
+  end
+
+  -- Parse JSON object
+  local ok, data = pcall(vim.json.decode, json_str)
+  if not ok then
+    return vim.json.encode({ error = 'Invalid JSON: ' .. tostring(data) })
+  end
+
+  -- Handle single line
+  if data.line then
+    overlay.show_suggestion(state.main_buffer, data.line, data.old_text, data.new_text)
+    return vim.json.encode({ success = true, message = 'Overlay shown at line ' .. data.line })
+  -- Handle multiline
+  elseif data.start_line and data.end_line then
+    overlay.show_multiline_suggestion(state.main_buffer, data.start_line, data.end_line, data.old_lines, data.new_lines)
+    return vim.json.encode({ success = true, message = 'Multiline overlay shown' })
+  else
+    return vim.json.encode({ error = 'JSON must have either "line" or "start_line/end_line"' })
+  end
+end
+
+-- Send overlay via file (ultimate escaping solution)
+function M.show_overlay_file(filepath)
+  local overlay = require('pairup.overlay')
+  overlay.setup()
+
+  if not state.main_buffer then
+    return vim.json.encode({ error = 'No main buffer found' })
+  end
+
+  -- Read JSON from file
+  local file = io.open(filepath, 'r')
+  if not file then
+    return vim.json.encode({ error = 'Cannot read file: ' .. filepath })
+  end
+
+  local json_str = file:read('*all')
+  file:close()
+
+  -- Use the JSON function
+  return M.show_overlay_json(json_str)
+end
+
+-- Apply overlay at given line
+function M.apply_overlay(line_num)
+  local overlay = require('pairup.overlay')
+
+  -- Switch to main window first
+  if state.main_window then
+    vim.cmd(state.main_window .. 'wincmd w')
+  end
+
+  -- Set cursor to the line
+  vim.api.nvim_win_set_cursor(0, { line_num, 0 })
+
+  -- Apply the overlay
+  local result = overlay.apply_at_cursor()
+
+  return vim.json.encode({ success = result })
 end
 
 -- Get available plugins and commands for Claude
