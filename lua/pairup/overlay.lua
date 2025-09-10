@@ -12,55 +12,111 @@ local suggestion_only_mode = false -- Hide buffer, show only suggestions
 local original_conceallevel = {}
 
 -- Store a suggestion for later application
-local function store_suggestion(bufnr, line_num, old_text, new_text)
+local function store_suggestion(bufnr, line_num, old_text, new_text, reasoning)
   if not suggestions[bufnr] then
     suggestions[bufnr] = {}
   end
   suggestions[bufnr][line_num] = {
     old_text = old_text,
     new_text = new_text,
+    line_num = line_num,
+    reasoning = reasoning, -- Store reasoning for the suggestion
   }
 end
 
+-- Get all suggestions for a buffer
+function M.get_suggestions(bufnr)
+  bufnr = bufnr or vim.api.nvim_get_current_buf()
+  return suggestions[bufnr] or {}
+end
+
 -- Show a suggestion as virtual text
-function M.show_suggestion(bufnr, line_num, old_text, new_text)
+function M.show_suggestion(bufnr, line_num, old_text, new_text, reasoning)
   bufnr = bufnr or vim.api.nvim_get_current_buf()
 
   -- Clear any existing overlay on this line
   vim.api.nvim_buf_clear_namespace(bufnr, ns_id, line_num - 1, line_num)
 
   -- Store the suggestion for later application
-  store_suggestion(bufnr, line_num, old_text, new_text)
+  store_suggestion(bufnr, line_num, old_text, new_text, reasoning)
+
+  -- Helper function to create virt_line from text that may contain newlines
+  local function text_to_virt_line(text, highlight)
+    -- Ensure text is a string
+    local text_str = tostring(text or '')
+    -- For now, just replace newlines with a visible marker
+    local clean_text = text_str:gsub('\n', '\\n')
+    return { { clean_text, highlight } }
+  end
 
   -- If it's a deletion, show strikethrough
   if new_text == nil or new_text == '' then
-    -- Show deletion with strikethrough
+    -- Build virtual lines with reasoning if provided
+    local virt_lines = {
+      { { '╭─ Claude suggests removing:', 'PairupHeader' } },
+    }
+    -- Add the old text line with border
+    table.insert(
+      virt_lines,
+      vim.list_extend({ { '│ ', 'PairupBorder' } }, text_to_virt_line(old_text, 'PairupDelete'))
+    )
+
+    if reasoning then
+      table.insert(
+        virt_lines,
+        vim.list_extend({ { '│ ', 'PairupBorder' } }, text_to_virt_line('Reason: ' .. reasoning, 'PairupHint'))
+      )
+    end
+
     vim.api.nvim_buf_set_extmark(bufnr, ns_id, line_num - 1, 0, {
-      virt_lines = {
-        { { '╭─ Claude suggests removing:', 'PairupHeader' } },
-        { { '│ ', 'PairupBorder' }, { old_text, 'PairupDelete' } },
-      },
+      virt_lines = virt_lines,
       priority = 100,
     })
   -- If it's an addition, show as virtual lines
   elseif old_text == nil or old_text == '' then
+    local virt_lines = {
+      { { '╭─ Claude suggests adding:', 'PairupHeader' } },
+    }
+    -- Add the new text line with border
+    table.insert(virt_lines, vim.list_extend({ { '│ ', 'PairupBorder' } }, text_to_virt_line(new_text, 'PairupAdd')))
+
+    if reasoning then
+      table.insert(
+        virt_lines,
+        vim.list_extend({ { '│ ', 'PairupBorder' } }, text_to_virt_line('Reason: ' .. reasoning, 'PairupHint'))
+      )
+    end
+
     vim.api.nvim_buf_set_extmark(bufnr, ns_id, line_num - 1, 0, {
-      virt_lines = {
-        { { '╭─ Claude suggests adding:', 'PairupHeader' } },
-        { { '│ ', 'PairupBorder' }, { new_text, 'PairupAdd' } },
-      },
+      virt_lines = virt_lines,
       priority = 100,
     })
   -- If it's a modification, show both old and new in a clear way
   else
-    -- Show both original and suggestion as virtual lines below the current line
+    -- Build virtual lines with reasoning
+    local virt_lines = {
+      { { '╭─ Claude suggests changing:', 'PairupHeader' } },
+    }
+    -- Add old text with delete marker
+    table.insert(
+      virt_lines,
+      vim.list_extend(
+        { { '│ ', 'PairupBorder' }, { '- ', 'PairupDelete' } },
+        text_to_virt_line(old_text, 'PairupDelete')
+      )
+    )
+    -- Add new text with add marker
+    table.insert(
+      virt_lines,
+      vim.list_extend({ { '│ ', 'PairupBorder' }, { '+ ', 'PairupAdd' } }, text_to_virt_line(new_text, 'PairupAdd'))
+    )
+    if reasoning then
+      table.insert(virt_lines, { { '│ ', 'PairupBorder' }, { 'Reason: ' .. reasoning, 'PairupHint' } })
+    end
+    table.insert(virt_lines, { { '╰─', 'PairupBorder' } })
+
     vim.api.nvim_buf_set_extmark(bufnr, ns_id, line_num - 1, 0, {
-      virt_lines = {
-        { { '╭─ Claude suggests changing:', 'PairupHeader' } },
-        { { '│ ', 'PairupBorder' }, { '- ', 'PairupDelete' }, { old_text, 'PairupDelete' } },
-        { { '│ ', 'PairupBorder' }, { '+ ', 'PairupAdd' }, { new_text, 'PairupAdd' } },
-        { { '╰─', 'PairupBorder' } },
-      },
+      virt_lines = virt_lines,
       virt_lines_above = false,
       priority = 100,
     })
@@ -84,8 +140,56 @@ function M.show_suggestion(bufnr, line_num, old_text, new_text)
   end
 end
 
+-- Show deletion suggestion (for removing lines)
+function M.show_deletion_suggestion(bufnr, start_line, end_line, reasoning)
+  if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) then
+    return
+  end
+
+  -- Get the lines to be deleted
+  local old_lines = vim.api.nvim_buf_get_lines(bufnr, start_line - 1, end_line, false)
+
+  -- Build virtual lines showing deletion
+  local virt_lines = {
+    { { '╭─ Claude suggests removing lines ' .. start_line .. '-' .. end_line .. ':', 'PairupHeader' } },
+  }
+
+  for _, line in ipairs(old_lines) do
+    table.insert(virt_lines, { { '│ ', 'PairupBorder' }, { '- ', 'PairupDelete' }, { line, 'PairupDelete' } })
+  end
+
+  if reasoning then
+    table.insert(virt_lines, { { '│ ', 'PairupBorder' }, { 'Reason: ' .. reasoning, 'PairupHint' } })
+  end
+
+  table.insert(virt_lines, { { '╰─', 'PairupBorder' } })
+
+  -- Set the extmark
+  vim.api.nvim_buf_set_extmark(bufnr, ns_id, start_line - 1, 0, {
+    virt_lines = virt_lines,
+    virt_lines_above = false,
+    priority = 100,
+  })
+
+  -- Track this as a deletion suggestion
+  if not suggestions[bufnr] then
+    suggestions[bufnr] = {}
+  end
+
+  suggestions[bufnr][start_line] = {
+    line_num = start_line,
+    start_line = start_line,
+    end_line = end_line,
+    old_lines = old_lines,
+    new_lines = {}, -- Empty for deletion
+    is_deletion = true,
+    is_multiline = true,
+    reasoning = reasoning,
+  }
+end
+
 -- Show multiline suggestion
-function M.show_multiline_suggestion(bufnr, start_line, end_line, old_lines, new_lines)
+function M.show_multiline_suggestion(bufnr, start_line, end_line, old_lines, new_lines, reasoning)
   bufnr = bufnr or vim.api.nvim_get_current_buf()
 
   -- Clear any existing overlays in the range
@@ -116,6 +220,11 @@ function M.show_multiline_suggestion(bufnr, start_line, end_line, old_lines, new
     end
   end
 
+  -- Add reasoning if provided
+  if reasoning then
+    table.insert(virt_lines, { { '│ ', 'PairupBorder' }, { 'Reason: ' .. reasoning, 'PairupHint' } })
+  end
+
   table.insert(virt_lines, { { '╰─', 'PairupBorder' } })
 
   -- Set the extmark at the start line
@@ -125,7 +234,7 @@ function M.show_multiline_suggestion(bufnr, start_line, end_line, old_lines, new
     priority = 100,
   })
 
-  -- Store multiline suggestion
+  -- Store multiline suggestion with reasoning
   if not suggestions[bufnr] then
     suggestions[bufnr] = {}
   end
@@ -135,6 +244,7 @@ function M.show_multiline_suggestion(bufnr, start_line, end_line, old_lines, new
     end_line = end_line,
     old_lines = old_lines,
     new_lines = new_lines,
+    reasoning = reasoning,
   }
 
   -- Track this overlay
@@ -228,8 +338,15 @@ end
 -- Clear all overlays
 function M.clear_overlays(bufnr)
   if bufnr then
+    -- Check if buffer is valid before clearing
+    if not vim.api.nvim_buf_is_valid(bufnr) then
+      return
+    end
     vim.api.nvim_buf_clear_namespace(bufnr, ns_id, 0, -1)
-    -- Don't clear suggestions, keep them for toggle
+    -- Clear suggestions for this buffer
+    if suggestions[bufnr] then
+      suggestions[bufnr] = {}
+    end
   else
     -- Clear all tracked overlays
     for _, overlay in ipairs(active_overlays) do
@@ -239,6 +356,44 @@ function M.clear_overlays(bufnr)
   -- Store current overlays for toggle
   hidden_overlays = vim.deepcopy(active_overlays)
   active_overlays = {}
+end
+
+-- Apply overlay at specific line
+function M.apply_at_line(bufnr, line_num)
+  bufnr = bufnr or vim.api.nvim_get_current_buf()
+
+  if not suggestions[bufnr] or not suggestions[bufnr][line_num] then
+    return false
+  end
+
+  local suggestion = suggestions[bufnr][line_num]
+
+  if suggestion.is_multiline then
+    -- Apply multiline change
+    vim.api.nvim_buf_set_lines(bufnr, suggestion.start_line - 1, suggestion.end_line, false, suggestion.new_lines or {})
+  else
+    -- Apply single line change, handling embedded newlines
+    local lines = vim.split(suggestion.new_text or '', '\n', { plain = true })
+    vim.api.nvim_buf_set_lines(bufnr, line_num - 1, line_num, false, lines)
+  end
+
+  -- Clear the overlay after applying
+  M.clear_overlay_at_line(bufnr, line_num)
+
+  -- Save buffer
+  if vim.api.nvim_buf_get_option(bufnr, 'modified') then
+    vim.cmd('write')
+  end
+
+  return true
+end
+
+-- Reject overlay at specific line
+function M.reject_at_line(bufnr, line_num)
+  bufnr = bufnr or vim.api.nvim_get_current_buf()
+
+  -- Simply clear the overlay without applying
+  return M.clear_overlay_at_line(bufnr, line_num)
 end
 
 -- Apply suggestion at cursor position
@@ -261,40 +416,24 @@ function M.apply_at_cursor()
         suggestion.new_lines or {}
       )
       -- Clear extmarks for this multiline suggestion
-      local marks = vim.api.nvim_buf_get_extmarks(
-        bufnr,
-        ns_id,
-        { suggestion.start_line - 1, 0 },
-        { suggestion.end_line, 0 },
-        {}
-      )
-      for _, mark in ipairs(marks) do
-        if mark[2] >= suggestion.start_line - 1 and mark[2] < suggestion.end_line then
-          vim.api.nvim_buf_del_extmark(bufnr, ns_id, mark[1])
-        end
-      end
-      vim.notify('Applied multiline suggestion', vim.log.levels.INFO)
+      vim.api.nvim_buf_clear_namespace(bufnr, ns_id, suggestion.start_line - 1, suggestion.end_line)
+      -- vim.notify('Applied multiline suggestion', vim.log.levels.INFO)
     else
       -- Apply single line change
       local new_text = suggestion.new_text
       if new_text == nil or new_text == '' then
         -- Delete the line
         vim.api.nvim_buf_set_lines(bufnr, line_num - 1, line_num, false, {})
-        vim.notify('Deleted line ' .. line_num, vim.log.levels.INFO)
+        -- vim.notify('Deleted line ' .. line_num, vim.log.levels.INFO)
       else
-        -- Replace the line
-        vim.api.nvim_buf_set_lines(bufnr, line_num - 1, line_num, false, { new_text })
-        vim.notify('Applied suggestion at line ' .. line_num, vim.log.levels.INFO)
+        -- Replace the line, handling embedded newlines
+        local lines = vim.split(new_text, '\n', { plain = true })
+        vim.api.nvim_buf_set_lines(bufnr, line_num - 1, line_num, false, lines)
+        -- vim.notify('Applied suggestion at line ' .. line_num, vim.log.levels.INFO)
       end
       -- Clear this overlay completely
-      -- Get all extmarks on this line and a few lines around it (for virtual text)
-      local marks = vim.api.nvim_buf_get_extmarks(bufnr, ns_id, { line_num - 1, 0 }, { line_num + 3, 0 }, {})
-      for _, mark in ipairs(marks) do
-        -- Only delete marks that start at our line
-        if mark[2] == line_num - 1 then
-          vim.api.nvim_buf_del_extmark(bufnr, ns_id, mark[1])
-        end
-      end
+      -- Clear a wider range to include virtual text that may extend below
+      vim.api.nvim_buf_clear_namespace(bufnr, ns_id, line_num - 1, line_num + 5)
     end
 
     -- Remove from stored suggestions
@@ -328,11 +467,11 @@ function M.reject_at_cursor()
     if suggestion.is_multiline then
       -- Clear multiline overlay
       vim.api.nvim_buf_clear_namespace(bufnr, ns_id, suggestion.start_line - 1, suggestion.end_line)
-      vim.notify('Rejected multiline suggestion', vim.log.levels.INFO)
+      -- vim.notify('Rejected multiline suggestion', vim.log.levels.INFO)
     else
-      -- Clear single line overlay
-      vim.api.nvim_buf_clear_namespace(bufnr, ns_id, line_num - 1, line_num)
-      vim.notify('Rejected suggestion at line ' .. line_num, vim.log.levels.INFO)
+      -- Clear single line overlay (with extra range for virtual text)
+      vim.api.nvim_buf_clear_namespace(bufnr, ns_id, line_num - 1, line_num + 5)
+      -- vim.notify('Rejected suggestion at line ' .. line_num, vim.log.levels.INFO)
     end
 
     -- Remove from stored suggestions
@@ -386,7 +525,7 @@ function M.accept_next_overlay()
     -- Accept it
     return M.apply_at_cursor()
   else
-    vim.notify('No overlays found', vim.log.levels.WARN)
+    -- vim.notify('No overlays found', vim.log.levels.WARN)
     return false
   end
 end
@@ -403,9 +542,9 @@ function M.next_overlay()
   if #marks > 0 then
     local next_line = marks[1][2] + 1
     vim.api.nvim_win_set_cursor(0, { next_line, 0 })
-    vim.notify('Moved to next suggestion', vim.log.levels.INFO)
+    -- vim.notify('Moved to next suggestion', vim.log.levels.INFO)
   else
-    vim.notify('No more suggestions', vim.log.levels.INFO)
+    -- vim.notify('No more suggestions', vim.log.levels.INFO)
   end
 end
 
@@ -421,9 +560,9 @@ function M.prev_overlay()
   if #marks > 0 then
     local prev_line = marks[#marks][2] + 1
     vim.api.nvim_win_set_cursor(0, { prev_line, 0 })
-    vim.notify('Moved to previous suggestion', vim.log.levels.INFO)
+    -- vim.notify('Moved to previous suggestion', vim.log.levels.INFO)
   else
-    vim.notify('No previous suggestions', vim.log.levels.INFO)
+    -- vim.notify('No previous suggestions', vim.log.levels.INFO)
   end
 end
 
@@ -433,25 +572,29 @@ function M.toggle()
   local marks = vim.api.nvim_buf_get_extmarks(bufnr, ns_id, 0, -1, {})
 
   if #marks > 0 then
-    -- Hide overlays
-    M.clear_overlays(bufnr)
-    vim.notify('Pairup overlay hidden', vim.log.levels.INFO)
+    -- Hide overlays by clearing namespace but keep suggestions
+    vim.api.nvim_buf_clear_namespace(bufnr, ns_id, 0, -1)
+    -- Store current overlays for this buffer
+    hidden_overlays = {}
+    for _, overlay in ipairs(active_overlays) do
+      if overlay.bufnr == bufnr then
+        table.insert(hidden_overlays, overlay)
+      end
+    end
+    -- vim.notify('Pairup overlay hidden', vim.log.levels.INFO)
   else
-    -- Restore hidden overlays
-    if #hidden_overlays > 0 then
-      for _, overlay in ipairs(hidden_overlays) do
-        if overlay.bufnr == bufnr and suggestions[bufnr] and suggestions[bufnr][overlay.line] then
-          local s = suggestions[bufnr][overlay.line]
-          if s.is_multiline then
-            M.show_multiline_suggestion(bufnr, s.start_line, s.end_line, s.old_lines, s.new_lines)
-          else
-            M.show_suggestion(bufnr, overlay.line, s.old_text, s.new_text)
-          end
+    -- Restore hidden overlays using suggestions data
+    if suggestions[bufnr] then
+      for line_num, s in pairs(suggestions[bufnr]) do
+        if s.is_multiline then
+          M.show_multiline_suggestion(bufnr, s.start_line, s.end_line, s.old_lines, s.new_lines, s.reasoning)
+        else
+          M.show_suggestion(bufnr, line_num, s.old_text, s.new_text, s.reasoning)
         end
       end
-      vim.notify('Pairup overlay restored', vim.log.levels.INFO)
+      -- vim.notify('Pairup overlay restored', vim.log.levels.INFO)
     else
-      vim.notify('No overlay to show', vim.log.levels.INFO)
+      -- vim.notify('No overlay to show', vim.log.levels.INFO)
     end
   end
 end
@@ -460,9 +603,9 @@ end
 function M.toggle_follow_mode()
   follow_mode = not follow_mode
   if follow_mode then
-    vim.notify('Overlay follow mode enabled - will jump to new suggestions', vim.log.levels.INFO)
+    -- vim.notify('Overlay follow mode enabled - will jump to new suggestions', vim.log.levels.INFO)
   else
-    vim.notify('Overlay follow mode disabled', vim.log.levels.INFO)
+    -- vim.notify('Overlay follow mode disabled', vim.log.levels.INFO)
   end
   return follow_mode
 end
@@ -493,13 +636,13 @@ function M.toggle_suggestion_only()
       end
     end
 
-    vim.notify('Suggestion-only mode ON - showing only lines with suggestions', vim.log.levels.INFO)
+    -- vim.notify('Suggestion-only mode ON - showing only lines with suggestions', vim.log.levels.INFO)
   else
     -- Clear concealment
     local conceal_ns = vim.api.nvim_create_namespace('pairup_conceal')
     vim.api.nvim_buf_clear_namespace(bufnr, conceal_ns, 0, -1)
 
-    vim.notify('Suggestion-only mode OFF - all content visible', vim.log.levels.INFO)
+    -- vim.notify('Suggestion-only mode OFF - all content visible', vim.log.levels.INFO)
   end
 
   return suggestion_only_mode
@@ -526,6 +669,31 @@ function M.setup()
 
   -- Hidden line markers in suggestion-only mode
   vim.api.nvim_set_hl(0, 'PairupHiddenMarker', { fg = '#4a4a4a', italic = true })
+end
+
+-- Clear overlay at a specific line
+function M.clear_overlay_at_line(bufnr, line_num)
+  if not suggestions[bufnr] or not suggestions[bufnr][line_num] then
+    return false
+  end
+
+  -- Remove from suggestions
+  suggestions[bufnr][line_num] = nil
+
+  -- Clear extmarks at this line
+  local ns_id = vim.api.nvim_create_namespace('pairup_overlay')
+  local marks = vim.api.nvim_buf_get_extmarks(bufnr, ns_id, { line_num - 1, 0 }, { line_num, 0 }, {})
+
+  for _, mark in ipairs(marks) do
+    vim.api.nvim_buf_del_extmark(bufnr, ns_id, mark[1])
+  end
+
+  return true
+end
+
+-- Get all suggestions from all buffers (for export)
+function M.get_all_suggestions()
+  return suggestions
 end
 
 return M

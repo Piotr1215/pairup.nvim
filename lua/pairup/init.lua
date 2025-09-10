@@ -130,6 +130,57 @@ M.set_intent = function(intent)
   end
 end
 
+-- Overlay functions
+M.toggle_overlay = function()
+  local overlay = require('pairup.overlay')
+  overlay.toggle()
+end
+
+M.accept_overlay = function()
+  local overlay = require('pairup.overlay')
+  overlay.apply_at_cursor()
+end
+
+M.reject_overlay = function()
+  local overlay = require('pairup.overlay')
+  overlay.reject_at_cursor()
+end
+
+M.accept_next_overlay = function()
+  local overlay = require('pairup.overlay')
+  overlay.accept_next_overlay()
+end
+
+M.next_overlay = function()
+  local overlay = require('pairup.overlay')
+  overlay.next_overlay()
+end
+
+M.prev_overlay = function()
+  local overlay = require('pairup.overlay')
+  overlay.prev_overlay()
+end
+
+M.toggle_follow_mode = function()
+  local overlay = require('pairup.overlay')
+  overlay.toggle_follow_mode()
+end
+
+M.toggle_suggestion_only = function()
+  local overlay = require('pairup.overlay')
+  overlay.toggle_suggestion_only()
+end
+
+M.open_overlay_scope = function()
+  local overlay_scope = require('pairup.overlay_scope')
+  overlay_scope.open_scope()
+end
+
+M.overlay_quickfix = function()
+  local overlay_scope = require('pairup.overlay_scope')
+  overlay_scope.create_quickfix_list()
+end
+
 -- Legacy Claude-specific aliases (for backward compatibility)
 M.start_claude = M.start
 M.toggle_claude = M.toggle

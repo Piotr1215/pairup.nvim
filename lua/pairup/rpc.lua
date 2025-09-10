@@ -251,88 +251,25 @@ function M.get_instructions()
   -- Get the actual server name
   local servername = vim.v.servername or '/tmp/nvim'
 
-  return string.format(
-    [[
+  -- Load instructions from markdown file
+  local source_path = debug.getinfo(1, 'S').source:sub(2)
+  local plugin_root = vim.fn.fnamemodify(source_path, ':h:h:h') -- Go up 3 levels from lua/pairup/rpc.lua
+  local prompt_file = plugin_root .. '/lua/pairup/prompts/rpc_instructions.md'
 
-========================================
-NEOVIM REMOTE CONTROL ENABLED! 
-========================================
+  -- Read the markdown file
+  local file = io.open(prompt_file, 'r')
+  if not file then
+    vim.notify('Failed to load RPC instructions from: ' .. prompt_file, vim.log.levels.ERROR)
+    return nil
+  end
 
-You have direct control over the Neovim instance via RPC.
+  local content = file:read('*all')
+  file:close()
 
-CRITICAL CONTEXT:
-• You're in a terminal buffer (for displaying output)
-• The actual file is in another window
-• Use RPC to control the REAL editor, not this terminal
+  -- Replace %s placeholders with the actual servername
+  content = content:gsub('%%s', servername)
 
-AVAILABLE COMMANDS (use with: nvim --server %s --remote-expr):
-
-THE MAIN COMMAND - Just use execute() for EVERYTHING:
-• 'luaeval("require(\'pairup.rpc\').execute(\'w\')")'              -- Save file
-• 'luaeval("require(\'pairup.rpc\').execute(\'42\')")'             -- Go to line 42  
-• 'luaeval("require(\'pairup.rpc\').execute(\'%%%%s/old/new/g\')")'    -- Replace text  
-• 'luaeval("require(\'pairup.rpc\').substitute(\'old\', \'new\', \'g\')")'  -- Use substitute() helper for safety
-• 'luaeval("require(\'pairup.rpc\').execute(\'/pattern\')")'       -- Search
-• 'luaeval("require(\'pairup.rpc\').execute(\'normal gg\')")'      -- Go to top
-• 'luaeval("require(\'pairup.rpc\').execute(\'Telescope find_files\')")' -- Run any command!
-
-VISUAL OVERLAY SUGGESTIONS - YOUR KILLER FEATURE!:
-• 'luaeval("require(\'pairup.rpc\').show_overlay(10, \'old line\', \'new suggested line\')")' -- Simple cases
-• 'luaeval("require(\'pairup.rpc\').show_overlay_json(\'{\\\'line\\\':10,\\\'old_text\\\':\\\'old\\\',\\\'new_text\\\':\\\'new\\\'}\')")' -- JSON format
-• 'luaeval("require(\'pairup.rpc\').apply_overlay(10)")'         -- Apply suggestion at line 10
-• 'luaeval("require(\'pairup.rpc\').clear_overlays()")'          -- Clear all overlays
-
-ESCAPING SOLUTIONS (use in order of preference):
-1. For simple text: show_overlay() with basic escaping
-2. For complex text: Write JSON to /tmp/overlay.json, then show_overlay_file('/tmp/overlay.json')
-3. For moderate complexity: show_overlay_json() with JSON string
-4. Last resort: show_overlay_base64() with base64 encoding
-
-IMPORTANT: Overlays show your suggestions as visual hints WITHOUT modifying the file!
-User can accept/reject/navigate between them with their own keybindings.
-
-Context & Discovery:
-• 'luaeval("require(\'pairup.rpc\').get_context()")'          -- Get window layout
-• 'luaeval("require(\'pairup.rpc\').get_capabilities()")'     -- Discover all plugins/commands
-• 'luaeval("require(\'pairup.rpc\').read_main_buffer()")'     -- Read file content
-• 'luaeval("require(\'pairup.rpc\').get_stats()")'            -- Get word/line counts
-
-HELP DISCOVERY - Learn Neovim features on your own!
-• 'luaeval("require(\'pairup.rpc\').execute(\'helpgrep telescope\')")'    -- Search ALL help files for a topic
-• 'luaeval("require(\'pairup.rpc\').execute(\'copen\')")'                 -- View helpgrep results in quickfix
-• 'luaeval("vim.inspect(vim.fn.getqflist())")'                          -- Get quickfix list contents
-• 'luaeval("require(\'pairup.rpc\').execute(\'cfirst\')")'               -- Jump to first help match
-• 'luaeval("require(\'pairup.rpc\').execute(\'help telescope.nvim\')")'  -- Direct help for specific topic
-• 'luaeval("require(\'pairup.rpc\').execute(\'Telescope help_tags\')")'  -- Interactive help browser
-• 'luaeval("require(\'pairup.rpc\').execute(\'helptags ALL\')")'         -- Regenerate all help tags
-Pro tip: When you don't know how to do something, search the help first!
-Example: execute('helpgrep sort') to learn about sorting in Vim
-
-GOLDEN RULE: Always call get_context() first to understand the layout!
-
-IMPORTANT INSTRUCTIONS FOR CLAUDE:
-1. **USE execute() FOR EVERYTHING** - it runs ANY Vim command exactly as typed:
-   - execute('w') to save
-   - execute('42') to go to line 42
-   - execute('%%s/old/new/g') for replace
-   - execute('/search_term') to search
-   - execute('Telescope find_files') to use plugins
-   - execute('normal dd') to delete a line
-   - Literally ANY ex command or normal mode command works!
-2. **ESCAPING TIPS**:
-   - For simple patterns: use execute('%%s/old/new/g')
-   - For patterns with quotes: use substitute('old', 'new', 'g') helper
-   - For tabs: use execute('%%s/\\t/  /g') with proper escaping
-   - Helper functions: substitute() avoids most escaping issues
-3. Use discovered plugin commands instead of reinventing:
-   - execute('Telescope live_grep') instead of basic search
-   - execute('Gitsigns blame_line') for git info
-   - execute('LSPHover') for code intelligence
-
-========================================
-]],
-    servername
-  )
+  return '\n' .. content .. '\n'
 end
 
 -- Check if RPC is enabled
@@ -366,8 +303,8 @@ function M.show_overlay_base64(line_num, old_text_b64, new_text_b64)
   return vim.json.encode({ success = true, message = 'Overlay shown at line ' .. line_num })
 end
 
--- Show overlay suggestion in buffer (original version for backward compatibility)
-function M.show_overlay(line_num, old_text, new_text)
+-- Show overlay suggestion in buffer (supports reasoning)
+function M.show_overlay(line_num, old_text, new_text, reasoning)
   local overlay = require('pairup.overlay')
   overlay.setup()
 
@@ -376,7 +313,7 @@ function M.show_overlay(line_num, old_text, new_text)
     return vim.json.encode({ error = 'No main buffer found' })
   end
 
-  overlay.show_suggestion(state.main_buffer, line_num, old_text, new_text)
+  overlay.show_suggestion(state.main_buffer, line_num, old_text, new_text, reasoning)
   return vim.json.encode({ success = true, message = 'Overlay shown at line ' .. line_num })
 end
 
@@ -422,13 +359,20 @@ function M.show_overlay_json(json_str)
     return vim.json.encode({ error = 'Invalid JSON: ' .. tostring(data) })
   end
 
-  -- Handle single line
+  -- Handle single line (with optional reasoning)
   if data.line then
-    overlay.show_suggestion(state.main_buffer, data.line, data.old_text, data.new_text)
+    overlay.show_suggestion(state.main_buffer, data.line, data.old_text, data.new_text, data.reasoning)
     return vim.json.encode({ success = true, message = 'Overlay shown at line ' .. data.line })
-  -- Handle multiline
+  -- Handle multiline (with optional reasoning)
   elseif data.start_line and data.end_line then
-    overlay.show_multiline_suggestion(state.main_buffer, data.start_line, data.end_line, data.old_lines, data.new_lines)
+    overlay.show_multiline_suggestion(
+      state.main_buffer,
+      data.start_line,
+      data.end_line,
+      data.old_lines,
+      data.new_lines,
+      data.reasoning
+    )
     return vim.json.encode({ success = true, message = 'Multiline overlay shown' })
   else
     return vim.json.encode({ error = 'JSON must have either "line" or "start_line/end_line"' })
@@ -494,7 +438,9 @@ function M.get_capabilities()
   caps.commands = vim.tbl_keys(vim.api.nvim_get_commands({}))
 
   -- Get active LSP clients
-  for _, client in pairs(vim.lsp.get_active_clients()) do
+  -- Use get_clients for Neovim 0.10+ compatibility, fallback to get_active_clients
+  local get_clients = vim.lsp.get_clients or vim.lsp.get_active_clients
+  for _, client in pairs(get_clients()) do
     table.insert(caps.lsp_clients, client.name)
   end
 
@@ -511,6 +457,527 @@ function M.get_capabilities()
   end
 
   return vim.json.encode(caps)
+end
+
+-- JSON-based overlay creation (handles all escaping issues)
+function M.show_overlay_json(json_str)
+  local ok, data = pcall(vim.json.decode, json_str)
+  if not ok then
+    return vim.json.encode({ error = 'Invalid JSON: ' .. tostring(data) })
+  end
+
+  local overlay = require('pairup.overlay')
+  overlay.setup()
+
+  if not state.main_buffer then
+    return vim.json.encode({ error = 'No main buffer found' })
+  end
+
+  -- Handle both single and multiline overlays
+  if data.is_multiline then
+    overlay.show_multiline_suggestion(
+      state.main_buffer,
+      data.start_line,
+      data.end_line,
+      data.old_lines,
+      data.new_lines,
+      data.reasoning
+    )
+  else
+    overlay.show_suggestion(state.main_buffer, data.line, data.old_text, data.new_text, data.reasoning)
+  end
+
+  return vim.json.encode({ success = true, message = 'Overlay created' })
+end
+
+-- Load overlay from a file (avoids all command line escaping)
+function M.show_overlay_file(filepath)
+  local file = io.open(filepath, 'r')
+  if not file then
+    return vim.json.encode({ error = 'Cannot read file: ' .. filepath })
+  end
+
+  local content = file:read('*all')
+  file:close()
+
+  return M.show_overlay_json(content)
+end
+
+-- In-memory overlay queue
+local overlay_queue = {}
+local max_queue_size = 50
+
+-- Add overlay to queue (for Claude to use directly)
+function M.queue_overlay(json_data)
+  -- Parse the JSON data
+  local ok, data = pcall(vim.json.decode, json_data)
+  if not ok then
+    return vim.json.encode({ error = 'Invalid JSON: ' .. tostring(data) })
+  end
+
+  -- Add to queue with timestamp
+  data.timestamp = os.time()
+  table.insert(overlay_queue, data)
+
+  -- Limit queue size
+  if #overlay_queue > max_queue_size then
+    table.remove(overlay_queue, 1)
+  end
+
+  -- Apply the overlay immediately
+  local result = M.show_overlay_json(json_data)
+
+  return result
+end
+
+-- Apply all queued overlays
+function M.apply_queued_overlays()
+  local applied = 0
+  local failed = 0
+
+  for _, data in ipairs(overlay_queue) do
+    local json = vim.json.encode(data)
+    local result = M.show_overlay_json(json)
+    local response = vim.json.decode(result)
+
+    if response.success then
+      applied = applied + 1
+    else
+      failed = failed + 1
+    end
+  end
+
+  return vim.json.encode({
+    success = true,
+    applied = applied,
+    failed = failed,
+    total = #overlay_queue,
+  })
+end
+
+-- Clear overlay queue
+function M.clear_overlay_queue()
+  local count = #overlay_queue
+  overlay_queue = {}
+  return vim.json.encode({ success = true, cleared = count })
+end
+
+-- Get overlay queue status
+function M.get_overlay_queue()
+  return vim.json.encode({
+    queued = #overlay_queue,
+    max_size = max_queue_size,
+    overlays = overlay_queue,
+  })
+end
+
+-- Get XDG data directory for persistent storage
+function M.get_data_dir()
+  local xdg_data = vim.env.XDG_DATA_HOME or (vim.env.HOME .. '/.local/share')
+  local data_dir = xdg_data .. '/nvim/pairup/overlays'
+  return data_dir
+end
+
+-- Export overlays to file (for user to save/share)
+function M.export_overlays(filename)
+  if not filename then
+    -- Use default location with timestamp
+    local data_dir = M.get_data_dir()
+    vim.fn.mkdir(data_dir, 'p')
+    filename = string.format('%s/overlays_%s.json', data_dir, os.date('%Y%m%d_%H%M%S'))
+  end
+
+  local file = io.open(filename, 'w')
+  if not file then
+    return vim.json.encode({ error = 'Cannot create file: ' .. filename })
+  end
+
+  -- Get current suggestions from all buffers
+  local overlay = require('pairup.overlay')
+  local all_suggestions = {}
+
+  -- Export from overlay module
+  for bufnr, suggestions in pairs(overlay.get_all_suggestions and overlay.get_all_suggestions() or {}) do
+    if vim.api.nvim_buf_is_valid(bufnr) then
+      local buf_name = vim.api.nvim_buf_get_name(bufnr)
+      all_suggestions[buf_name] = suggestions
+    end
+  end
+
+  -- Also include queued overlays
+  all_suggestions.queued = overlay_queue
+
+  file:write(vim.json.encode(all_suggestions, { indent = true }))
+  file:close()
+
+  return vim.json.encode({ success = true, file = filename })
+end
+
+-- Import overlays from file
+function M.import_overlays(filename)
+  if not filename then
+    -- Look for most recent export
+    local data_dir = M.get_data_dir()
+    local files = vim.fn.glob(data_dir .. '/overlays_*.json', false, true)
+    if #files == 0 then
+      return vim.json.encode({ error = 'No overlay files found' })
+    end
+    table.sort(files)
+    filename = files[#files]
+  end
+
+  local file = io.open(filename, 'r')
+  if not file then
+    return vim.json.encode({ error = 'Cannot read file: ' .. filename })
+  end
+
+  local content = file:read('*all')
+  file:close()
+
+  local ok, data = pcall(vim.json.decode, content)
+  if not ok then
+    return vim.json.encode({ error = 'Invalid JSON in file' })
+  end
+
+  -- Import queued overlays
+  if data.queued then
+    overlay_queue = data.queued
+  end
+
+  -- Apply overlays to buffers
+  local imported = 0
+  for buf_name, suggestions in pairs(data) do
+    if buf_name ~= 'queued' then
+      -- Find or create buffer
+      local bufnr = vim.fn.bufnr(buf_name)
+      if bufnr ~= -1 then
+        -- Apply suggestions to buffer
+        for line_num, suggestion in pairs(suggestions) do
+          if type(line_num) == 'number' then
+            imported = imported + 1
+            -- Apply suggestion
+            local overlay = require('pairup.overlay')
+            if suggestion.is_multiline then
+              overlay.show_multiline_suggestion(
+                bufnr,
+                suggestion.start_line,
+                suggestion.end_line,
+                suggestion.old_lines,
+                suggestion.new_lines,
+                suggestion.reasoning
+              )
+            else
+              overlay.show_suggestion(bufnr, line_num, suggestion.old_text, suggestion.new_text, suggestion.reasoning)
+            end
+          end
+        end
+      end
+    end
+  end
+
+  return vim.json.encode({ success = true, imported = imported, file = filename })
+end
+
+-- Batch overlay operations (for complex multiline suggestions)
+function M.batch_add_single(line, old_text, new_text, reasoning)
+  local batch = require('pairup.overlay_batch')
+  local id = batch.add_single(line, old_text, new_text, reasoning)
+  return vim.json.encode({ success = true, id = id })
+end
+
+function M.batch_add_multiline(start_line, end_line, old_lines, new_lines, reasoning)
+  local batch = require('pairup.overlay_batch')
+  local id = batch.add_multiline(start_line, end_line, old_lines, new_lines, reasoning)
+  return vim.json.encode({ success = true, id = id })
+end
+
+function M.batch_add_deletion(line, old_text, reasoning)
+  local batch = require('pairup.overlay_batch')
+  local id = batch.add_deletion(line, old_text, reasoning)
+  return vim.json.encode({ success = true, id = id })
+end
+
+function M.batch_apply()
+  local batch = require('pairup.overlay_batch')
+  local result = batch.apply_batch()
+  return vim.json.encode(result)
+end
+
+function M.batch_clear()
+  local batch = require('pairup.overlay_batch')
+  batch.clear_batch()
+  return vim.json.encode({ success = true })
+end
+
+function M.batch_status()
+  local batch = require('pairup.overlay_batch')
+  local status = batch.get_batch_status()
+  return vim.json.encode(status)
+end
+
+-- Build and apply batch from structured data
+function M.batch_from_json(json_data)
+  local batch = require('pairup.overlay_batch')
+
+  local ok, data = pcall(vim.json.decode, json_data)
+  if not ok then
+    return vim.json.encode({ error = 'Invalid JSON: ' .. tostring(data) })
+  end
+
+  local status = batch.build_from_data(data)
+  local result = batch.apply_batch()
+
+  return vim.json.encode(result)
+end
+
+-- Get RPC state (for batch operations to access)
+function M.get_state()
+  return state
+end
+
+-- Base64 batch operations (completely avoids escaping)
+function M.batch_b64(base64_data)
+  local batch = require('pairup.overlay_batch')
+
+  -- Use vim.base64.decode if available (Neovim 0.10+)
+  local decoded
+  if vim.base64 and vim.base64.decode then
+    local ok_decode, result = pcall(vim.base64.decode, base64_data)
+    if ok_decode then
+      decoded = result
+    end
+  end
+
+  -- Fallback to vim.fn.decode
+  if not decoded then
+    local ok_decode, result = pcall(vim.fn.decode, base64_data, 'base64')
+    if ok_decode then
+      decoded = result
+    end
+  end
+
+  -- Final fallback to system command
+  if not decoded then
+    decoded = vim.fn.system('echo ' .. vim.fn.shellescape(base64_data) .. ' | base64 -d')
+    if vim.v.shell_error ~= 0 then
+      return vim.json.encode({ error = 'Failed to decode base64', success = false })
+    end
+  end
+
+  local ok, data = pcall(vim.json.decode, decoded)
+  if not ok then
+    return vim.json.encode({ error = 'Invalid JSON after base64 decode: ' .. tostring(data), success = false })
+  end
+
+  local status = batch.build_from_data(data)
+  local result = batch.apply_batch()
+
+  return vim.json.encode(result)
+end
+
+-- Simple overlay using line numbers (no text matching needed)
+function M.simple_overlay(line_num, new_text, reasoning)
+  local overlay = require('pairup.overlay')
+  overlay.setup()
+
+  if not state.main_buffer then
+    return vim.json.encode({ error = 'No main buffer found' })
+  end
+
+  -- Get the current line text
+  local lines = vim.api.nvim_buf_get_lines(state.main_buffer, line_num - 1, line_num, false)
+  if #lines == 0 then
+    return vim.json.encode({ error = 'Line ' .. line_num .. ' does not exist' })
+  end
+
+  local old_text = lines[1]
+
+  -- Apply the overlay
+  overlay.show_suggestion(state.main_buffer, line_num, old_text, new_text, reasoning)
+
+  return vim.json.encode({ success = true, message = 'Overlay applied at line ' .. line_num })
+end
+
+-- Clear all overlays
+function M.clear_all_overlays()
+  local overlay = require('pairup.overlay')
+  if state.main_buffer then
+    overlay.clear_overlays(state.main_buffer)
+  end
+  return vim.json.encode({ success = true })
+end
+
+-- ============================================================================
+-- SIMPLIFIED OVERLAY API - USE THESE INSTEAD OF THE COMPLEX ONES ABOVE
+-- ============================================================================
+
+-- Create single-line overlay (most robust method)
+function M.overlay_single(line, new_text, reasoning)
+  -- Use simple_overlay as fallback to avoid state issues
+  return M.simple_overlay(line, new_text, reasoning)
+end
+
+-- Create multi-line overlay (most robust method)
+function M.overlay_multiline(start_line, end_line, new_lines, reasoning)
+  local state = M.get_state()
+  if not state.main_buffer then
+    return vim.json.encode({ error = 'No main buffer found' })
+  end
+
+  local overlay = require('pairup.overlay')
+
+  -- Get old lines
+  local old_lines = vim.api.nvim_buf_get_lines(state.main_buffer, start_line - 1, end_line, false)
+
+  -- Ensure new_lines is a table
+  if type(new_lines) == 'string' then
+    new_lines = vim.split(new_lines, '\n', { plain = true })
+  end
+
+  overlay.show_multiline_suggestion(state.main_buffer, start_line, end_line, old_lines, new_lines, reasoning or '')
+
+  return vim.json.encode({
+    success = true,
+    start_line = start_line,
+    end_line = end_line,
+    message = 'Multiline overlay created',
+  })
+end
+
+-- Clear all overlays
+function M.overlay_clear()
+  local state = M.get_state()
+  if not state.main_buffer then
+    return vim.json.encode({ error = 'No main buffer found' })
+  end
+
+  local overlay = require('pairup.overlay')
+  overlay.clear_overlays(state.main_buffer)
+  return vim.json.encode({ success = true, message = 'All overlays cleared' })
+end
+
+-- Accept overlay at line
+function M.overlay_accept(line)
+  local state = M.get_state()
+  if not state.main_buffer then
+    return vim.json.encode({ error = 'No main buffer found' })
+  end
+
+  local overlay = require('pairup.overlay')
+  overlay.apply_at_line(state.main_buffer, line)
+  return vim.json.encode({ success = true, line = line, message = 'Overlay accepted' })
+end
+
+-- Reject overlay at line
+function M.overlay_reject(line)
+  local state = M.get_state()
+  if not state.main_buffer then
+    return vim.json.encode({ error = 'No main buffer found' })
+  end
+
+  local overlay = require('pairup.overlay')
+  overlay.reject_at_line(state.main_buffer, line)
+  return vim.json.encode({ success = true, line = line, message = 'Overlay rejected' })
+end
+
+-- List all overlays
+function M.overlay_list()
+  local state = M.get_state()
+  if not state.main_buffer then
+    return vim.json.encode({ error = 'No main buffer found', overlays = {}, count = 0 })
+  end
+
+  local overlay = require('pairup.overlay')
+  local suggestions = overlay.get_suggestions(state.main_buffer)
+  local list = {}
+
+  for line_num, suggestion in pairs(suggestions) do
+    table.insert(list, {
+      line = line_num,
+      old_text = suggestion.old_text,
+      new_text = suggestion.new_text,
+      reasoning = suggestion.reasoning,
+    })
+  end
+
+  -- Sort by line number
+  table.sort(list, function(a, b)
+    return a.line < b.line
+  end)
+
+  return vim.json.encode({
+    success = true,
+    overlays = list,
+    count = #list,
+  })
+end
+
+-- Accept-safe JSON handling (Claude sends raw JSON, we handle encoding)
+function M.overlay_json_safe(json_str)
+  -- This function accepts raw JSON string without any encoding
+  -- Claude can send complex JSON without worrying about escaping
+  local ok, data = pcall(vim.json.decode, json_str)
+  if not ok then
+    return vim.json.encode({ error = 'Invalid JSON: ' .. tostring(data) })
+  end
+
+  local overlay = require('pairup.overlay')
+  overlay.setup()
+
+  if not state.main_buffer then
+    return vim.json.encode({ error = 'No main buffer found' })
+  end
+
+  -- Handle batch operations
+  if data.batch or data.overlays then
+    local batch = require('pairup.overlay_batch')
+    batch.clear_batch()
+
+    local overlays = data.overlays or {}
+    local count = 0
+
+    for _, o in ipairs(overlays) do
+      if o.type == 'multiline' then
+        batch.add_multiline(o.start_line, o.end_line, o.old_lines, o.new_lines, o.reasoning)
+      elseif o.type == 'deletion' then
+        batch.add_deletion(o.start_line, o.end_line, o.reasoning)
+      else
+        batch.add_single(o.line, o.old_text, o.new_text, o.reasoning)
+      end
+      count = count + 1
+    end
+
+    local result = batch.apply_batch()
+    return vim.json.encode({ success = true, count = count, applied = result.applied })
+  end
+
+  -- Handle deletion overlays
+  if data.type == 'deletion' then
+    overlay.show_deletion_suggestion(state.main_buffer, data.start_line, data.end_line, data.reasoning)
+    return vim.json.encode({ success = true, count = 1 })
+  end
+
+  -- Validate required fields for single/multiline
+  if data.type == 'multiline' or data.is_multiline then
+    if not data.start_line or not data.end_line or not data.new_lines then
+      return vim.json.encode({ error = 'Multiline overlay missing required fields', success = false })
+    end
+    overlay.show_multiline_suggestion(
+      state.main_buffer,
+      data.start_line,
+      data.end_line,
+      data.old_lines,
+      data.new_lines,
+      data.reasoning
+    )
+  else
+    if not data.line or not data.new_text then
+      return vim.json.encode({ error = 'Single overlay missing required fields', success = false })
+    end
+    overlay.show_suggestion(state.main_buffer, data.line, data.old_text, data.new_text, data.reasoning)
+  end
+
+  return vim.json.encode({ success = true, count = 1 })
 end
 
 return M
