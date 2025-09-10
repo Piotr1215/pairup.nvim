@@ -1131,12 +1131,17 @@ function M.show_multiline_suggestion_variants(bufnr, start_line, end_line, old_l
     suggestions[bufnr] = {}
   end
 
+  -- If old_lines not provided, fetch from buffer
+  if not old_lines then
+    old_lines = vim.api.nvim_buf_get_lines(bufnr, start_line - 1, end_line, false)
+  end
+
   -- Convert variants to internal format
   local formatted_variants = {}
   for i, variant in ipairs(variants) do
     table.insert(formatted_variants, {
       old_lines = old_lines,
-      new_lines = variant.new_lines,
+      new_lines = variant.new_lines or {}, -- Default to empty array if nil
       reasoning = variant.reasoning,
       is_active = i == 1,
     })
@@ -1196,8 +1201,12 @@ function M.display_multiline_variant(bufnr, start_line, variant_index)
 
   -- Show new lines
   table.insert(virt_lines, { { '│ ', 'PairupBorder' }, { '── Suggestion ──', 'PairupSubHeader' } })
-  for _, line in ipairs(variant.new_lines) do
-    table.insert(virt_lines, { { '│ ', 'PairupBorder' }, { line, 'PairupAdd' } })
+  if variant.new_lines then
+    for _, line in ipairs(variant.new_lines) do
+      table.insert(virt_lines, { { '│ ', 'PairupBorder' }, { line, 'PairupAdd' } })
+    end
+  else
+    table.insert(virt_lines, { { '│ ', 'PairupBorder' }, { '[No replacement lines]', 'PairupHint' } })
   end
 
   if variant.reasoning then

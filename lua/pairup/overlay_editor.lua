@@ -80,13 +80,33 @@ function M.edit_overlay_at_cursor()
   table.insert(lines, "## Claude's Suggestion:")
   table.insert(lines, '```')
 
-  if suggestion.is_multiline and suggestion.new_lines then
-    for _, new_line in ipairs(suggestion.new_lines) do
-      table.insert(lines, new_line)
+  -- Handle variants if present
+  local suggestion_text
+  if suggestion.variants and suggestion.current_variant then
+    local variant = suggestion.variants[suggestion.current_variant]
+    if variant then
+      if suggestion.is_multiline then
+        suggestion_text = variant.new_lines
+      else
+        suggestion_text = variant.new_text
+      end
     end
   else
-    -- Split on newlines in case text contains embedded newlines
-    local text_lines = vim.split(suggestion.new_text or '', '\n', { plain = true })
+    -- Regular suggestion
+    if suggestion.is_multiline then
+      suggestion_text = suggestion.new_lines
+    else
+      suggestion_text = suggestion.new_text
+    end
+  end
+
+  -- Display Claude's suggestion
+  if type(suggestion_text) == 'table' then
+    for _, line in ipairs(suggestion_text) do
+      table.insert(lines, line)
+    end
+  else
+    local text_lines = vim.split(suggestion_text or '', '\n', { plain = true })
     for _, text_line in ipairs(text_lines) do
       table.insert(lines, text_line)
     end
@@ -97,14 +117,13 @@ function M.edit_overlay_at_cursor()
   table.insert(lines, '## Your Edit (modify below):')
   table.insert(lines, '```')
 
-  -- Add the suggestion text as starting point for editing
-  if suggestion.is_multiline and suggestion.new_lines then
-    for _, new_line in ipairs(suggestion.new_lines) do
-      table.insert(lines, new_line)
+  -- Add the suggestion text as starting point for editing (same as above)
+  if type(suggestion_text) == 'table' then
+    for _, line in ipairs(suggestion_text) do
+      table.insert(lines, line)
     end
   else
-    -- Split on newlines in case text contains embedded newlines
-    local text_lines = vim.split(suggestion.new_text or '', '\n', { plain = true })
+    local text_lines = vim.split(suggestion_text or '', '\n', { plain = true })
     for _, text_line in ipairs(text_lines) do
       table.insert(lines, text_line)
     end
@@ -246,8 +265,11 @@ function M.apply_edited_overlay()
     )
   end
 
-  -- Clear the overlay
+  -- Clear the overlay (remove the visual suggestion)
   overlay.clear_overlay_at_line(editor_state.source_buf, editor_state.line_num)
+
+  -- Force a redraw to ensure the overlay disappears immediately
+  vim.cmd('redraw')
 
   -- Send feedback to Claude if we have RPC enabled
   local ok, rpc = pcall(require, 'pairup.rpc')
@@ -255,9 +277,14 @@ function M.apply_edited_overlay()
     M.send_edited_feedback(edited_text, notes)
   end
 
-  -- Close the editor
+  -- Close the editor window after a small delay to ensure the save completes
   if editor_state.editor_win and vim.api.nvim_win_is_valid(editor_state.editor_win) then
-    vim.api.nvim_win_close(editor_state.editor_win, true)
+    local win_to_close = editor_state.editor_win
+    vim.defer_fn(function()
+      if vim.api.nvim_win_is_valid(win_to_close) then
+        vim.api.nvim_win_close(win_to_close, true)
+      end
+    end, 10)
   end
 
   -- Reset state

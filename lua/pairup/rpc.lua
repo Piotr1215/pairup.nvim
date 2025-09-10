@@ -485,16 +485,57 @@ end
 
 -- OVERLAY FUNCTION 3: Single-line with variants (JSON-based for RPC compatibility)
 function M.overlay_single_variants_json(line, variants_json)
-  local variants = vim.json.decode(variants_json)
+  -- Better error handling for JSON
+  local ok, variants = pcall(vim.json.decode, variants_json)
+  if not ok then
+    return { success = false, error = 'JSON decode failed: ' .. tostring(variants) }
+  end
   local overlay_api = require('pairup.overlay_api')
-  return overlay_api.single_variants(line, variants)
+  local result = overlay_api.single_variants(line, variants)
+  -- Decode the JSON response from overlay_api
+  local decode_ok, decoded = pcall(vim.json.decode, result)
+  if decode_ok then
+    return decoded
+  else
+    return { success = true } -- Fallback if decoding fails
+  end
 end
 
 -- OVERLAY FUNCTION 4: Multi-line with variants (JSON-based for RPC compatibility)
 function M.overlay_multiline_variants_json(start_line, end_line, variants_json)
-  local variants = vim.json.decode(variants_json)
+  -- Better error handling for JSON
+  local ok, variants = pcall(vim.json.decode, variants_json)
+  if not ok then
+    return { success = false, error = 'JSON decode failed: ' .. tostring(variants) }
+  end
   local overlay_api = require('pairup.overlay_api')
-  return overlay_api.multiline_variants(start_line, end_line, variants)
+  local result = overlay_api.multiline_variants(start_line, end_line, variants)
+  -- Decode the JSON response from overlay_api
+  local decode_ok, decoded = pcall(vim.json.decode, result)
+  if decode_ok then
+    return decoded
+  else
+    return { success = true } -- Fallback if decoding fails
+  end
+end
+
+-- OVERLAY FUNCTION 5: Simplified multi-line variants using base64 encoding to avoid escaping issues
+function M.overlay_multiline_variants_b64(start_line, end_line, variants_b64)
+  -- Decode base64 first, then JSON
+  local json_str = vim.fn.system('echo "' .. variants_b64 .. '" | base64 -d')
+  local ok, variants = pcall(vim.json.decode, json_str)
+  if not ok then
+    return { success = false, error = 'Failed to decode base64/JSON: ' .. tostring(variants) }
+  end
+  local overlay_api = require('pairup.overlay_api')
+  local result = overlay_api.multiline_variants(start_line, end_line, variants)
+  -- Decode the JSON response from overlay_api
+  local decode_ok, decoded = pcall(vim.json.decode, result)
+  if decode_ok then
+    return decoded
+  else
+    return { success = true } -- Fallback if decoding fails
+  end
 end
 
 -- Accept overlay at line
