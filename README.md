@@ -189,6 +189,35 @@ Overlays appear as virtual text in your buffer showing:
 
 You can accept or reject each suggestion individually, maintaining full control over your code.
 
+### Overlay Persistence
+
+Save and restore overlay suggestions across sessions:
+
+```vim
+" Save current overlays to auto-generated file
+:PairupOverlaySave
+" Or save to specific file  
+:PairupOverlaySave ~/my-overlays.json
+
+" Restore overlays (shows picker if no file specified)
+:PairupOverlayRestore
+" Or restore from specific file
+:PairupOverlayRestore ~/my-overlays.json
+
+" List all saved overlay sessions
+:PairupOverlayList
+
+" Shorter aliases
+:PairSave        " Same as :PairupOverlaySave
+:PairRestore     " Same as :PairupOverlayRestore
+```
+
+**How it works:**
+- Overlays are saved as JSON with file content and suggestions
+- File hash checking detects if the file changed since save
+- Extmarks are recreated fresh when restoring (not persisted)
+- Auto-save can be configured to save on buffer write/unload
+
 For remote network scenarios claude can run either locally in neovim buffer and
 operate on remote neovim instance or run in remote server and operate on the
 local buffer.
@@ -334,6 +363,14 @@ require('pairup').setup({
   periodic_updates = {                                            
     enabled = false,                                              -- Send periodic status updates
     interval_minutes = 10,                                        -- Update interval in minutes
+  },
+  
+  -- Overlay Persistence Settings
+  overlay_persistence = {
+    enabled = false,                                              -- Enable overlay persistence features
+    auto_save = false,                                            -- Auto-save overlays on buffer write/unload
+    auto_restore = false,                                         -- Auto-restore overlays when opening files
+    max_sessions = 10,                                            -- Maximum saved sessions to keep per file
   },                                                              
 })                                                                
 ```

@@ -1,6 +1,10 @@
 -- Overlay persistence module for saving/restoring unresolved suggestions
 local M = {}
 
+-- Track if we're already saving to prevent multiple concurrent saves
+local is_saving = false
+local is_exiting = false
+
 -- Get the storage directory for overlay sessions
 local function get_storage_dir()
   local dir = vim.fn.stdpath('state') .. '/pairup/overlays/'
@@ -10,17 +14,8 @@ end
 
 -- Calculate file hash for staleness detection
 local function get_file_hash(filepath)
-  -- Use sha256sum if available, fallback to md5sum
-  local cmd = string.format("sha256sum '%s' 2>/dev/null || md5sum '%s' 2>/dev/null", filepath, filepath)
-  local handle = io.popen(cmd)
-  if handle then
-    local result = handle:read('*a')
-    handle:close()
-    if result and result ~= '' then
-      return result:match('^(%S+)')
-    end
-  end
-  -- Fallback: use file size and mtime
+  -- Use vim.loop (libuv) for non-blocking file stat
+  -- Avoid io.popen which can hang during exit
   local stat = vim.loop.fs_stat(filepath)
   if stat then
     return string.format('%d_%d', stat.size, stat.mtime.sec)
@@ -30,108 +25,125 @@ end
 
 -- Save overlays to a session file
 function M.save_overlays(filepath)
-  local overlay = require('pairup.overlay')
-  local bufnr = vim.api.nvim_get_current_buf()
-  local suggestions = overlay.get_suggestions(bufnr)
-
-  -- Get current file info
-  local current_file = vim.api.nvim_buf_get_name(bufnr)
-  if current_file == '' then
-    return false, 'No file in current buffer'
+  -- Don't save if we're already saving or exiting
+  if is_saving or is_exiting then
+    return false, 'Save already in progress or exiting'
   end
 
-  -- Count overlays
-  local count = 0
-  for _, _ in pairs(suggestions) do
-    count = count + 1
-  end
+  is_saving = true
 
-  if count == 0 then
-    return false, 'No overlays to save'
-  end
+  local ok, result, path, count = pcall(function()
+    local overlay = require('pairup.overlay')
+    local bufnr = vim.api.nvim_get_current_buf()
+    local suggestions = overlay.get_suggestions(bufnr)
 
-  -- Build session data
-  local session = {
-    version = 1,
-    timestamp = os.time(),
-    file = current_file,
-    file_hash = get_file_hash(current_file),
-    overlay_count = count,
-    overlays = {},
-  }
-
-  -- Convert suggestions to serializable format
-  for line_num, suggestion in pairs(suggestions) do
-    local overlay_data = {
-      line = line_num,
-      reasoning = suggestion.reasoning,
-      is_multiline = suggestion.is_multiline,
-      is_deletion = suggestion.is_deletion,
-    }
-
-    -- Handle variants
-    if suggestion.variants then
-      overlay_data.variants = {}
-      for i, variant in ipairs(suggestion.variants) do
-        local v = {
-          reasoning = variant.reasoning,
-        }
-        if suggestion.is_multiline then
-          v.new_lines = variant.new_lines
-        else
-          v.new_text = variant.new_text
-        end
-        table.insert(overlay_data.variants, v)
-      end
-      overlay_data.current_variant = suggestion.current_variant
-    else
-      -- Single suggestion
-      if suggestion.is_multiline then
-        overlay_data.start_line = suggestion.start_line
-        overlay_data.end_line = suggestion.end_line
-        overlay_data.old_lines = suggestion.old_lines
-        overlay_data.new_lines = suggestion.new_lines
-      else
-        overlay_data.old_text = suggestion.old_text
-        overlay_data.new_text = suggestion.new_text
-      end
+    -- Get current file info
+    local current_file = vim.api.nvim_buf_get_name(bufnr)
+    if current_file == '' then
+      return false, 'No file in current buffer'
     end
 
-    table.insert(session.overlays, overlay_data)
-  end
+    -- Count overlays
+    local overlay_count = 0
+    for _, _ in pairs(suggestions) do
+      overlay_count = overlay_count + 1
+    end
 
-  -- Sort by line number for consistent output
-  table.sort(session.overlays, function(a, b)
-    return a.line < b.line
+    if overlay_count == 0 then
+      return false, 'No overlays to save'
+    end
+
+    -- Build session data
+    local session = {
+      version = 1,
+      timestamp = os.time(),
+      file = current_file,
+      file_hash = get_file_hash(current_file),
+      overlay_count = overlay_count,
+      overlays = {},
+    }
+
+    -- Convert suggestions to serializable format
+    for line_num, suggestion in pairs(suggestions) do
+      local overlay_data = {
+        line = line_num,
+        reasoning = suggestion.reasoning,
+        is_multiline = suggestion.is_multiline,
+        is_deletion = suggestion.is_deletion,
+      }
+
+      -- Handle variants
+      if suggestion.variants then
+        overlay_data.variants = {}
+        for i, variant in ipairs(suggestion.variants) do
+          local v = {
+            reasoning = variant.reasoning,
+          }
+          if suggestion.is_multiline then
+            v.new_lines = variant.new_lines
+          else
+            v.new_text = variant.new_text
+          end
+          table.insert(overlay_data.variants, v)
+        end
+        overlay_data.current_variant = suggestion.current_variant
+      else
+        -- Single suggestion
+        if suggestion.is_multiline then
+          overlay_data.start_line = suggestion.start_line
+          overlay_data.end_line = suggestion.end_line
+          overlay_data.old_lines = suggestion.old_lines
+          overlay_data.new_lines = suggestion.new_lines
+        else
+          overlay_data.old_text = suggestion.old_text
+          overlay_data.new_text = suggestion.new_text
+        end
+      end
+
+      table.insert(session.overlays, overlay_data)
+    end
+
+    -- Sort by line number for consistent output
+    table.sort(session.overlays, function(a, b)
+      return a.line < b.line
+    end)
+
+    -- Determine save path
+    local save_path
+    if filepath then
+      save_path = filepath
+    else
+      -- Auto-generate filename based on current file and timestamp
+      local basename = vim.fn.fnamemodify(current_file, ':t:r')
+      local timestamp = os.date('%Y%m%d_%H%M%S')
+      save_path = get_storage_dir() .. string.format('%s_%s.json', basename, timestamp)
+    end
+
+    -- Encode JSON
+    local json_ok, json = pcall(vim.json.encode, session)
+    if not json_ok then
+      return false, 'Failed to encode session'
+    end
+
+    -- Save to file
+    local file = io.open(save_path, 'w')
+    if not file then
+      return false, 'Failed to open file for writing'
+    end
+
+    file:write(json)
+    file:close()
+
+    return true, save_path, overlay_count
   end)
 
-  -- Determine save path
-  local save_path
-  if filepath then
-    save_path = filepath
+  is_saving = false
+
+  if ok then
+    return result, path, count
   else
-    -- Auto-generate filename based on current file and timestamp
-    local basename = vim.fn.fnamemodify(current_file, ':t:r')
-    local timestamp = os.date('%Y%m%d_%H%M%S')
-    save_path = get_storage_dir() .. string.format('%s_%s.json', basename, timestamp)
+    return false, tostring(result)
   end
-
-  -- Save to file
-  local file = io.open(save_path, 'w')
-  if not file then
-    return false, 'Failed to open file for writing: ' .. save_path
-  end
-
-  local ok, json = pcall(vim.json.encode, session)
-  if not ok then
-    file:close()
-    return false, 'Failed to encode session: ' .. tostring(json)
-  end
-
-  file:write(json)
-  file:close()
-
-  return true, save_path, count
 end
 
 -- Restore overlays from a session file
@@ -286,21 +298,101 @@ function M.list_sessions()
 end
 
 -- Auto-save function (can be called on buffer unload or vim exit)
-function M.auto_save()
-  local overlay = require('pairup.overlay')
-  local suggestions = overlay.get_suggestions()
-
-  -- Count overlays
-  local count = 0
-  for _, _ in pairs(suggestions) do
-    count = count + 1
+function M.auto_save(silent)
+  -- Don't save if already exiting
+  if is_exiting then
+    return false
   end
 
-  if count > 0 then
-    local ok, path = M.save_overlays()
-    if ok then
-      vim.notify(string.format('Auto-saved %d overlays to %s', count, vim.fn.fnamemodify(path, ':~')))
+  -- Don't save if another save is in progress
+  if is_saving then
+    return false
+  end
+
+  local ok, path, count = M.save_overlays()
+
+  -- Always log to a file for debugging
+  local log_file = io.open(vim.fn.stdpath('state') .. '/pairup_save.log', 'a')
+  if log_file then
+    log_file:write(
+      string.format(
+        '[%s] auto_save: ok=%s, path=%s, count=%s\n',
+        os.date('%Y-%m-%d %H:%M:%S'),
+        tostring(ok),
+        tostring(path),
+        tostring(count)
+      )
+    )
+    log_file:close()
+  end
+
+  if ok and not silent then
+    -- Use print instead of vim.notify to avoid issues during exit
+    print(string.format('Saved %d overlays to %s', count, vim.fn.fnamemodify(path, ':~')))
+  end
+
+  return ok, path, count
+end
+
+-- Auto-save for exit (completely silent, non-blocking)
+function M.auto_save_on_exit()
+  -- Mark that we're exiting to prevent other saves
+  is_exiting = true
+
+  -- Log the attempt
+  local log_file = io.open(vim.fn.stdpath('state') .. '/pairup_save.log', 'a')
+  if log_file then
+    log_file:write(string.format('[%s] auto_save_on_exit: called\n', os.date('%Y-%m-%d %H:%M:%S')))
+  end
+
+  -- Don't try to save if already saving
+  if is_saving then
+    if log_file then
+      log_file:write('  - skipped: already saving\n')
+      log_file:close()
     end
+    return
+  end
+
+  -- Quick check if there are any overlays to save
+  local ok_check, has_overlays = pcall(function()
+    local overlay = require('pairup.overlay')
+    local bufnr = vim.api.nvim_get_current_buf()
+    local suggestions = overlay.get_suggestions(bufnr)
+
+    -- Count suggestions
+    local count = 0
+    for _, _ in pairs(suggestions) do
+      count = count + 1
+    end
+
+    if log_file then
+      log_file:write(string.format('  - found %d overlays\n', count))
+    end
+
+    return count > 0
+  end)
+
+  if not ok_check or not has_overlays then
+    if log_file then
+      log_file:write(
+        string.format(
+          '  - no overlays to save: ok_check=%s, has_overlays=%s\n',
+          tostring(ok_check),
+          tostring(has_overlays)
+        )
+      )
+      log_file:close()
+    end
+    return
+  end
+
+  -- Try to save, but don't block or show errors
+  local save_ok, save_result = pcall(M.save_overlays)
+
+  if log_file then
+    log_file:write(string.format('  - save result: ok=%s, result=%s\n', tostring(save_ok), tostring(save_result)))
+    log_file:close()
   end
 end
 

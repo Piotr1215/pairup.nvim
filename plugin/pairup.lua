@@ -387,24 +387,27 @@ local function setup_overlay_persistence_autocmds()
     group = group,
     pattern = '*',
     callback = function()
-      local persist = require('pairup.overlay_persistence')
-      local overlay = require('pairup.overlay')
-      local suggestions = overlay.get_suggestions()
+      pcall(function()
+        local persist = require('pairup.overlay_persistence')
+        local overlay = require('pairup.overlay')
+        local bufnr = vim.api.nvim_get_current_buf()
+        local suggestions = overlay.get_suggestions(bufnr)
 
-      -- Only save if there are overlays
-      local count = 0
-      for _, _ in pairs(suggestions) do
-        count = count + 1
-      end
-
-      if count > 0 then
-        persist.auto_save()
-        -- Clean old sessions based on config
-        local max_sessions = config.get('overlay_persistence.max_sessions')
-        if max_sessions then
-          persist.clean_old_sessions(max_sessions)
+        -- Only save if there are overlays
+        local count = 0
+        for _, _ in pairs(suggestions) do
+          count = count + 1
         end
-      end
+
+        if count > 0 then
+          persist.auto_save(true) -- Silent mode
+          -- Clean old sessions based on config
+          local max_sessions = config.get('overlay_persistence.max_sessions')
+          if max_sessions then
+            persist.clean_old_sessions(max_sessions)
+          end
+        end
+      end)
     end,
     desc = 'Auto-save overlays after buffer write',
   })
@@ -414,19 +417,24 @@ local function setup_overlay_persistence_autocmds()
     group = group,
     pattern = '*',
     callback = function()
-      local persist = require('pairup.overlay_persistence')
-      persist.auto_save()
+      pcall(function()
+        local persist = require('pairup.overlay_persistence')
+        persist.auto_save(true) -- Silent mode
+      end)
     end,
     desc = 'Auto-save overlays when unloading buffer',
   })
 
-  -- Auto-save before exiting Neovim
+  -- Auto-save before exiting Neovim (use special exit-safe function)
   vim.api.nvim_create_autocmd('VimLeavePre', {
     group = group,
     pattern = '*',
     callback = function()
-      local persist = require('pairup.overlay_persistence')
-      persist.auto_save()
+      -- Use pcall to prevent any errors from blocking exit
+      pcall(function()
+        local persist = require('pairup.overlay_persistence')
+        persist.auto_save_on_exit()
+      end)
     end,
     desc = 'Auto-save overlays before exiting Neovim',
   })

@@ -325,23 +325,15 @@ function M.start(intent_mode, session_id)
         end
 
         if matching_session then
-          -- Check if file hash matches (not stale)
+          -- Simply try to restore - the restore function will check staleness
           local overlay_mod = require('pairup.overlay_persistence')
-          local ok, result = overlay_mod.restore_overlays(matching_session.path, { preview = true })
+          local restore_ok, msg, count = overlay_mod.restore_overlays(matching_session.path, { force = false })
 
-          if ok then
-            local session_data = result
-            local current_hash = vim.fn
-              .system(string.format("sha256sum '%s' 2>/dev/null || md5sum '%s' 2>/dev/null", current_file, current_file))
-              :match('^(%S+)')
-
-            if current_hash == session_data.file_hash then
-              -- File hasn't changed, restore overlays
-              local restore_ok, msg, count = overlay_mod.restore_overlays(matching_session.path)
-              if restore_ok and count and count > 0 then
-                vim.notify(string.format('Restored %d overlays from previous session', count), vim.log.levels.INFO)
-              end
-            end
+          if restore_ok and count and count > 0 then
+            vim.notify(string.format('Restored %d overlays from previous session', count), vim.log.levels.INFO)
+          elseif not restore_ok and msg and msg:match('File has changed') then
+            -- File has changed, don't notify about staleness
+            -- User can manually restore with force if needed
           end
         end
       end
@@ -422,21 +414,15 @@ function M.toggle(intent_mode, session_id)
           local sessions = persist.list_sessions()
           for _, session in ipairs(sessions) do
             if session.file == current_file then
+              -- Simply try to restore - the restore function will check staleness
               local overlay_mod = require('pairup.overlay_persistence')
-              local ok, result = overlay_mod.restore_overlays(session.path, { preview = true })
+              local restore_ok, msg, count = overlay_mod.restore_overlays(session.path, { force = false })
 
-              if ok then
-                local session_data = result
-                local current_hash = vim.fn
-                  .system(string.format("sha256sum '%s' 2>/dev/null || md5sum '%s' 2>/dev/null", current_file, current_file))
-                  :match('^(%S+)')
-
-                if current_hash == session_data.file_hash then
-                  local restore_ok, msg, count = overlay_mod.restore_overlays(session.path)
-                  if restore_ok and count and count > 0 then
-                    vim.notify(string.format('Restored %d overlays from previous session', count), vim.log.levels.INFO)
-                  end
-                end
+              if restore_ok and count and count > 0 then
+                vim.notify(string.format('Restored %d overlays from previous session', count), vim.log.levels.INFO)
+              elseif not restore_ok and msg and msg:match('File has changed') then
+                -- File has changed, don't notify about staleness
+                -- User can manually restore with force if needed
               end
               break
             end
