@@ -87,6 +87,14 @@ local defaults = {
     enabled = false,
     interval_minutes = 10,
   },
+
+  -- Overlay persistence settings
+  overlay_persistence = {
+    enabled = true, -- Enable auto-save and auto-restore of overlays
+    auto_save = true, -- Automatically save overlays on buffer write, unload, and exit
+    auto_restore = true, -- Automatically restore overlays when starting Claude
+    max_sessions = 10, -- Maximum number of overlay sessions to keep per file
+  },
 }
 
 -- Current configuration

@@ -176,6 +176,19 @@ This enables the following scenarios.
 - Docker containers: nvim --listen 0.0.0.0:6666 inside container
 - WSL/VMs: Same TCP detection works across boundaries
 
+## Overlay Feature (Virtual Text Suggestions)
+
+When RPC is enabled, Claude can suggest code changes using overlays - virtual text that shows proposed modifications without immediately changing your files. This allows you to review suggestions before accepting them.
+
+### How Overlays Work
+
+Overlays appear as virtual text in your buffer showing:
+- The original line content
+- The suggested replacement
+- A clear reasoning for the change
+
+You can accept or reject each suggestion individually, maintaining full control over your code.
+
 For remote network scenarios claude can run either locally in neovim buffer and
 operate on remote neovim instance or run in remote server and operate on the
 local buffer.

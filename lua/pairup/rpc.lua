@@ -483,6 +483,20 @@ function M.overlay_multiline_json(start_line, end_line, new_lines_json, reasonin
   return overlay_api.multiline(start_line, end_line, new_lines, reasoning)
 end
 
+-- OVERLAY FUNCTION 3: Single-line with variants (JSON-based for RPC compatibility)
+function M.overlay_single_variants_json(line, variants_json)
+  local variants = vim.json.decode(variants_json)
+  local overlay_api = require('pairup.overlay_api')
+  return overlay_api.single_variants(line, variants)
+end
+
+-- OVERLAY FUNCTION 4: Multi-line with variants (JSON-based for RPC compatibility)
+function M.overlay_multiline_variants_json(start_line, end_line, variants_json)
+  local variants = vim.json.decode(variants_json)
+  local overlay_api = require('pairup.overlay_api')
+  return overlay_api.multiline_variants(start_line, end_line, variants)
+end
+
 -- Accept overlay at line
 function M.overlay_accept(line)
   local state = M.get_state()

@@ -69,6 +69,21 @@ function M.get_suggestions(bufnr)
   return suggestions[bufnr] or {}
 end
 
+-- Get status indicator for statusline
+function M.get_status()
+  local bufnr = vim.api.nvim_get_current_buf()
+  local count = 0
+
+  for _, _ in pairs(suggestions[bufnr] or {}) do
+    count = count + 1
+  end
+
+  if count > 0 then
+    return string.format('󰄬 %d', count) -- Overlay icon + count
+  end
+  return ''
+end
+
 -- Show a suggestion as virtual text - ROBUST VERSION
 function M.show_suggestion(bufnr, line_num, old_text, new_text, reasoning)
   bufnr = bufnr or vim.api.nvim_get_current_buf()
@@ -588,7 +603,25 @@ function M.apply_at_cursor()
 
     return true
   else
-    vim.notify('No suggestion at current line', vim.log.levels.WARN)
+    -- Provide helpful error message with available overlay locations
+    local all_overlays = {}
+    for line_num, _ in pairs(suggestions[bufnr] or {}) do
+      table.insert(all_overlays, line_num)
+    end
+    table.sort(all_overlays)
+
+    if #all_overlays > 0 then
+      vim.notify(
+        string.format(
+          'No overlay at line %d. Available at lines: %s\nTip: Use :PairNext to jump to nearest',
+          current_line or cursor[1],
+          table.concat(all_overlays, ', ')
+        ),
+        vim.log.levels.WARN
+      )
+    else
+      vim.notify('No overlays in current buffer', vim.log.levels.INFO)
+    end
     return false
   end
 end
@@ -633,7 +666,25 @@ function M.reject_at_cursor()
 
     return true
   else
-    vim.notify('No suggestion at current line', vim.log.levels.WARN)
+    -- Provide helpful error message with available overlay locations
+    local all_overlays = {}
+    for line_num, _ in pairs(suggestions[bufnr] or {}) do
+      table.insert(all_overlays, line_num)
+    end
+    table.sort(all_overlays)
+
+    if #all_overlays > 0 then
+      vim.notify(
+        string.format(
+          'No overlay at line %d. Available at lines: %s\nTip: Use :PairNext to jump to nearest',
+          current_line or cursor[1],
+          table.concat(all_overlays, ', ')
+        ),
+        vim.log.levels.WARN
+      )
+    else
+      vim.notify('No overlays in current buffer', vim.log.levels.INFO)
+    end
     return false
   end
 end

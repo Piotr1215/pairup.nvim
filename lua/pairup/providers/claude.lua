@@ -306,6 +306,48 @@ function M.start(intent_mode, session_id)
   -- Update indicator
   require('pairup.utils.indicator').update()
 
+  -- Auto-restore overlays for current file if they exist (if enabled in config)
+  if config.get('overlay_persistence.enabled') and config.get('overlay_persistence.auto_restore') then
+    vim.defer_fn(function()
+      local persist = require('pairup.overlay_persistence')
+      local current_file = vim.api.nvim_buf_get_name(0)
+
+      if current_file ~= '' then
+        -- Look for most recent overlay session for this file
+        local sessions = persist.list_sessions()
+        local matching_session = nil
+
+        for _, session in ipairs(sessions) do
+          if session.file == current_file then
+            matching_session = session
+            break -- Sessions are sorted by timestamp, newest first
+          end
+        end
+
+        if matching_session then
+          -- Check if file hash matches (not stale)
+          local overlay_mod = require('pairup.overlay_persistence')
+          local ok, result = overlay_mod.restore_overlays(matching_session.path, { preview = true })
+
+          if ok then
+            local session_data = result
+            local current_hash = vim.fn
+              .system(string.format("sha256sum '%s' 2>/dev/null || md5sum '%s' 2>/dev/null", current_file, current_file))
+              :match('^(%S+)')
+
+            if current_hash == session_data.file_hash then
+              -- File hasn't changed, restore overlays
+              local restore_ok, msg, count = overlay_mod.restore_overlays(matching_session.path)
+              if restore_ok and count and count > 0 then
+                vim.notify(string.format('Restored %d overlays from previous session', count), vim.log.levels.INFO)
+              end
+            end
+          end
+        end
+      end
+    end, 500) -- Small delay to ensure everything is initialized
+  end
+
   return true
 end
 
@@ -369,6 +411,40 @@ function M.toggle(intent_mode, session_id)
 
     config.set('enabled', true)
     require('pairup.utils.indicator').update()
+
+    -- Auto-restore overlays when showing Claude window again (if enabled)
+    if config.get('overlay_persistence.enabled') and config.get('overlay_persistence.auto_restore') then
+      vim.defer_fn(function()
+        local persist = require('pairup.overlay_persistence')
+        local current_file = vim.api.nvim_buf_get_name(0)
+
+        if current_file ~= '' then
+          local sessions = persist.list_sessions()
+          for _, session in ipairs(sessions) do
+            if session.file == current_file then
+              local overlay_mod = require('pairup.overlay_persistence')
+              local ok, result = overlay_mod.restore_overlays(session.path, { preview = true })
+
+              if ok then
+                local session_data = result
+                local current_hash = vim.fn
+                  .system(string.format("sha256sum '%s' 2>/dev/null || md5sum '%s' 2>/dev/null", current_file, current_file))
+                  :match('^(%S+)')
+
+                if current_hash == session_data.file_hash then
+                  local restore_ok, msg, count = overlay_mod.restore_overlays(session.path)
+                  if restore_ok and count and count > 0 then
+                    vim.notify(string.format('Restored %d overlays from previous session', count), vim.log.levels.INFO)
+                  end
+                end
+              end
+              break
+            end
+          end
+        end
+      end, 100)
+    end
+
     return false -- shown
   else
     -- No Claude session exists, start one

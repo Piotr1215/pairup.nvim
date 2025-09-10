@@ -30,10 +30,23 @@ function M.single(line, new_text, reasoning)
   -- Create the overlay
   overlay.show_suggestion(main_buffer, line, old_text, new_text, reasoning or '')
 
+  -- Get the extmark ID for debugging
+  local extmark_id = nil
+  local suggestions = overlay.get_suggestions(main_buffer)
+  if suggestions[line] then
+    extmark_id = suggestions[line].extmark_id
+  end
+
   return vim.json.encode({
     success = true,
     line = line,
+    extmark_id = extmark_id,
     message = 'Overlay created',
+    debug = {
+      buffer = main_buffer,
+      old_text = old_text,
+      new_text = new_text,
+    },
   })
 end
 
@@ -91,11 +104,25 @@ function M.multiline(start_line, end_line, new_lines, reasoning)
   -- Create the multiline overlay
   overlay.show_multiline_suggestion(main_buffer, start_line, end_line, old_lines, new_lines, reasoning or '')
 
+  -- Get extmark info for debugging
+  local suggestions = overlay.get_suggestions(main_buffer)
+  local extmark_id = nil
+  if suggestions[start_line] then
+    extmark_id = suggestions[start_line].extmark_id
+  end
+
   return vim.json.encode({
     success = true,
     start_line = start_line,
     end_line = end_line,
+    extmark_id = extmark_id,
     message = 'Multiline overlay created',
+    debug = {
+      buffer = main_buffer,
+      old_lines_count = #old_lines,
+      new_lines_count = #new_lines,
+      is_eof_append = is_eof_append,
+    },
   })
 end
 
