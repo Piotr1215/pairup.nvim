@@ -11,8 +11,46 @@ local follow_mode = false -- Auto-jump to new suggestions
 local suggestion_only_mode = false -- Hide buffer, show only suggestions
 local original_conceallevel = {}
 
+-- Helper to find suggestion at current cursor position by checking extmarks
+local function find_suggestion_at_cursor(bufnr)
+  local cursor = vim.api.nvim_win_get_cursor(0)
+  local line_num = cursor[1]
+
+  -- First check for extmarks at current line
+  local marks = vim.api.nvim_buf_get_extmarks(bufnr, ns_id, { line_num - 1, 0 }, { line_num, 0 }, {})
+
+  if #marks > 0 then
+    -- We have extmarks here - find which suggestion they belong to
+    local extmark_id = marks[1][1] -- Get the first extmark's ID
+
+    -- Look for suggestion with this extmark ID
+    for stored_key, suggestion in pairs(suggestions[bufnr] or {}) do
+      if suggestion.extmark_id == extmark_id then
+        return suggestion, stored_key
+      end
+    end
+  end
+
+  -- If no direct extmark, check if we're within any multiline range
+  for stored_key, suggestion in pairs(suggestions[bufnr] or {}) do
+    if suggestion.is_multiline and suggestion.extmark_id then
+      -- Get the current position of this extmark
+      local extmark_pos = vim.api.nvim_buf_get_extmark_by_id(bufnr, ns_id, suggestion.extmark_id, {})
+      if #extmark_pos > 0 then
+        local mark_line = extmark_pos[1] + 1
+        local range_size = suggestion.end_line - suggestion.start_line
+        if line_num >= mark_line and line_num <= mark_line + range_size then
+          return suggestion, stored_key
+        end
+      end
+    end
+  end
+
+  return nil, nil
+end
+
 -- Store a suggestion for later application
-local function store_suggestion(bufnr, line_num, old_text, new_text, reasoning)
+local function store_suggestion(bufnr, line_num, old_text, new_text, reasoning, extmark_id)
   if not suggestions[bufnr] then
     suggestions[bufnr] = {}
   end
@@ -21,6 +59,7 @@ local function store_suggestion(bufnr, line_num, old_text, new_text, reasoning)
     new_text = new_text,
     line_num = line_num,
     reasoning = reasoning, -- Store reasoning for the suggestion
+    extmark_id = extmark_id, -- Store extmark ID for tracking position
   }
 end
 
@@ -53,9 +92,6 @@ function M.show_suggestion(bufnr, line_num, old_text, new_text, reasoning)
   -- Clear any existing overlay on this line
   vim.api.nvim_buf_clear_namespace(bufnr, ns_id, line_num - 1, line_num)
 
-  -- Store the suggestion for later application
-  store_suggestion(bufnr, line_num, old_text, new_text, reasoning)
-
   -- Helper function to create virt_line from text
   local function text_to_virt_line(text, highlight)
     local text_str = tostring(text or '')
@@ -83,10 +119,14 @@ function M.show_suggestion(bufnr, line_num, old_text, new_text, reasoning)
       )
     end
 
-    vim.api.nvim_buf_set_extmark(bufnr, ns_id, line_num - 1, 0, {
+    local extmark_id = vim.api.nvim_buf_set_extmark(bufnr, ns_id, line_num - 1, 0, {
       virt_lines = virt_lines,
       priority = 100,
     })
+
+    -- Store the suggestion with the extmark ID
+    store_suggestion(bufnr, line_num, old_text, new_text, reasoning, extmark_id)
+
   -- If it's an addition, show as virtual lines
   elseif old_text == nil or old_text == '' then
     local virt_lines = {
@@ -102,10 +142,14 @@ function M.show_suggestion(bufnr, line_num, old_text, new_text, reasoning)
       )
     end
 
-    vim.api.nvim_buf_set_extmark(bufnr, ns_id, line_num - 1, 0, {
+    local extmark_id = vim.api.nvim_buf_set_extmark(bufnr, ns_id, line_num - 1, 0, {
       virt_lines = virt_lines,
       priority = 100,
     })
+
+    -- Store the suggestion with the extmark ID
+    store_suggestion(bufnr, line_num, old_text, new_text, reasoning, extmark_id)
+
   -- If it's a modification, show both old and new in a clear way
   else
     -- Build virtual lines with reasoning
@@ -130,11 +174,14 @@ function M.show_suggestion(bufnr, line_num, old_text, new_text, reasoning)
     end
     table.insert(virt_lines, { { '╰─', 'PairupBorder' } })
 
-    vim.api.nvim_buf_set_extmark(bufnr, ns_id, line_num - 1, 0, {
+    local extmark_id = vim.api.nvim_buf_set_extmark(bufnr, ns_id, line_num - 1, 0, {
       virt_lines = virt_lines,
       virt_lines_above = false,
       priority = 100,
     })
+
+    -- Store the suggestion with the extmark ID
+    store_suggestion(bufnr, line_num, old_text, new_text, reasoning, extmark_id)
   end
 
   -- Track this overlay
@@ -182,7 +229,7 @@ function M.show_deletion_suggestion(bufnr, start_line, end_line, reasoning)
   table.insert(virt_lines, { { '╰─', 'PairupBorder' } })
 
   -- Set the extmark
-  vim.api.nvim_buf_set_extmark(bufnr, ns_id, start_line - 1, 0, {
+  local extmark_id = vim.api.nvim_buf_set_extmark(bufnr, ns_id, start_line - 1, 0, {
     virt_lines = virt_lines,
     virt_lines_above = false,
     priority = 100,
@@ -202,6 +249,7 @@ function M.show_deletion_suggestion(bufnr, start_line, end_line, reasoning)
     is_deletion = true,
     is_multiline = true,
     reasoning = reasoning,
+    extmark_id = extmark_id,
   }
 end
 
@@ -293,7 +341,7 @@ function M.show_multiline_suggestion(bufnr, start_line, end_line, old_lines, new
   table.insert(virt_lines, { { '╰─', 'PairupBorder' } })
 
   -- Set the extmark at the start line
-  vim.api.nvim_buf_set_extmark(bufnr, ns_id, start_line - 1, 0, {
+  local extmark_id = vim.api.nvim_buf_set_extmark(bufnr, ns_id, start_line - 1, 0, {
     virt_lines = virt_lines,
     virt_lines_above = false,
     priority = 100,
@@ -310,6 +358,7 @@ function M.show_multiline_suggestion(bufnr, start_line, end_line, old_lines, new
     old_lines = old_lines,
     new_lines = new_lines,
     reasoning = reasoning,
+    extmark_id = extmark_id,
   }
 
   -- Track this overlay
@@ -403,22 +452,31 @@ end
 
 -- Clear all overlays
 function M.clear_overlays(bufnr)
-  if bufnr then
-    -- Check if buffer is valid before clearing
-    if not vim.api.nvim_buf_is_valid(bufnr) then
-      return
-    end
-    vim.api.nvim_buf_clear_namespace(bufnr, ns_id, 0, -1)
-    -- Clear suggestions for this buffer
-    if suggestions[bufnr] then
-      suggestions[bufnr] = {}
-    end
-  else
-    -- Clear all tracked overlays
+  -- Default to current buffer if not specified
+  bufnr = bufnr or vim.api.nvim_get_current_buf()
+
+  -- Check if buffer is valid before clearing
+  if not vim.api.nvim_buf_is_valid(bufnr) then
+    return
+  end
+
+  -- Clear all extmarks in the namespace
+  vim.api.nvim_buf_clear_namespace(bufnr, ns_id, 0, -1)
+
+  -- Clear suggestions for this buffer
+  if suggestions[bufnr] then
+    suggestions[bufnr] = {}
+  end
+
+  -- Also clear all tracked overlays if no specific buffer was passed
+  if not bufnr then
     for _, overlay in ipairs(active_overlays) do
-      vim.api.nvim_buf_clear_namespace(overlay.bufnr, ns_id, 0, -1)
+      if vim.api.nvim_buf_is_valid(overlay.bufnr) then
+        vim.api.nvim_buf_clear_namespace(overlay.bufnr, ns_id, 0, -1)
+      end
     end
   end
+
   -- Store current overlays for toggle
   hidden_overlays = vim.deepcopy(active_overlays)
   active_overlays = {}
@@ -464,50 +522,65 @@ end
 
 -- Apply suggestion at cursor position
 function M.apply_at_cursor()
-  local cursor = vim.api.nvim_win_get_cursor(0)
-  local line_num = cursor[1]
   local bufnr = vim.api.nvim_get_current_buf()
+  local cursor = vim.api.nvim_win_get_cursor(0)
+  local current_line = cursor[1]
+
+  -- Use the helper to find suggestion at current position
+  local suggestion, stored_line = find_suggestion_at_cursor(bufnr)
 
   -- Check if we have a stored suggestion for this line
-  if suggestions[bufnr] and suggestions[bufnr][line_num] then
-    local suggestion = suggestions[bufnr][line_num]
+  if suggestion then
+    -- Get the current variant if variants exist
+    local new_text = suggestion.new_text
+    local new_lines = suggestion.new_lines
+
+    if suggestion.variants and suggestion.current_variant then
+      local current_variant = suggestion.variants[suggestion.current_variant]
+      if suggestion.is_multiline then
+        new_lines = current_variant.new_lines
+      else
+        new_text = current_variant.new_text
+      end
+    end
 
     if suggestion.is_multiline then
-      -- Apply multiline change
-      vim.api.nvim_buf_set_lines(
-        bufnr,
-        suggestion.start_line - 1,
-        suggestion.end_line,
-        false,
-        suggestion.new_lines or {}
-      )
-      -- Clear extmarks for this multiline suggestion
-      vim.api.nvim_buf_clear_namespace(bufnr, ns_id, suggestion.start_line - 1, suggestion.end_line)
+      -- For multiline, we need to find the current position of the extmark
+      local extmark_pos = vim.api.nvim_buf_get_extmark_by_id(bufnr, ns_id, suggestion.extmark_id, {})
+      if #extmark_pos > 0 then
+        local start_line = extmark_pos[1] + 1
+        local end_line = start_line + (suggestion.end_line - suggestion.start_line)
+
+        -- Clear extmarks BEFORE applying changes
+        vim.api.nvim_buf_clear_namespace(bufnr, ns_id, start_line - 1, end_line)
+
+        -- Apply multiline change at current position
+        vim.api.nvim_buf_set_lines(bufnr, start_line - 1, end_line, false, new_lines or {})
+      end
       -- vim.notify('Applied multiline suggestion', vim.log.levels.INFO)
     else
-      -- Apply single line change
-      local new_text = suggestion.new_text
+      -- Clear extmarks BEFORE applying changes at current line
+      vim.api.nvim_buf_clear_namespace(bufnr, ns_id, current_line - 1, current_line)
+
+      -- Apply single line change at current cursor position
       if new_text == nil or new_text == '' then
         -- Delete the line
-        vim.api.nvim_buf_set_lines(bufnr, line_num - 1, line_num, false, {})
-        -- vim.notify('Deleted line ' .. line_num, vim.log.levels.INFO)
+        vim.api.nvim_buf_set_lines(bufnr, current_line - 1, current_line, false, {})
+        -- vim.notify('Deleted line ' .. current_line, vim.log.levels.INFO)
       else
         -- Replace the line, handling embedded newlines
         local lines = vim.split(new_text, '\n', { plain = true })
-        vim.api.nvim_buf_set_lines(bufnr, line_num - 1, line_num, false, lines)
-        -- vim.notify('Applied suggestion at line ' .. line_num, vim.log.levels.INFO)
+        vim.api.nvim_buf_set_lines(bufnr, current_line - 1, current_line, false, lines)
+        -- vim.notify('Applied suggestion at line ' .. current_line, vim.log.levels.INFO)
       end
-      -- Clear this overlay completely
-      -- Clear a wider range to include virtual text that may extend below
-      vim.api.nvim_buf_clear_namespace(bufnr, ns_id, line_num - 1, line_num + 5)
     end
 
-    -- Remove from stored suggestions
-    suggestions[bufnr][line_num] = nil
+    -- Remove the suggestion immediately (use stored_line as key)
+    suggestions[bufnr][stored_line] = nil
 
     -- Remove from active overlays
     for i, overlay in ipairs(active_overlays) do
-      if overlay.bufnr == bufnr and overlay.line == line_num then
+      if overlay.bufnr == bufnr and overlay.line == stored_line then
         table.remove(active_overlays, i)
         break
       end
@@ -522,30 +595,37 @@ end
 
 -- Reject suggestion at cursor position (just clear it)
 function M.reject_at_cursor()
-  local cursor = vim.api.nvim_win_get_cursor(0)
-  local line_num = cursor[1]
   local bufnr = vim.api.nvim_get_current_buf()
+  local cursor = vim.api.nvim_win_get_cursor(0)
+  local current_line = cursor[1]
+
+  -- Use the helper to find suggestion at current position
+  local suggestion, stored_line = find_suggestion_at_cursor(bufnr)
 
   -- Check if we have a suggestion at this line
-  if suggestions[bufnr] and suggestions[bufnr][line_num] then
-    local suggestion = suggestions[bufnr][line_num]
-
+  if suggestion then
     if suggestion.is_multiline then
-      -- Clear multiline overlay
-      vim.api.nvim_buf_clear_namespace(bufnr, ns_id, suggestion.start_line - 1, suggestion.end_line)
+      -- For multiline, find current position
+      local extmark_pos = vim.api.nvim_buf_get_extmark_by_id(bufnr, ns_id, suggestion.extmark_id, {})
+      if #extmark_pos > 0 then
+        local start_line = extmark_pos[1] + 1
+        local end_line = start_line + (suggestion.end_line - suggestion.start_line)
+        -- Clear multiline overlay at current position
+        vim.api.nvim_buf_clear_namespace(bufnr, ns_id, start_line - 1, end_line)
+      end
       -- vim.notify('Rejected multiline suggestion', vim.log.levels.INFO)
     else
-      -- Clear single line overlay (with extra range for virtual text)
-      vim.api.nvim_buf_clear_namespace(bufnr, ns_id, line_num - 1, line_num + 5)
-      -- vim.notify('Rejected suggestion at line ' .. line_num, vim.log.levels.INFO)
+      -- Clear single line overlay at current cursor position
+      vim.api.nvim_buf_clear_namespace(bufnr, ns_id, current_line - 1, current_line)
+      -- vim.notify('Rejected suggestion at line ' .. current_line, vim.log.levels.INFO)
     end
 
-    -- Remove from stored suggestions
-    suggestions[bufnr][line_num] = nil
+    -- Remove from stored suggestions (use stored_line as key)
+    suggestions[bufnr][stored_line] = nil
 
     -- Remove from active overlays
     for i, overlay in ipairs(active_overlays) do
-      if overlay.bufnr == bufnr and overlay.line == line_num then
+      if overlay.bufnr == bufnr and overlay.line == stored_line then
         table.remove(active_overlays, i)
         break
       end
@@ -735,6 +815,26 @@ function M.setup()
 
   -- Hidden line markers in suggestion-only mode
   vim.api.nvim_set_hl(0, 'PairupHiddenMarker', { fg = '#4a4a4a', italic = true })
+
+  -- Setup autocmd to handle undo - restore suggestion if it was applied
+  vim.api.nvim_create_autocmd('TextChanged', {
+    group = vim.api.nvim_create_augroup('PairupOverlayUndo', { clear = true }),
+    callback = function()
+      local bufnr = vim.api.nvim_get_current_buf()
+      if suggestions[bufnr] then
+        for line_num, suggestion in pairs(suggestions[bufnr]) do
+          if suggestion.applied then
+            -- Check if extmarks exist (visual overlay is back)
+            local marks = vim.api.nvim_buf_get_extmarks(bufnr, ns_id, { line_num - 1, 0 }, { line_num, 0 }, {})
+            if #marks > 0 then
+              -- Undo detected - mark as not applied
+              suggestion.applied = false
+            end
+          end
+        end
+      end
+    end,
+  })
 end
 
 -- Clear overlay at a specific line
@@ -752,6 +852,319 @@ function M.clear_overlay_at_line(bufnr, line_num)
 
   for _, mark in ipairs(marks) do
     vim.api.nvim_buf_del_extmark(bufnr, ns_id, mark[1])
+  end
+
+  return true
+end
+
+-- Get all suggestions from all buffers (for export)
+function M.get_all_suggestions()
+  return suggestions
+end
+
+-- =============================================================================
+-- VARIANT SUPPORT FUNCTIONS
+-- =============================================================================
+
+-- Store a suggestion with multiple variants
+local function store_suggestion_variants(bufnr, line_num, old_text, variants, extmark_id)
+  if not suggestions[bufnr] then
+    suggestions[bufnr] = {}
+  end
+
+  -- Convert variants to internal format
+  local formatted_variants = {}
+  for i, variant in ipairs(variants) do
+    table.insert(formatted_variants, {
+      old_text = old_text,
+      new_text = variant.new_text,
+      reasoning = variant.reasoning,
+      is_active = i == 1,
+    })
+  end
+
+  suggestions[bufnr][line_num] = {
+    variants = formatted_variants,
+    current_variant = 1,
+    line_num = line_num,
+    -- Keep backward compat fields pointing to first variant
+    old_text = old_text,
+    new_text = variants[1].new_text,
+    reasoning = variants[1].reasoning,
+    extmark_id = extmark_id,
+  }
+end
+
+-- Show suggestion with multiple variants
+function M.show_suggestion_variants(bufnr, line_num, old_text, variants)
+  bufnr = bufnr or vim.api.nvim_get_current_buf()
+
+  -- Validate inputs
+  if not vim.api.nvim_buf_is_valid(bufnr) then
+    return false
+  end
+
+  local line_count = vim.api.nvim_buf_line_count(bufnr)
+  if line_num < 1 or line_num > line_count then
+    return false
+  end
+
+  if not variants or #variants == 0 then
+    return false
+  end
+
+  -- Store the variants first (without extmark ID)
+  store_suggestion_variants(bufnr, line_num, old_text, variants, nil)
+
+  -- Display the first variant (which will update the extmark ID)
+  M.display_variant(bufnr, line_num, 1)
+
+  return true
+end
+
+-- Display a specific variant
+function M.display_variant(bufnr, line_num, variant_index)
+  local suggestion = suggestions[bufnr] and suggestions[bufnr][line_num]
+  if not suggestion or not suggestion.variants then
+    return false
+  end
+
+  local variant = suggestion.variants[variant_index]
+  if not variant then
+    return false
+  end
+
+  -- Clear existing overlay
+  vim.api.nvim_buf_clear_namespace(bufnr, ns_id, line_num - 1, line_num)
+
+  -- Helper function to create virt_line from text
+  local function text_to_virt_line(text, highlight)
+    local text_str = tostring(text or '')
+    local clean_text = text_str:gsub('\n', '↵')
+    return { { clean_text, highlight } }
+  end
+
+  -- Build virtual lines with variant indicator
+  local total_variants = #suggestion.variants
+  local variant_indicator = total_variants > 1 and string.format(' [%d/%d]', variant_index, total_variants) or ''
+
+  local virt_lines = {
+    {
+      { '╭─ Claude suggests changing', 'PairupHeader' },
+      { variant_indicator, 'PairupLineNum' },
+      { ':', 'PairupHeader' },
+    },
+  }
+
+  -- Add old text with delete marker
+  table.insert(
+    virt_lines,
+    vim.list_extend(
+      { { '│ ', 'PairupBorder' }, { '- ', 'PairupDelete' } },
+      text_to_virt_line(variant.old_text, 'PairupDelete')
+    )
+  )
+
+  -- Add new text with add marker
+  table.insert(
+    virt_lines,
+    vim.list_extend(
+      { { '│ ', 'PairupBorder' }, { '+ ', 'PairupAdd' } },
+      text_to_virt_line(variant.new_text, 'PairupAdd')
+    )
+  )
+
+  if variant.reasoning then
+    table.insert(virt_lines, { { '│ ', 'PairupBorder' }, { 'Reason: ' .. variant.reasoning, 'PairupHint' } })
+  end
+
+  table.insert(virt_lines, { { '╰─', 'PairupBorder' } })
+
+  local extmark_id = vim.api.nvim_buf_set_extmark(bufnr, ns_id, line_num - 1, 0, {
+    virt_lines = virt_lines,
+    virt_lines_above = false,
+    priority = 100,
+  })
+
+  -- Update the stored suggestion with the extmark ID
+  if suggestions[bufnr] and suggestions[bufnr][line_num] then
+    suggestions[bufnr][line_num].extmark_id = extmark_id
+  end
+
+  -- Track this overlay
+  local exists = false
+  for _, overlay in ipairs(active_overlays) do
+    if overlay.bufnr == bufnr and overlay.line == line_num then
+      exists = true
+      break
+    end
+  end
+  if not exists then
+    table.insert(active_overlays, { bufnr = bufnr, line = line_num })
+  end
+
+  return true
+end
+
+-- Cycle through variants (direction: 1 for forward, -1 for backward)
+function M.cycle_variant(bufnr, line_num, direction)
+  bufnr = bufnr or vim.api.nvim_get_current_buf()
+  direction = direction or 1
+
+  local suggestion = suggestions[bufnr] and suggestions[bufnr][line_num]
+  if not suggestion or not suggestion.variants then
+    return false
+  end
+
+  local total_variants = #suggestion.variants
+  if total_variants <= 1 then
+    return false -- No cycling needed
+  end
+
+  -- Calculate new index with wrapping
+  local new_index = suggestion.current_variant + direction
+  if new_index > total_variants then
+    new_index = 1
+  elseif new_index < 1 then
+    new_index = total_variants
+  end
+
+  -- Update current variant
+  suggestion.current_variant = new_index
+
+  -- Update backward compat fields
+  local current = suggestion.variants[new_index]
+  if suggestion.is_multiline then
+    suggestion.new_lines = current.new_lines
+    suggestion.reasoning = current.reasoning
+  else
+    suggestion.new_text = current.new_text
+    suggestion.reasoning = current.reasoning
+  end
+
+  -- Update display
+  if suggestion.is_multiline then
+    M.display_multiline_variant(bufnr, line_num, new_index)
+  else
+    M.display_variant(bufnr, line_num, new_index)
+  end
+
+  -- Call update function if it exists
+  if M.update_variant_display then
+    M.update_variant_display(bufnr, line_num, new_index)
+  end
+
+  return true
+end
+
+-- Show multiline suggestion with variants
+function M.show_multiline_suggestion_variants(bufnr, start_line, end_line, old_lines, variants)
+  bufnr = bufnr or vim.api.nvim_get_current_buf()
+
+  -- Validate inputs
+  if not vim.api.nvim_buf_is_valid(bufnr) then
+    return false
+  end
+
+  local line_count = vim.api.nvim_buf_line_count(bufnr)
+  if start_line < 1 or start_line > line_count or end_line < start_line or end_line > line_count then
+    return false
+  end
+
+  if not variants or #variants == 0 then
+    return false
+  end
+
+  -- Store multiline variants
+  if not suggestions[bufnr] then
+    suggestions[bufnr] = {}
+  end
+
+  -- Convert variants to internal format
+  local formatted_variants = {}
+  for i, variant in ipairs(variants) do
+    table.insert(formatted_variants, {
+      old_lines = old_lines,
+      new_lines = variant.new_lines,
+      reasoning = variant.reasoning,
+      is_active = i == 1,
+    })
+  end
+
+  suggestions[bufnr][start_line] = {
+    is_multiline = true,
+    start_line = start_line,
+    end_line = end_line,
+    variants = formatted_variants,
+    current_variant = 1,
+    -- Backward compat
+    old_lines = old_lines,
+    new_lines = variants[1].new_lines,
+    reasoning = variants[1].reasoning,
+  }
+
+  -- Display first variant (which will update the extmark ID)
+  M.display_multiline_variant(bufnr, start_line, 1)
+
+  return true
+end
+
+-- Display a specific multiline variant
+function M.display_multiline_variant(bufnr, start_line, variant_index)
+  local suggestion = suggestions[bufnr] and suggestions[bufnr][start_line]
+  if not suggestion or not suggestion.is_multiline or not suggestion.variants then
+    return false
+  end
+
+  local variant = suggestion.variants[variant_index]
+  if not variant then
+    return false
+  end
+
+  -- Clear existing overlay
+  vim.api.nvim_buf_clear_namespace(bufnr, ns_id, start_line - 1, suggestion.end_line)
+
+  -- Build virtual lines with variant indicator
+  local total_variants = #suggestion.variants
+  local variant_indicator = total_variants > 1 and string.format(' [%d/%d]', variant_index, total_variants) or ''
+
+  local virt_lines = {
+    {
+      { '╭─ Claude suggests replacing lines ', 'PairupHeader' },
+      { tostring(start_line) .. '-' .. tostring(suggestion.end_line), 'PairupLineNum' },
+      { variant_indicator, 'PairupLineNum' },
+      { ':', 'PairupHeader' },
+    },
+  }
+
+  -- Show old lines
+  table.insert(virt_lines, { { '│ ', 'PairupBorder' }, { '── Original ──', 'PairupSubHeader' } })
+  for _, line in ipairs(variant.old_lines) do
+    table.insert(virt_lines, { { '│ ', 'PairupBorder' }, { line, 'PairupDelete' } })
+  end
+
+  -- Show new lines
+  table.insert(virt_lines, { { '│ ', 'PairupBorder' }, { '── Suggestion ──', 'PairupSubHeader' } })
+  for _, line in ipairs(variant.new_lines) do
+    table.insert(virt_lines, { { '│ ', 'PairupBorder' }, { line, 'PairupAdd' } })
+  end
+
+  if variant.reasoning then
+    table.insert(virt_lines, { { '│ ', 'PairupBorder' } })
+    table.insert(virt_lines, { { '│ ', 'PairupBorder' }, { 'Reason: ' .. variant.reasoning, 'PairupHint' } })
+  end
+
+  table.insert(virt_lines, { { '╰─', 'PairupBorder' } })
+
+  local extmark_id = vim.api.nvim_buf_set_extmark(bufnr, ns_id, start_line - 1, 0, {
+    virt_lines = virt_lines,
+    virt_lines_above = false,
+    priority = 100,
+  })
+
+  -- Update stored suggestion with extmark ID
+  if suggestions[bufnr] and suggestions[bufnr][start_line] then
+    suggestions[bufnr][start_line].extmark_id = extmark_id
   end
 
   return true

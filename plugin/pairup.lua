@@ -174,3 +174,26 @@ vim.api.nvim_create_user_command('PairupOverlayImport', function(opts)
     vim.notify('Import failed: ' .. (result.error or 'Unknown error'), vim.log.levels.ERROR)
   end
 end, { desc = 'Import overlays from file', nargs = '?' })
+
+-- Variant cycling commands
+vim.api.nvim_create_user_command('PairupOverlayCycle', function()
+  local overlay = require('pairup.overlay')
+  local cursor = vim.api.nvim_win_get_cursor(0)
+  local bufnr = vim.api.nvim_get_current_buf()
+  if overlay.cycle_variant(bufnr, cursor[1], 1) then
+    vim.notify('Cycled to next variant', vim.log.levels.INFO)
+  else
+    vim.notify('No variants to cycle', vim.log.levels.WARN)
+  end
+end, { desc = 'Cycle to next overlay variant' })
+
+vim.api.nvim_create_user_command('PairupOverlayCyclePrev', function()
+  local overlay = require('pairup.overlay')
+  local cursor = vim.api.nvim_win_get_cursor(0)
+  local bufnr = vim.api.nvim_get_current_buf()
+  if overlay.cycle_variant(bufnr, cursor[1], -1) then
+    vim.notify('Cycled to previous variant', vim.log.levels.INFO)
+  else
+    vim.notify('No variants to cycle', vim.log.levels.WARN)
+  end
+end, { desc = 'Cycle to previous overlay variant' })

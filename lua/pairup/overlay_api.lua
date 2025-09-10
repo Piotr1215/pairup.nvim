@@ -155,6 +155,13 @@ function M.list()
       reasoning = suggestion.reasoning,
     }
 
+    -- Include variant information if present
+    if suggestion.variants then
+      entry.has_variants = true
+      entry.variant_count = #suggestion.variants
+      entry.current_variant = suggestion.current_variant
+    end
+
     -- Handle both single-line and multiline overlays
     if suggestion.is_multiline then
       entry.is_multiline = true
@@ -179,6 +186,89 @@ function M.list()
     success = true,
     overlays = list,
     count = #list,
+  })
+end
+
+-- Create suggestion with multiple variants
+function M.single_variants(line, variants)
+  local rpc = require('pairup.rpc')
+  local state = rpc.get_state and rpc.get_state() or {}
+  local main_buffer = state.main_buffer
+
+  if not main_buffer then
+    return vim.json.encode({ error = 'No main buffer found' })
+  end
+
+  -- Validate line number
+  local line_count = vim.api.nvim_buf_line_count(main_buffer)
+  if line < 1 or line > line_count then
+    return vim.json.encode({
+      error = string.format('Line %d out of bounds (file has %d lines)', line, line_count),
+      success = false,
+    })
+  end
+
+  -- Get the old text for the line
+  local old_text = vim.api.nvim_buf_get_lines(main_buffer, line - 1, line, false)[1]
+
+  -- Ensure variants is a table
+  if type(variants) == 'string' then
+    variants = vim.json.decode(variants)
+  end
+
+  -- Create the overlay with variants
+  overlay.show_suggestion_variants(main_buffer, line, old_text, variants)
+
+  return vim.json.encode({
+    success = true,
+    line = line,
+    variant_count = #variants,
+    message = 'Overlay with variants created',
+  })
+end
+
+-- Create multiline suggestion with multiple variants
+function M.multiline_variants(start_line, end_line, variants)
+  local rpc = require('pairup.rpc')
+  local state = rpc.get_state and rpc.get_state() or {}
+  local main_buffer = state.main_buffer
+
+  if not main_buffer then
+    return vim.json.encode({ error = 'No main buffer found' })
+  end
+
+  -- Validate line numbers
+  local line_count = vim.api.nvim_buf_line_count(main_buffer)
+  if start_line < 1 or start_line > line_count then
+    return vim.json.encode({
+      error = string.format('Start line %d out of bounds (file has %d lines)', start_line, line_count),
+      success = false,
+    })
+  end
+  if end_line < start_line or end_line > line_count then
+    return vim.json.encode({
+      error = string.format('End line %d out of bounds (file has %d lines)', end_line, line_count),
+      success = false,
+    })
+  end
+
+  -- Get the old lines
+  local old_lines = vim.api.nvim_buf_get_lines(main_buffer, start_line - 1, end_line, false)
+
+  -- Ensure variants is a table
+  if type(variants) == 'string' then
+    variants = vim.json.decode(variants)
+  end
+
+  -- Create the multiline overlay with variants
+  overlay.show_multiline_suggestion_variants(main_buffer, start_line, end_line, old_lines, variants)
+
+  return vim.json.encode({
+    success = true,
+    start_line = start_line,
+    end_line = end_line,
+    variant_count = #variants,
+    message = 'Multiline overlay with variants created',
   })
 end
 
