@@ -51,21 +51,37 @@ function M.multiline(start_line, end_line, new_lines, reasoning)
 
   -- Validate line numbers
   local line_count = vim.api.nvim_buf_line_count(main_buffer)
-  if start_line < 1 or start_line > line_count then
-    return vim.json.encode({
-      error = string.format('Start line %d out of bounds (file has %d lines)', start_line, line_count),
-      success = false,
-    })
+
+  -- Special handling for EOF append: when start_line == end_line == line_count
+  -- and we're adding new content (not replacing), allow it
+  local is_eof_append = false
+  if start_line == line_count and end_line == line_count then
+    -- Check if this looks like an append (will verify with old_lines later)
+    is_eof_append = true
   end
-  if end_line < start_line or end_line > line_count then
-    return vim.json.encode({
-      error = string.format('End line %d out of bounds (file has %d lines)', end_line, line_count),
-      success = false,
-    })
+
+  if not is_eof_append then
+    if start_line < 1 or start_line > line_count then
+      return vim.json.encode({
+        error = string.format('Start line %d out of bounds (file has %d lines)', start_line, line_count),
+        success = false,
+      })
+    end
+    if end_line < start_line or end_line > line_count then
+      return vim.json.encode({
+        error = string.format('End line %d out of bounds (file has %d lines)', end_line, line_count),
+        success = false,
+      })
+    end
   end
 
   -- Get the old lines
   local old_lines = vim.api.nvim_buf_get_lines(main_buffer, start_line - 1, end_line, false)
+
+  -- For EOF append, we pass empty old_lines to signal it's an append
+  if is_eof_append and (#old_lines == 0 or old_lines[1] == '') then
+    old_lines = {}
+  end
 
   -- Ensure new_lines is a table
   if type(new_lines) == 'string' then
@@ -134,12 +150,24 @@ function M.list()
   local list = {}
 
   for line_num, suggestion in pairs(suggestions) do
-    table.insert(list, {
+    local entry = {
       line = line_num,
-      old_text = suggestion.old_text,
-      new_text = suggestion.new_text,
       reasoning = suggestion.reasoning,
-    })
+    }
+
+    -- Handle both single-line and multiline overlays
+    if suggestion.is_multiline then
+      entry.is_multiline = true
+      entry.start_line = suggestion.start_line
+      entry.end_line = suggestion.end_line
+      entry.old_lines = suggestion.old_lines
+      entry.new_lines = suggestion.new_lines
+    else
+      entry.old_text = suggestion.old_text
+      entry.new_text = suggestion.new_text
+    end
+
+    table.insert(list, entry)
   end
 
   -- Sort by line number

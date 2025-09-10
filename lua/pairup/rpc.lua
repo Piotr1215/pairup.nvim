@@ -357,18 +357,6 @@ function M.get_capabilities()
   return vim.json.encode(caps)
 end
 
--- OVERLAY FUNCTION 1: Single-line suggestions
-function M.overlay_single(line, new_text, reasoning)
-  local overlay_api = require('pairup.overlay_api')
-  return overlay_api.single(line, new_text, reasoning)
-end
-
--- OVERLAY FUNCTION 2: Multi-line suggestions
-function M.overlay_multiline(start_line, end_line, new_lines, reasoning)
-  local overlay_api = require('pairup.overlay_api')
-  return overlay_api.multiline(start_line, end_line, new_lines, reasoning)
-end
-
 -- Get the RPC server address from config
 function M.get_server_address()
   local config = require('pairup.config')
@@ -482,111 +470,15 @@ function M.import_overlays(filename)
   return vim.json.encode({ success = true, imported = imported, file = filename })
 end
 
--- Batch overlay operations (for complex multiline suggestions)
-function M.batch_add_single(line, old_text, new_text, reasoning)
-  local batch = require('pairup.overlay_batch')
-  local id = batch.add_single(line, old_text, new_text, reasoning)
-  return vim.json.encode({ success = true, id = id })
-end
-
-function M.batch_add_multiline(start_line, end_line, old_lines, new_lines, reasoning)
-  local batch = require('pairup.overlay_batch')
-  local id = batch.add_multiline(start_line, end_line, old_lines, new_lines, reasoning)
-  return vim.json.encode({ success = true, id = id })
-end
-
-function M.batch_add_deletion(line, old_text, reasoning)
-  local batch = require('pairup.overlay_batch')
-  local id = batch.add_deletion(line, old_text, reasoning)
-  return vim.json.encode({ success = true, id = id })
-end
-
-function M.batch_apply()
-  local batch = require('pairup.overlay_batch')
-  local result = batch.apply_batch()
-  return vim.json.encode(result)
-end
-
-function M.batch_clear()
-  local batch = require('pairup.overlay_batch')
-  batch.clear_batch()
-  return vim.json.encode({ success = true })
-end
-
-function M.batch_status()
-  local batch = require('pairup.overlay_batch')
-  local status = batch.get_batch_status()
-  return vim.json.encode(status)
-end
-
--- Build and apply batch from structured data
-function M.batch_from_json(json_data)
-  local batch = require('pairup.overlay_batch')
-
-  local ok, data = pcall(vim.json.decode, json_data)
-  if not ok then
-    return vim.json.encode({ error = 'Invalid JSON: ' .. tostring(data) })
-  end
-
-  local status = batch.build_from_data(data)
-  local result = batch.apply_batch()
-
-  return vim.json.encode(result)
-end
-
--- Get RPC state (for batch operations to access)
-function M.get_state()
-  return state
-end
-
--- Base64 batch operations (completely avoids escaping)
-function M.batch_b64(base64_data)
-  local batch = require('pairup.overlay_batch')
-
-  -- Use vim.base64.decode if available (Neovim 0.10+)
-  local decoded
-  if vim.base64 and vim.base64.decode then
-    local ok_decode, result = pcall(vim.base64.decode, base64_data)
-    if ok_decode then
-      decoded = result
-    end
-  end
-
-  -- Fallback to vim.fn.decode
-  if not decoded then
-    local ok_decode, result = pcall(vim.fn.decode, base64_data, 'base64')
-    if ok_decode then
-      decoded = result
-    end
-  end
-
-  -- Final fallback to system command
-  if not decoded then
-    decoded = vim.fn.system('echo ' .. vim.fn.shellescape(base64_data) .. ' | base64 -d')
-    if vim.v.shell_error ~= 0 then
-      return vim.json.encode({ error = 'Failed to decode base64', success = false })
-    end
-  end
-
-  local ok, data = pcall(vim.json.decode, decoded)
-  if not ok then
-    return vim.json.encode({ error = 'Invalid JSON after base64 decode: ' .. tostring(data), success = false })
-  end
-
-  local status = batch.build_from_data(data)
-  local result = batch.apply_batch()
-
-  return vim.json.encode(result)
-end
-
 -- OVERLAY FUNCTION 1: Single-line suggestions
 function M.overlay_single(line, new_text, reasoning)
   local overlay_api = require('pairup.overlay_api')
   return overlay_api.single(line, new_text, reasoning)
 end
 
--- OVERLAY FUNCTION 2: Multi-line suggestions
-function M.overlay_multiline(start_line, end_line, new_lines, reasoning)
+-- OVERLAY FUNCTION 2: Multi-line suggestions (JSON-based for RPC compatibility)
+function M.overlay_multiline_json(start_line, end_line, new_lines_json, reasoning)
+  local new_lines = vim.json.decode(new_lines_json)
   local overlay_api = require('pairup.overlay_api')
   return overlay_api.multiline(start_line, end_line, new_lines, reasoning)
 end
@@ -627,12 +519,24 @@ function M.overlay_list()
   local list = {}
 
   for line_num, suggestion in pairs(suggestions) do
-    table.insert(list, {
+    local entry = {
       line = line_num,
-      old_text = suggestion.old_text,
-      new_text = suggestion.new_text,
       reasoning = suggestion.reasoning,
-    })
+    }
+
+    -- Handle both single-line and multiline overlays
+    if suggestion.is_multiline then
+      entry.is_multiline = true
+      entry.start_line = suggestion.start_line
+      entry.end_line = suggestion.end_line
+      entry.old_lines = suggestion.old_lines
+      entry.new_lines = suggestion.new_lines
+    else
+      entry.old_text = suggestion.old_text
+      entry.new_text = suggestion.new_text
+    end
+
+    table.insert(list, entry)
   end
 
   -- Sort by line number

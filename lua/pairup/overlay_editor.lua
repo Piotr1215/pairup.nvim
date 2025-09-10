@@ -32,8 +32,25 @@ function M.edit_overlay_at_cursor()
   editor_state.current_suggestion = suggestion
   editor_state.line_num = line
 
-  -- Create editor buffer
-  local buf = vim.api.nvim_create_buf(false, true)
+  -- Check if we already have an editor buffer for this line and reuse it
+  local buffer_name = 'overlay-editor://' .. line
+  local existing_buf = nil
+
+  -- Search for existing buffer with this name
+  for _, b in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_valid(b) then
+      local name = vim.api.nvim_buf_get_name(b)
+      if name == buffer_name then
+        existing_buf = b
+        -- Clear the buffer content to prepare for new content
+        vim.api.nvim_buf_set_lines(b, 0, -1, false, {})
+        break
+      end
+    end
+  end
+
+  -- Create editor buffer (reuse existing or create new)
+  local buf = existing_buf or vim.api.nvim_create_buf(false, true)
   editor_state.editor_buf = buf
 
   -- Prepare content for editing
@@ -104,7 +121,11 @@ function M.edit_overlay_at_cursor()
   -- Set buffer options
   vim.api.nvim_buf_set_option(buf, 'filetype', 'markdown')
   vim.api.nvim_buf_set_option(buf, 'buftype', 'acwrite')
-  vim.api.nvim_buf_set_name(buf, 'overlay-editor://' .. line)
+
+  -- Set buffer name only if it's a new buffer
+  if not existing_buf then
+    vim.api.nvim_buf_set_name(buf, buffer_name)
+  end
 
   -- Store the original window and buffer before splitting
   local original_win = vim.api.nvim_get_current_win()

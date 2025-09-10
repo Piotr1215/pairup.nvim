@@ -21,6 +21,14 @@ Read contents of the main editing buffer.
 - `start_line`: Starting line (1-based), defaults to 1
 - `end_line`: Ending line, defaults to -1 (entire buffer)
 
+### overlay_list()
+Get a list of all current overlay suggestions in the main buffer.
+
+**Returns:** JSON object with:
+- `success`: Boolean indicating success
+- `overlays`: Array of overlay objects with line, old_text, new_text, and reasoning
+- `count`: Total number of overlays
+
 ## Overlay Functions
 
 When suggesting code changes in Neovim, you have exactly TWO overlay functions available:
@@ -33,13 +41,13 @@ For changing a single line of code.
 - `new_text`: The replacement text (use empty string "" to delete)
 - `reasoning`: Clear explanation of why this change is needed
 
-## 2. overlay_multiline(start_line, end_line, new_lines, reasoning)
+## 2. overlay_multiline_json(start_line, end_line, new_lines_json, reasoning)
 For changing multiple consecutive lines.
 
 **Parameters:**
 - `start_line`: First line number to replace (1-based)
 - `end_line`: Last line number to replace (inclusive)
-- `new_lines`: Array of replacement lines (use empty array [] to delete)
+- `new_lines_json`: JSON-encoded array of replacement lines (use "[]" to delete)
 - `reasoning`: Clear explanation of why this change is needed
 
 ## Important Rules:
@@ -59,12 +67,7 @@ overlay_single(42, "const result = await fetchData();", "Added await for async o
 
 ### Multi-line replacement:
 ```lua
-overlay_multiline(10, 15, {
-  "function calculate(x, y) {",
-  "  const sum = x + y;",
-  "  return sum;",
-  "}"
-}, "Simplified function implementation")
+overlay_multiline_json(10, 15, '["function calculate(x, y) {", "  const sum = x + y;", "  return sum;", "}"]', "Simplified function implementation")
 ```
 
 ### Delete a line:
@@ -74,5 +77,5 @@ overlay_single(25, "", "Removed unused variable")
 
 ### Delete multiple lines:
 ```lua
-overlay_multiline(30, 35, {}, "Removed deprecated code block")
+overlay_multiline_json(30, 35, "[]", "Removed deprecated code block")
 ```

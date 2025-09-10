@@ -81,7 +81,7 @@ describe('pairup.rpc', function()
       assert.is_not_nil(instructions)
       assert.is_string(instructions)
       assert.is_true(instructions:match('overlay_single') ~= nil)
-      assert.is_true(instructions:match('overlay_multiline') ~= nil)
+      assert.is_true(instructions:match('overlay_multiline_json') ~= nil)
     end)
 
     it('should return nil when RPC is not enabled', function()

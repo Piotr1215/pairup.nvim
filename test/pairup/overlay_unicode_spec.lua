@@ -188,8 +188,8 @@ describe('overlay unicode and encoding tests', function()
         '😀🎉 Emoji line',
       }
 
-      -- Use the new overlay_multiline function instead of the removed overlay_json_safe
-      local result = rpc.overlay_multiline(1, 3, new_lines, 'Unicode multiline test')
+      -- Use overlay_multiline_json for multi-line changes
+      local result = rpc.overlay_multiline_json(1, 3, vim.json.encode(new_lines), 'Unicode multiline test')
       local response = vim.json.decode(result)
       assert.is_true(response.success)
     end)

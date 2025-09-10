@@ -216,8 +216,19 @@ function M.show_multiline_suggestion(bufnr, start_line, end_line, old_lines, new
 
   -- Validate line numbers
   local line_count = vim.api.nvim_buf_line_count(bufnr)
-  if start_line < 1 or start_line > line_count or end_line < start_line or end_line > line_count then
-    return false
+
+  -- Special case: if trying to append at EOF (start_line == line_count and end_line == line_count)
+  -- and old_lines is empty/nil, this is an append operation
+  local is_eof_append = (
+    start_line == line_count
+    and end_line == line_count
+    and (not old_lines or #old_lines == 0 or (old_lines[1] == ''))
+  )
+
+  if not is_eof_append then
+    if start_line < 1 or start_line > line_count or end_line < start_line or end_line > line_count then
+      return false
+    end
   end
 
   -- If old_lines not provided, get them from buffer
@@ -236,28 +247,41 @@ function M.show_multiline_suggestion(bufnr, start_line, end_line, old_lines, new
   vim.api.nvim_buf_clear_namespace(bufnr, ns_id, start_line - 1, end_line)
 
   -- Build virtual lines for the suggestion
-  local virt_lines = {
-    {
+  local virt_lines = {}
+
+  -- Check if this is an EOF append operation
+  if is_eof_append then
+    -- Special header for EOF append
+    table.insert(virt_lines, {
+      { '╭─ Claude suggests adding at end of file:', 'PairupHeader' },
+    })
+  else
+    -- Normal replacement header
+    table.insert(virt_lines, {
       { '╭─ Claude suggests replacing lines ', 'PairupHeader' },
       { tostring(start_line) .. '-' .. tostring(end_line), 'PairupLineNum' },
       { ':', 'PairupHeader' },
-    },
-  }
+    })
+  end
 
-  -- Show old lines
-  table.insert(virt_lines, { { '│ ', 'PairupBorder' }, { '── Original ──', 'PairupSubHeader' } })
-  for _, line in ipairs(old_lines) do
-    table.insert(virt_lines, { { '│ ', 'PairupBorder' }, { line, 'PairupDelete' } })
+  -- Show old lines (unless EOF append)
+  if not is_eof_append then
+    table.insert(virt_lines, { { '│ ', 'PairupBorder' }, { '── Original ──', 'PairupSubHeader' } })
+    for _, line in ipairs(old_lines) do
+      table.insert(virt_lines, { { '│ ', 'PairupBorder' }, { line, 'PairupDelete' } })
+    end
+    table.insert(virt_lines, { { '│ ', 'PairupBorder' }, { '── Suggestion ──', 'PairupSubHeader' } })
   end
 
   -- Show new lines
-  table.insert(virt_lines, { { '│ ', 'PairupBorder' }, { '── Suggestion ──', 'PairupSubHeader' } })
   if #new_lines > 0 then
     for _, line in ipairs(new_lines) do
       table.insert(virt_lines, { { '│ ', 'PairupBorder' }, { line, 'PairupAdd' } })
     end
   else
-    table.insert(virt_lines, { { '│ ', 'PairupBorder' }, { '(delete these lines)', 'PairupHint' } })
+    if not is_eof_append then
+      table.insert(virt_lines, { { '│ ', 'PairupBorder' }, { '(delete these lines)', 'PairupHint' } })
+    end
   end
 
   -- Add reasoning if provided
