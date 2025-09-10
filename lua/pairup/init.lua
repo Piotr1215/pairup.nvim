@@ -31,6 +31,9 @@ M.setup = function(opts)
   -- Initialize sessions module
   sessions.setup()
 
+  -- Initialize overlay module (for virtual text suggestions)
+  require('pairup.overlay').setup()
+
   -- Initialize RPC support (auto-detects and enables Claude superpowers)
   require('pairup.rpc').setup({
     rpc_port = (config.options and config.options.rpc_port) or '127.0.0.1:6666',

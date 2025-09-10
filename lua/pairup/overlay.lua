@@ -30,9 +30,25 @@ function M.get_suggestions(bufnr)
   return suggestions[bufnr] or {}
 end
 
--- Show a suggestion as virtual text
+-- Show a suggestion as virtual text - ROBUST VERSION
 function M.show_suggestion(bufnr, line_num, old_text, new_text, reasoning)
   bufnr = bufnr or vim.api.nvim_get_current_buf()
+
+  -- Validate buffer
+  if not vim.api.nvim_buf_is_valid(bufnr) then
+    return false
+  end
+
+  -- Validate line number
+  local line_count = vim.api.nvim_buf_line_count(bufnr)
+  if line_num < 1 or line_num > line_count then
+    return false
+  end
+
+  -- If old_text not provided, get it from buffer
+  if not old_text or old_text == '' then
+    old_text = vim.api.nvim_buf_get_lines(bufnr, line_num - 1, line_num, false)[1] or ''
+  end
 
   -- Clear any existing overlay on this line
   vim.api.nvim_buf_clear_namespace(bufnr, ns_id, line_num - 1, line_num)
@@ -40,12 +56,11 @@ function M.show_suggestion(bufnr, line_num, old_text, new_text, reasoning)
   -- Store the suggestion for later application
   store_suggestion(bufnr, line_num, old_text, new_text, reasoning)
 
-  -- Helper function to create virt_line from text that may contain newlines
+  -- Helper function to create virt_line from text
   local function text_to_virt_line(text, highlight)
-    -- Ensure text is a string
     local text_str = tostring(text or '')
-    -- For now, just replace newlines with a visible marker
-    local clean_text = text_str:gsub('\n', '\\n')
+    -- Show newlines visually if they exist
+    local clean_text = text_str:gsub('\n', '↵')
     return { { clean_text, highlight } }
   end
 
@@ -138,6 +153,8 @@ function M.show_suggestion(bufnr, line_num, old_text, new_text, reasoning)
       end
     end)
   end
+
+  return true
 end
 
 -- Show deletion suggestion (for removing lines)
@@ -188,9 +205,32 @@ function M.show_deletion_suggestion(bufnr, start_line, end_line, reasoning)
   }
 end
 
--- Show multiline suggestion
+-- Show multiline suggestion - ROBUST VERSION
 function M.show_multiline_suggestion(bufnr, start_line, end_line, old_lines, new_lines, reasoning)
   bufnr = bufnr or vim.api.nvim_get_current_buf()
+
+  -- Validate buffer
+  if not vim.api.nvim_buf_is_valid(bufnr) then
+    return false
+  end
+
+  -- Validate line numbers
+  local line_count = vim.api.nvim_buf_line_count(bufnr)
+  if start_line < 1 or start_line > line_count or end_line < start_line or end_line > line_count then
+    return false
+  end
+
+  -- If old_lines not provided, get them from buffer
+  if not old_lines or #old_lines == 0 then
+    old_lines = vim.api.nvim_buf_get_lines(bufnr, start_line - 1, end_line, false)
+  end
+
+  -- Ensure new_lines is a table
+  if type(new_lines) == 'string' then
+    new_lines = vim.split(new_lines, '\n', { plain = true })
+  elseif not new_lines then
+    new_lines = {}
+  end
 
   -- Clear any existing overlays in the range
   vim.api.nvim_buf_clear_namespace(bufnr, ns_id, start_line - 1, end_line)
@@ -205,23 +245,24 @@ function M.show_multiline_suggestion(bufnr, start_line, end_line, old_lines, new
   }
 
   -- Show old lines
-  if old_lines and #old_lines > 0 then
-    table.insert(virt_lines, { { '│ ', 'PairupBorder' }, { '── Original ──', 'PairupSubHeader' } })
-    for _, line in ipairs(old_lines) do
-      table.insert(virt_lines, { { '│ ', 'PairupBorder' }, { '  ', '' }, { line, 'PairupDelete' } })
-    end
+  table.insert(virt_lines, { { '│ ', 'PairupBorder' }, { '── Original ──', 'PairupSubHeader' } })
+  for _, line in ipairs(old_lines) do
+    table.insert(virt_lines, { { '│ ', 'PairupBorder' }, { line, 'PairupDelete' } })
   end
 
   -- Show new lines
-  if new_lines and #new_lines > 0 then
-    table.insert(virt_lines, { { '│ ', 'PairupBorder' }, { '── Suggestion ──', 'PairupSubHeader' } })
+  table.insert(virt_lines, { { '│ ', 'PairupBorder' }, { '── Suggestion ──', 'PairupSubHeader' } })
+  if #new_lines > 0 then
     for _, line in ipairs(new_lines) do
-      table.insert(virt_lines, { { '│ ', 'PairupBorder' }, { '  ', '' }, { line, 'PairupAdd' } })
+      table.insert(virt_lines, { { '│ ', 'PairupBorder' }, { line, 'PairupAdd' } })
     end
+  else
+    table.insert(virt_lines, { { '│ ', 'PairupBorder' }, { '(delete these lines)', 'PairupHint' } })
   end
 
   -- Add reasoning if provided
-  if reasoning then
+  if reasoning and reasoning ~= '' then
+    table.insert(virt_lines, { { '│ ', 'PairupBorder' } })
     table.insert(virt_lines, { { '│ ', 'PairupBorder' }, { 'Reason: ' .. reasoning, 'PairupHint' } })
   end
 
@@ -234,7 +275,7 @@ function M.show_multiline_suggestion(bufnr, start_line, end_line, old_lines, new
     priority = 100,
   })
 
-  -- Store multiline suggestion with reasoning
+  -- Store multiline suggestion
   if not suggestions[bufnr] then
     suggestions[bufnr] = {}
   end
@@ -250,10 +291,9 @@ function M.show_multiline_suggestion(bufnr, start_line, end_line, old_lines, new
   -- Track this overlay
   table.insert(active_overlays, { bufnr = bufnr, line = start_line, is_multiline = true, end_line = end_line })
 
-  -- Auto-jump if follow mode is enabled (find the main window)
+  -- Auto-jump if follow mode is enabled
   if follow_mode then
     vim.schedule(function()
-      -- Find window containing the target buffer
       for _, win in ipairs(vim.api.nvim_list_wins()) do
         if vim.api.nvim_win_get_buf(win) == bufnr then
           vim.api.nvim_set_current_win(win)
@@ -263,6 +303,8 @@ function M.show_multiline_suggestion(bufnr, start_line, end_line, old_lines, new
       end
     end)
   end
+
+  return true
 end
 
 -- Parse a diff and show all suggestions

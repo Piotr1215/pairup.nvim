@@ -2,18 +2,21 @@
 local M = {}
 
 local overlay = require('pairup.overlay')
-local state_module = require('pairup.utils.state')
 
 -- Single function for single-line overlays
 -- Uses JSON to handle all escaping issues robustly
 function M.single(line, new_text, reasoning)
-  local state = state_module.get_state()
-  if not state.main_buffer then
+  -- Get the main buffer from RPC state
+  local rpc = require('pairup.rpc')
+  local state = rpc.get_state and rpc.get_state() or {}
+  local main_buffer = state.main_buffer
+
+  if not main_buffer then
     return vim.json.encode({ error = 'No main buffer found' })
   end
 
   -- Validate line number
-  local line_count = vim.api.nvim_buf_line_count(state.main_buffer)
+  local line_count = vim.api.nvim_buf_line_count(main_buffer)
   if line < 1 or line > line_count then
     return vim.json.encode({
       error = string.format('Line %d out of bounds (file has %d lines)', line, line_count),
@@ -22,10 +25,10 @@ function M.single(line, new_text, reasoning)
   end
 
   -- Get the old text for the line
-  local old_text = vim.api.nvim_buf_get_lines(state.main_buffer, line - 1, line, false)[1]
+  local old_text = vim.api.nvim_buf_get_lines(main_buffer, line - 1, line, false)[1]
 
   -- Create the overlay
-  overlay.show_suggestion(state.main_buffer, line, old_text, new_text, reasoning or '')
+  overlay.show_suggestion(main_buffer, line, old_text, new_text, reasoning or '')
 
   return vim.json.encode({
     success = true,
@@ -37,13 +40,17 @@ end
 -- Single function for multi-line overlays
 -- Uses JSON internally to handle all escaping
 function M.multiline(start_line, end_line, new_lines, reasoning)
-  local state = state_module.get_state()
-  if not state.main_buffer then
+  -- Get the main buffer from RPC state
+  local rpc = require('pairup.rpc')
+  local state = rpc.get_state and rpc.get_state() or {}
+  local main_buffer = state.main_buffer
+
+  if not main_buffer then
     return vim.json.encode({ error = 'No main buffer found' })
   end
 
   -- Validate line numbers
-  local line_count = vim.api.nvim_buf_line_count(state.main_buffer)
+  local line_count = vim.api.nvim_buf_line_count(main_buffer)
   if start_line < 1 or start_line > line_count then
     return vim.json.encode({
       error = string.format('Start line %d out of bounds (file has %d lines)', start_line, line_count),
@@ -58,7 +65,7 @@ function M.multiline(start_line, end_line, new_lines, reasoning)
   end
 
   -- Get the old lines
-  local old_lines = vim.api.nvim_buf_get_lines(state.main_buffer, start_line - 1, end_line, false)
+  local old_lines = vim.api.nvim_buf_get_lines(main_buffer, start_line - 1, end_line, false)
 
   -- Ensure new_lines is a table
   if type(new_lines) == 'string' then
@@ -66,7 +73,7 @@ function M.multiline(start_line, end_line, new_lines, reasoning)
   end
 
   -- Create the multiline overlay
-  overlay.show_multiline_suggestion(state.main_buffer, start_line, end_line, old_lines, new_lines, reasoning or '')
+  overlay.show_multiline_suggestion(main_buffer, start_line, end_line, old_lines, new_lines, reasoning or '')
 
   return vim.json.encode({
     success = true,
@@ -76,47 +83,54 @@ function M.multiline(start_line, end_line, new_lines, reasoning)
   })
 end
 
--- Clear all overlays
-function M.clear()
-  local state = state_module.get_state()
-  if not state.main_buffer then
-    return vim.json.encode({ error = 'No main buffer found' })
-  end
-
-  overlay.clear_overlays(state.main_buffer)
-  return vim.json.encode({ success = true, message = 'All overlays cleared' })
-end
+-- Clear all overlays - REMOVED FROM CLAUDE ACCESS
+-- This function is kept for user commands only
+-- function M.clear()
+--   local state = state_module.get_state()
+--   if not main_buffer then
+--     return vim.json.encode({ error = 'No main buffer found' })
+--   end
+--
+--   overlay.clear_overlays(main_buffer)
+--   return vim.json.encode({ success = true, message = 'All overlays cleared' })
+-- end
 
 -- Accept overlay at specific line
 function M.accept(line)
-  local state = state_module.get_state()
-  if not state.main_buffer then
+  local rpc = require('pairup.rpc')
+  local state = rpc.get_state and rpc.get_state() or {}
+  local main_buffer = state.main_buffer
+  if not main_buffer then
     return vim.json.encode({ error = 'No main buffer found' })
   end
 
-  overlay.apply_at_line(state.main_buffer, line)
+  overlay.apply_at_line(main_buffer, line)
   return vim.json.encode({ success = true, line = line, message = 'Overlay accepted' })
 end
 
 -- Reject overlay at specific line
 function M.reject(line)
-  local state = state_module.get_state()
-  if not state.main_buffer then
+  local rpc = require('pairup.rpc')
+  local state = rpc.get_state and rpc.get_state() or {}
+  local main_buffer = state.main_buffer
+  if not main_buffer then
     return vim.json.encode({ error = 'No main buffer found' })
   end
 
-  overlay.reject_at_line(state.main_buffer, line)
+  overlay.reject_at_line(main_buffer, line)
   return vim.json.encode({ success = true, line = line, message = 'Overlay rejected' })
 end
 
 -- Get all current overlays
 function M.list()
-  local state = state_module.get_state()
-  if not state.main_buffer then
+  local rpc = require('pairup.rpc')
+  local state = rpc.get_state and rpc.get_state() or {}
+  local main_buffer = state.main_buffer
+  if not main_buffer then
     return vim.json.encode({ error = 'No main buffer found' })
   end
 
-  local suggestions = overlay.get_suggestions(state.main_buffer)
+  local suggestions = overlay.get_suggestions(main_buffer)
   local list = {}
 
   for line_num, suggestion in pairs(suggestions) do

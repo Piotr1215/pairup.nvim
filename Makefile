@@ -13,9 +13,10 @@ test:
 	@echo -n "Tests passed: "
 	@grep "Success: " /tmp/pairup-test-output.txt | awk '{sum+=$$3} END {print sum}'
 	@echo -n "Tests failed: "
-	@grep "Failed : " /tmp/pairup-test-output.txt | awk '{sum+=$$3} END {if(sum=="") print 0; else print sum}'
+	@grep "Failed : " /tmp/pairup-test-output.txt | awk '{sum+=$$3} END {if(sum=="") print 0; else print sum}' | tee /tmp/pairup-failures.txt
 	@echo "============================================"
-	@if grep -q "Tests Failed" /tmp/pairup-test-output.txt 2>/dev/null || grep -q "^[[:space:]]*Failed : [1-9]" /tmp/pairup-test-output.txt 2>/dev/null; then rm -f /tmp/pairup-test-output.txt; exit 1; fi
+	@FAILURES=$$(cat /tmp/pairup-failures.txt); if [ "$$FAILURES" -gt 0 ] 2>/dev/null || grep -q "Tests Failed" /tmp/pairup-test-output.txt 2>/dev/null; then rm -f /tmp/pairup-test-output.txt /tmp/pairup-failures.txt; exit 1; fi
+	@rm -f /tmp/pairup-failures.txt
 	@rm -f /tmp/pairup-test-output.txt
 
 # Run tests with output visible (not headless)

@@ -28,7 +28,11 @@ describe('overlay unicode and encoding tests', function()
       'symbols ™ © ® € £ ¥',
     })
 
-    rpc.get_state().main_buffer = test_bufnr
+    -- Ensure rpc.get_state() returns a valid state
+    local state = rpc.get_state()
+    if state then
+      state.main_buffer = test_bufnr
+    end
   end)
 
   after_each(function()
@@ -39,7 +43,7 @@ describe('overlay unicode and encoding tests', function()
 
   describe('Unicode character handling', function()
     it('should handle Latin extended characters', function()
-      local result = rpc.simple_overlay(2, 'Çafé résümé naïvë with ñ and ø', 'Extended Latin')
+      local result = rpc.overlay_single(2, 'Çafé résümé naïvë with ñ and ø', 'Extended Latin')
       local response = vim.json.decode(result)
       assert.is_true(response.success)
 
@@ -55,7 +59,7 @@ describe('overlay unicode and encoding tests', function()
       }
 
       for _, test in ipairs(cjk_tests) do
-        local result = rpc.simple_overlay(test.line, test.text, test.reasoning)
+        local result = rpc.overlay_single(test.line, test.text, test.reasoning)
         local response = vim.json.decode(result)
         assert.is_true(response.success)
 
@@ -73,7 +77,7 @@ describe('overlay unicode and encoding tests', function()
 
       for _, test in ipairs(rtl_tests) do
         overlay.clear_overlays(test_bufnr)
-        local result = rpc.simple_overlay(test.line, test.text, test.reasoning)
+        local result = rpc.overlay_single(test.line, test.text, test.reasoning)
         local response = vim.json.decode(result)
         assert.is_true(response.success)
 
@@ -93,7 +97,7 @@ describe('overlay unicode and encoding tests', function()
       }
 
       for i, emoji_text in ipairs(emoji_tests) do
-        local result = rpc.simple_overlay(10, emoji_text, 'Emoji test ' .. i)
+        local result = rpc.overlay_single(10, emoji_text, 'Emoji test ' .. i)
         local response = vim.json.decode(result)
         assert.is_true(response.success, 'Failed on emoji test ' .. i)
       end
@@ -102,7 +106,7 @@ describe('overlay unicode and encoding tests', function()
     it('should handle mathematical symbols', function()
       local math_text =
         '∀x∈ℝ: ∃y∈ℂ | x²+y²=1 ∧ ∑ᵢ₌₁ⁿ i = n(n+1)/2 ∴ ∫₀^∞ e⁻ˣdx = 1'
-      local result = rpc.simple_overlay(11, math_text, 'Mathematical notation')
+      local result = rpc.overlay_single(11, math_text, 'Mathematical notation')
       local response = vim.json.decode(result)
       assert.is_true(response.success)
 
@@ -125,7 +129,7 @@ describe('overlay unicode and encoding tests', function()
       }
 
       for i, pattern in ipairs(box_patterns) do
-        local result = rpc.simple_overlay(12, pattern, 'Box drawing ' .. i)
+        local result = rpc.overlay_single(12, pattern, 'Box drawing ' .. i)
         local response = vim.json.decode(result)
         assert.is_true(response.success)
       end
@@ -144,7 +148,7 @@ describe('overlay unicode and encoding tests', function()
       }
 
       for i, text in ipairs(combining) do
-        local result = rpc.simple_overlay(1, text, 'Combining chars ' .. i)
+        local result = rpc.overlay_single(1, text, 'Combining chars ' .. i)
         local response = vim.json.decode(result)
         assert.is_true(response.success)
       end
@@ -161,7 +165,7 @@ describe('overlay unicode and encoding tests', function()
       }
 
       for i, text in ipairs(zwc_tests) do
-        local result = rpc.simple_overlay(1, text, 'ZWC test ' .. i)
+        local result = rpc.overlay_single(1, text, 'ZWC test ' .. i)
         local response = vim.json.decode(result)
         assert.is_true(response.success)
       end
@@ -184,16 +188,8 @@ describe('overlay unicode and encoding tests', function()
         '😀🎉 Emoji line',
       }
 
-      local json = vim.json.encode({
-        type = 'multiline',
-        start_line = 1,
-        end_line = 3,
-        old_lines = old_lines,
-        new_lines = new_lines,
-        reasoning = 'Unicode multiline test',
-      })
-
-      local result = rpc.overlay_json_safe(json)
+      -- Use the new overlay_multiline function instead of the removed overlay_json_safe
+      local result = rpc.overlay_multiline(1, 3, new_lines, 'Unicode multiline test')
       local response = vim.json.decode(result)
       assert.is_true(response.success)
     end)
@@ -206,7 +202,7 @@ describe('overlay unicode and encoding tests', function()
         end
       end
 
-      local result = rpc.simple_overlay(1, long_unicode, 'Long unicode sequence')
+      local result = rpc.overlay_single(1, long_unicode, 'Long unicode sequence')
       local response = vim.json.decode(result)
       assert.is_true(response.success)
     end)
@@ -221,7 +217,7 @@ describe('overlay unicode and encoding tests', function()
       }
 
       for i, text in ipairs(bom_tests) do
-        local result = rpc.simple_overlay(1, text, 'BOM test ' .. i)
+        local result = rpc.overlay_single(1, text, 'BOM test ' .. i)
         local response = vim.json.decode(result)
         assert.is_true(response.success or response.error ~= nil)
       end
@@ -238,7 +234,7 @@ describe('overlay unicode and encoding tests', function()
 
       for i, char in ipairs(control_chars) do
         local text = 'Text' .. char .. 'with' .. char .. 'control'
-        local result = rpc.simple_overlay(1, text, 'Control char ' .. i)
+        local result = rpc.overlay_single(1, text, 'Control char ' .. i)
         local response = vim.json.decode(result)
         -- Control chars might fail, that's ok
         assert.is_not_nil(response)
@@ -255,7 +251,7 @@ describe('overlay unicode and encoding tests', function()
 
       for i, char in ipairs(pua_chars) do
         local text = 'PUA ' .. char .. ' character'
-        local result = rpc.simple_overlay(1, text, 'PUA test ' .. i)
+        local result = rpc.overlay_single(1, text, 'PUA test ' .. i)
         local response = vim.json.decode(result)
         assert.is_not_nil(response)
       end

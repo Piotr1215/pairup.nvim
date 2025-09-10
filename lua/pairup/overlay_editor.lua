@@ -106,8 +106,9 @@ function M.edit_overlay_at_cursor()
   vim.api.nvim_buf_set_option(buf, 'buftype', 'acwrite')
   vim.api.nvim_buf_set_name(buf, 'overlay-editor://' .. line)
 
-  -- Store the original window before splitting
+  -- Store the original window and buffer before splitting
   local original_win = vim.api.nvim_get_current_win()
+  local original_buf = vim.api.nvim_get_current_buf()
 
   -- Open in split
   vim.cmd('split')
@@ -115,6 +116,7 @@ function M.edit_overlay_at_cursor()
   vim.api.nvim_win_set_buf(win, buf)
   editor_state.editor_win = win
   editor_state.original_win = original_win
+  editor_state.original_buf = original_buf
 
   -- Set up autocmd for saving
   vim.api.nvim_create_autocmd('BufWriteCmd', {
@@ -128,8 +130,9 @@ function M.edit_overlay_at_cursor()
   })
 
   -- Handle :wq and :q properly - only close the editor window
-  vim.api.nvim_create_autocmd({ 'BufWinLeave', 'BufUnload' }, {
-    buffer = buf,
+  vim.api.nvim_create_autocmd('WinClosed', {
+    pattern = tostring(win),
+    once = true,
     callback = function()
       -- Ensure we go back to the original window after closing editor
       if editor_state.original_win and vim.api.nvim_win_is_valid(editor_state.original_win) then
@@ -139,8 +142,12 @@ function M.edit_overlay_at_cursor()
       editor_state.editor_buf = nil
       editor_state.editor_win = nil
       editor_state.original_win = nil
+      editor_state.original_buf = nil
     end,
   })
+
+  -- Note: We can't override :wq or :x commands as they're built-in
+  -- The WinClosed autocmd above handles proper cleanup when the window is closed
 
   -- Position cursor at the editable section
   local edit_start = 0
