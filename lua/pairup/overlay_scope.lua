@@ -197,6 +197,15 @@ function M.setup_scope_keymaps(buf)
     M.reject_suggestion_at_cursor()
   end, opts)
 
+  -- Edit suggestion
+  vim.keymap.set('n', 'e', function()
+    -- Jump to source and open editor
+    M.jump_to_source()
+    vim.schedule(function()
+      require('pairup.overlay_editor').edit_overlay_at_cursor()
+    end)
+  end, opts)
+
   -- Close scope
   vim.keymap.set('n', 'q', function()
     M.close_scope()
@@ -417,6 +426,7 @@ Overlay Scope Navigation:
 
   <CR>    Apply overlay at cursor
   d       Reject/delete overlay at cursor  
+  e       Edit overlay before accepting
   q       Close overlay scope
   <C-n>   Next overlay (jumps between overlays)
   <C-p>   Previous overlay (jumps between overlays)

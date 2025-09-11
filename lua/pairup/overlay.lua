@@ -4,7 +4,8 @@ local M = {}
 local ns_id = vim.api.nvim_create_namespace('pairup_overlay')
 local active_overlays = {}
 
--- Store suggestions for applying
+-- Store suggestions for applying - indexed by extmark ID for stability
+-- Format: suggestions[bufnr][extmark_id] = suggestion_data
 local suggestions = {}
 local hidden_overlays = {} -- Store overlays when toggled off
 local follow_mode = false -- Auto-jump to new suggestions
@@ -20,27 +21,24 @@ local function find_suggestion_at_cursor(bufnr)
   local marks = vim.api.nvim_buf_get_extmarks(bufnr, ns_id, { line_num - 1, 0 }, { line_num, 0 }, {})
 
   if #marks > 0 then
-    -- We have extmarks here - find which suggestion they belong to
+    -- We have extmarks here - direct lookup by extmark ID
     local extmark_id = marks[1][1] -- Get the first extmark's ID
-
-    -- Look for suggestion with this extmark ID
-    for stored_key, suggestion in pairs(suggestions[bufnr] or {}) do
-      if suggestion.extmark_id == extmark_id then
-        return suggestion, stored_key
-      end
+    local suggestion = suggestions[bufnr] and suggestions[bufnr][extmark_id]
+    if suggestion then
+      return suggestion, extmark_id
     end
   end
 
   -- If no direct extmark, check if we're within any multiline range
-  for stored_key, suggestion in pairs(suggestions[bufnr] or {}) do
-    if suggestion.is_multiline and suggestion.extmark_id then
+  for extmark_id, suggestion in pairs(suggestions[bufnr] or {}) do
+    if suggestion.is_multiline then
       -- Get the current position of this extmark
-      local extmark_pos = vim.api.nvim_buf_get_extmark_by_id(bufnr, ns_id, suggestion.extmark_id, {})
+      local extmark_pos = vim.api.nvim_buf_get_extmark_by_id(bufnr, ns_id, extmark_id, {})
       if #extmark_pos > 0 then
         local mark_line = extmark_pos[1] + 1
         local range_size = suggestion.end_line - suggestion.start_line
         if line_num >= mark_line and line_num <= mark_line + range_size then
-          return suggestion, stored_key
+          return suggestion, extmark_id
         end
       end
     end
@@ -54,7 +52,7 @@ local function store_suggestion(bufnr, line_num, old_text, new_text, reasoning, 
   if not suggestions[bufnr] then
     suggestions[bufnr] = {}
   end
-  suggestions[bufnr][line_num] = {
+  suggestions[bufnr][extmark_id] = {
     old_text = old_text,
     new_text = new_text,
     line_num = line_num,
@@ -66,7 +64,20 @@ end
 -- Get all suggestions for a buffer
 function M.get_suggestions(bufnr)
   bufnr = bufnr or vim.api.nvim_get_current_buf()
-  return suggestions[bufnr] or {}
+
+  -- Transform suggestions from extmark_id keys to line number keys
+  -- This maintains backward compatibility with code expecting line numbers
+  local result = {}
+  for extmark_id, suggestion in pairs(suggestions[bufnr] or {}) do
+    -- Get current line position of the extmark
+    local extmark_pos = vim.api.nvim_buf_get_extmark_by_id(bufnr, ns_id, extmark_id, {})
+    if #extmark_pos > 0 then
+      local line = extmark_pos[1] + 1 -- Convert 0-based to 1-based
+      result[line] = suggestion
+    end
+  end
+
+  return result
 end
 
 -- Get status indicator for statusline
@@ -255,7 +266,7 @@ function M.show_deletion_suggestion(bufnr, start_line, end_line, reasoning)
     suggestions[bufnr] = {}
   end
 
-  suggestions[bufnr][start_line] = {
+  suggestions[bufnr][extmark_id] = {
     line_num = start_line,
     start_line = start_line,
     end_line = end_line,
@@ -366,7 +377,7 @@ function M.show_multiline_suggestion(bufnr, start_line, end_line, old_lines, new
   if not suggestions[bufnr] then
     suggestions[bufnr] = {}
   end
-  suggestions[bufnr][start_line] = {
+  suggestions[bufnr][extmark_id] = {
     is_multiline = true,
     start_line = start_line,
     end_line = end_line,
@@ -501,19 +512,31 @@ end
 function M.apply_at_line(bufnr, line_num)
   bufnr = bufnr or vim.api.nvim_get_current_buf()
 
-  if not suggestions[bufnr] or not suggestions[bufnr][line_num] then
+  -- Find suggestion at this line using extmarks
+  local marks = vim.api.nvim_buf_get_extmarks(bufnr, ns_id, { line_num - 1, 0 }, { line_num, 0 }, {})
+  if #marks == 0 then
     return false
   end
 
-  local suggestion = suggestions[bufnr][line_num]
+  local extmark_id = marks[1][1]
+  local suggestion = suggestions[bufnr] and suggestions[bufnr][extmark_id]
+
+  if not suggestion then
+    return false
+  end
+
+  -- Get current line from extmark position (it may have moved)
+  local extmark_pos = vim.api.nvim_buf_get_extmark_by_id(bufnr, ns_id, extmark_id, {})
+  local current_line = extmark_pos[1] and (extmark_pos[1] + 1) or line_num
 
   if suggestion.is_multiline then
-    -- Apply multiline change
-    vim.api.nvim_buf_set_lines(bufnr, suggestion.start_line - 1, suggestion.end_line, false, suggestion.new_lines or {})
+    -- Apply multiline change using current position
+    local end_line = current_line + (suggestion.end_line - suggestion.start_line)
+    vim.api.nvim_buf_set_lines(bufnr, current_line - 1, end_line, false, suggestion.new_lines or {})
   else
     -- Apply single line change, handling embedded newlines
     local lines = vim.split(suggestion.new_text or '', '\n', { plain = true })
-    vim.api.nvim_buf_set_lines(bufnr, line_num - 1, line_num, false, lines)
+    vim.api.nvim_buf_set_lines(bufnr, current_line - 1, current_line, false, lines)
   end
 
   -- Clear the overlay after applying
@@ -873,11 +896,11 @@ function M.setup()
     callback = function()
       local bufnr = vim.api.nvim_get_current_buf()
       if suggestions[bufnr] then
-        for line_num, suggestion in pairs(suggestions[bufnr]) do
+        for extmark_id, suggestion in pairs(suggestions[bufnr]) do
           if suggestion.applied then
-            -- Check if extmarks exist (visual overlay is back)
-            local marks = vim.api.nvim_buf_get_extmarks(bufnr, ns_id, { line_num - 1, 0 }, { line_num, 0 }, {})
-            if #marks > 0 then
+            -- Check if this specific extmark still exists
+            local extmark_pos = vim.api.nvim_buf_get_extmark_by_id(bufnr, ns_id, extmark_id, {})
+            if #extmark_pos > 0 then
               -- Undo detected - mark as not applied
               suggestion.applied = false
             end
@@ -890,12 +913,19 @@ end
 
 -- Clear overlay at a specific line
 function M.clear_overlay_at_line(bufnr, line_num)
-  if not suggestions[bufnr] or not suggestions[bufnr][line_num] then
+  -- Find suggestion at this line using extmarks
+  local marks = vim.api.nvim_buf_get_extmarks(bufnr, ns_id, { line_num - 1, 0 }, { line_num, 0 }, {})
+  if #marks == 0 then
+    return false
+  end
+
+  local extmark_id = marks[1][1]
+  if not suggestions[bufnr] or not suggestions[bufnr][extmark_id] then
     return false
   end
 
   -- Remove from suggestions
-  suggestions[bufnr][line_num] = nil
+  suggestions[bufnr][extmark_id] = nil
 
   -- Clear extmarks at this line
   local ns_id = vim.api.nvim_create_namespace('pairup_overlay')
@@ -934,7 +964,7 @@ local function store_suggestion_variants(bufnr, line_num, old_text, variants, ex
     })
   end
 
-  suggestions[bufnr][line_num] = {
+  suggestions[bufnr][extmark_id] = {
     variants = formatted_variants,
     current_variant = 1,
     line_num = line_num,
@@ -964,10 +994,16 @@ function M.show_suggestion_variants(bufnr, line_num, old_text, variants)
     return false
   end
 
-  -- Store the variants first (without extmark ID)
-  store_suggestion_variants(bufnr, line_num, old_text, variants, nil)
+  -- Create an initial extmark to get the ID
+  local extmark_id = vim.api.nvim_buf_set_extmark(bufnr, ns_id, line_num - 1, 0, {
+    virt_text = { { '', '' } }, -- Empty placeholder
+    priority = 100,
+  })
 
-  -- Display the first variant (which will update the extmark ID)
+  -- Store the variants with the extmark ID
+  store_suggestion_variants(bufnr, line_num, old_text, variants, extmark_id)
+
+  -- Display the first variant (which will update the extmark)
   M.display_variant(bufnr, line_num, 1)
 
   return true
@@ -975,7 +1011,14 @@ end
 
 -- Display a specific variant
 function M.display_variant(bufnr, line_num, variant_index)
-  local suggestion = suggestions[bufnr] and suggestions[bufnr][line_num]
+  -- Find suggestion at this line using extmarks
+  local marks = vim.api.nvim_buf_get_extmarks(bufnr, ns_id, { line_num - 1, 0 }, { line_num, 0 }, {})
+  if #marks == 0 then
+    return false
+  end
+
+  local extmark_id = marks[1][1]
+  local suggestion = suggestions[bufnr] and suggestions[bufnr][extmark_id]
   if not suggestion or not suggestion.variants then
     return false
   end
@@ -1037,9 +1080,21 @@ function M.display_variant(bufnr, line_num, variant_index)
     priority = 100,
   })
 
-  -- Update the stored suggestion with the extmark ID
-  if suggestions[bufnr] and suggestions[bufnr][line_num] then
-    suggestions[bufnr][line_num].extmark_id = extmark_id
+  -- Update the stored suggestion - need to move it from old extmark_id key to new one
+  if suggestions[bufnr] then
+    -- Find the suggestion at this line (it may have a different extmark_id)
+    for stored_id, suggestion in pairs(suggestions[bufnr]) do
+      if suggestion.line_num == line_num and suggestion.variants then
+        -- Move suggestion to new extmark_id key if needed
+        if stored_id ~= extmark_id then
+          suggestions[bufnr][extmark_id] = suggestion
+          suggestions[bufnr][stored_id] = nil
+        end
+        suggestion.extmark_id = extmark_id
+        suggestion.current_variant = variant_index
+        break
+      end
+    end
   end
 
   -- Track this overlay
@@ -1062,7 +1117,14 @@ function M.cycle_variant(bufnr, line_num, direction)
   bufnr = bufnr or vim.api.nvim_get_current_buf()
   direction = direction or 1
 
-  local suggestion = suggestions[bufnr] and suggestions[bufnr][line_num]
+  -- Find suggestion at this line using extmarks
+  local marks = vim.api.nvim_buf_get_extmarks(bufnr, ns_id, { line_num - 1, 0 }, { line_num, 0 }, {})
+  if #marks == 0 then
+    return false
+  end
+
+  local extmark_id = marks[1][1]
+  local suggestion = suggestions[bufnr] and suggestions[bufnr][extmark_id]
   if not suggestion or not suggestion.variants then
     return false
   end
@@ -1147,7 +1209,14 @@ function M.show_multiline_suggestion_variants(bufnr, start_line, end_line, old_l
     })
   end
 
-  suggestions[bufnr][start_line] = {
+  -- We need to create an extmark first to get the ID
+  -- Create a temporary extmark that will be updated by display_multiline_variant
+  local extmark_id = vim.api.nvim_buf_set_extmark(bufnr, ns_id, start_line - 1, 0, {
+    virt_text = { { '', '' } }, -- Empty placeholder
+    priority = 100,
+  })
+
+  suggestions[bufnr][extmark_id] = {
     is_multiline = true,
     start_line = start_line,
     end_line = end_line,
@@ -1157,9 +1226,10 @@ function M.show_multiline_suggestion_variants(bufnr, start_line, end_line, old_l
     old_lines = old_lines,
     new_lines = variants[1].new_lines,
     reasoning = variants[1].reasoning,
+    extmark_id = extmark_id,
   }
 
-  -- Display first variant (which will update the extmark ID)
+  -- Display first variant (which will update the extmark)
   M.display_multiline_variant(bufnr, start_line, 1)
 
   return true
@@ -1167,7 +1237,14 @@ end
 
 -- Display a specific multiline variant
 function M.display_multiline_variant(bufnr, start_line, variant_index)
-  local suggestion = suggestions[bufnr] and suggestions[bufnr][start_line]
+  -- Find suggestion at this line using extmarks
+  local marks = vim.api.nvim_buf_get_extmarks(bufnr, ns_id, { start_line - 1, 0 }, { start_line, 0 }, {})
+  if #marks == 0 then
+    return false
+  end
+
+  local extmark_id = marks[1][1]
+  local suggestion = suggestions[bufnr] and suggestions[bufnr][extmark_id]
   if not suggestion or not suggestion.is_multiline or not suggestion.variants then
     return false
   end
@@ -1222,9 +1299,21 @@ function M.display_multiline_variant(bufnr, start_line, variant_index)
     priority = 100,
   })
 
-  -- Update stored suggestion with extmark ID
-  if suggestions[bufnr] and suggestions[bufnr][start_line] then
-    suggestions[bufnr][start_line].extmark_id = extmark_id
+  -- Update stored suggestion - need to move it from old extmark_id key to new one
+  if suggestions[bufnr] then
+    -- Find the suggestion with the old extmark_id (passed in via marks lookup)
+    local old_extmark_id = extmark_id
+    for stored_id, suggestion in pairs(suggestions[bufnr]) do
+      if suggestion.start_line == start_line and suggestion.is_multiline then
+        -- Move suggestion to new extmark_id key
+        if stored_id ~= extmark_id then
+          suggestions[bufnr][extmark_id] = suggestion
+          suggestions[bufnr][stored_id] = nil
+        end
+        suggestion.extmark_id = extmark_id
+        break
+      end
+    end
   end
 
   return true

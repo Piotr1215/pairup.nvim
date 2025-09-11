@@ -11,21 +11,12 @@ local state = {
 
 -- Check if RPC server is available
 function M.check_rpc_available()
-  -- Only check for TCP server on the configured port
-  -- vim.v.servername contains the address when started with --listen
   local servername = vim.v.servername or ''
-
-  -- Check if servername is a TCP address (contains IP:port or just :port)
-  -- Examples: "127.0.0.1:6666", "localhost:6666", ":6666"
-  -- Unix sockets look like: "/run/user/1000/nvim.xxxxx.0"
   if servername:match('^[^/]*:%d+$') then
-    -- Extract port from servername
     local port = servername:match(':(%d+)$')
-    -- Check if it matches our expected port (just the number part)
     local expected_port = state.rpc_port:match('(%d+)$') or '6666'
     return port == expected_port
   end
-
   return false
 end
 
@@ -33,19 +24,14 @@ end
 function M.setup(opts)
   opts = opts or {}
 
-  -- Allow configuring the expected RPC port
   if opts.rpc_port then
     state.rpc_port = opts.rpc_port
   end
 
-  -- Auto-detect RPC on startup
   if M.check_rpc_available() then
     state.enabled = true
-
-    -- Track window layout
     M.update_layout()
 
-    -- Set up auto-tracking
     vim.api.nvim_create_autocmd({ 'WinEnter', 'BufEnter' }, {
       group = vim.api.nvim_create_augroup('PairupRPC', { clear = true }),
       callback = function()
@@ -61,13 +47,11 @@ function M.update_layout()
     return
   end
 
-  -- Find terminal buffer (pairup assistant)
   for _, win in ipairs(vim.api.nvim_list_wins()) do
     local buf = vim.api.nvim_win_get_buf(win)
     if vim.b[buf].is_pairup_assistant then
       state.terminal_window = vim.api.nvim_win_get_number(win)
     else
-      -- Track the main editing window
       local bufname = vim.api.nvim_buf_get_name(buf)
       if bufname ~= '' and not bufname:match('^term://') then
         state.main_window = vim.api.nvim_win_get_number(win)
@@ -77,21 +61,220 @@ function M.update_layout()
   end
 end
 
--- Get current RPC state (for internal use)
+-- Get current RPC state
 function M.get_state()
   M.update_layout()
   return state
 end
 
 -- =============================================================================
--- CLAUDE-FRIENDLY RPC FUNCTIONS
--- These are what Claude calls via: --remote-expr 'lua require("pairup.rpc").function_name()'
+-- ROBUST RPC FUNCTIONS - Learning from mcp-neovim-server approach
 -- =============================================================================
 
--- Get current context (Claude's most important function!)
+-- Helper to safely encode/decode data
+local function safe_json_encode(data)
+  local ok, result = pcall(vim.json.encode, data)
+  if ok then
+    return result
+  else
+    return vim.json.encode({ error = 'JSON encoding failed', details = tostring(result) })
+  end
+end
+
+local function safe_json_decode(str)
+  if not str or str == '' then
+    return nil, 'Empty input'
+  end
+  local ok, result = pcall(vim.json.decode, str)
+  if ok then
+    return result, nil
+  else
+    return nil, tostring(result)
+  end
+end
+
+-- Main RPC handler using luaeval for complex data
+function M.rpc_call(method, args)
+  if not state.enabled then
+    return { success = false, error = 'RPC not enabled' }
+  end
+
+  -- Validate method exists
+  if not M[method] then
+    return { success = false, error = 'Method not found: ' .. tostring(method) }
+  end
+
+  -- Call the method with proper error handling
+  local ok, result = pcall(M[method], args)
+  if ok then
+    return result
+  else
+    return { success = false, error = tostring(result) }
+  end
+end
+
+-- =============================================================================
+-- SINGLE UNIFIED OVERLAY METHOD - Auto-detects overlay type
+-- =============================================================================
+
+-- Smart overlay function that auto-detects the type based on args
+function M.apply_overlay(args)
+  -- Validate arguments
+  if not args or type(args) ~= 'table' then
+    return { success = false, error = 'Invalid arguments' }
+  end
+
+  -- Update layout to ensure we have the right buffer
+  M.update_layout()
+  if not state.main_buffer then
+    return { success = false, error = 'No main buffer found' }
+  end
+
+  local overlay_api = require('pairup.overlay_api')
+
+  -- Auto-detect overlay type based on args structure
+  if args.variants then
+    -- Has variants - check if single or multiline
+    if args.end_line or args.start_line then
+      -- Multiline with variants
+      local start_line = tonumber(args.start_line)
+      local end_line = tonumber(args.end_line)
+
+      if not start_line or not end_line then
+        return { success = false, error = 'Missing required parameters: start_line, end_line' }
+      end
+
+      -- Validate variants
+      if type(args.variants) ~= 'table' or #args.variants == 0 then
+        return { success = false, error = 'variants must be a non-empty array' }
+      end
+
+      for i, variant in ipairs(args.variants) do
+        if type(variant) ~= 'table' then
+          return { success = false, error = 'Each variant must be an object' }
+        end
+        if not variant.new_lines then
+          return { success = false, error = 'Variant ' .. i .. ' missing new_lines' }
+        end
+        -- Ensure new_lines is an array
+        if type(variant.new_lines) == 'string' then
+          variant.new_lines = { variant.new_lines }
+        end
+      end
+
+      local result = overlay_api.multiline_variants(start_line, end_line, args.variants)
+      return type(result) == 'string' and safe_json_decode(result) or { success = true }
+    else
+      -- Single line with variants
+      local line = tonumber(args.line)
+
+      if not line then
+        return { success = false, error = 'Missing required parameter: line' }
+      end
+
+      -- Validate variants
+      if type(args.variants) ~= 'table' or #args.variants == 0 then
+        return { success = false, error = 'variants must be a non-empty array' }
+      end
+      for i, variant in ipairs(args.variants) do
+        if not variant.new_text then
+          return { success = false, error = 'Variant ' .. i .. ' missing new_text' }
+        end
+      end
+
+      local result = overlay_api.single_variants(line, args.variants)
+      return type(result) == 'string' and safe_json_decode(result) or { success = true }
+    end
+  else
+    -- No variants - check if single or multiline
+    if args.end_line or args.start_line or args.new_lines then
+      -- Multiline without variants
+      local start_line = tonumber(args.start_line)
+      local end_line = tonumber(args.end_line)
+      local new_lines = args.new_lines
+      local reasoning = args.reasoning or ''
+
+      if not start_line or not end_line or not new_lines then
+        return { success = false, error = 'Missing required parameters: start_line, end_line, new_lines' }
+      end
+
+      -- Ensure new_lines is a table
+      if type(new_lines) == 'string' then
+        new_lines = { new_lines }
+      elseif type(new_lines) ~= 'table' then
+        return { success = false, error = 'new_lines must be an array of strings' }
+      end
+
+      local result = overlay_api.multiline(start_line, end_line, new_lines, reasoning)
+      return type(result) == 'string' and safe_json_decode(result) or { success = true }
+    else
+      -- Single line without variants
+      local line = tonumber(args.line)
+      local new_text = args.new_text
+      local reasoning = args.reasoning or ''
+
+      if not line or not new_text then
+        return { success = false, error = 'Missing required parameters: line, new_text' }
+      end
+
+      local result = overlay_api.single(line, new_text, reasoning)
+      return type(result) == 'string' and safe_json_decode(result) or { success = true }
+    end
+  end
+end
+
+-- =============================================================================
+-- LUAEVAL-BASED ENTRY POINT - The key to robustness!
+-- =============================================================================
+
+-- Main entry point for luaeval calls - handles both overlays and vim commands
+-- Example for overlays: nvim --server :6666 --remote-expr 'luaeval("require(\"pairup.rpc\").execute(_A)", {method = "apply_overlay", args = {line = 5, new_text = "hello", reasoning = "test"}})'
+-- Example for vim commands: nvim --server :6666 --remote-expr 'luaeval("require(\"pairup.rpc\").execute(_A)", {command = "w"})'
+function M.execute(request)
+  -- Handle direct Lua table (when called with _A from luaeval)
+  if type(request) == 'table' then
+    -- Check if it's a vim command request
+    if request.command then
+      return M.execute_command(request.command)
+    end
+
+    -- Check if it's an overlay request (has method or direct args)
+    if request.method == 'apply_overlay' then
+      local result = M.apply_overlay(request.args or request)
+      return safe_json_encode(result)
+    end
+
+    -- Direct overlay args (no method specified)
+    if request.line or request.start_line or request.variants then
+      local result = M.apply_overlay(request)
+      return safe_json_encode(result)
+    end
+
+    -- Route to other methods if specified
+    if request.method and M[request.method] then
+      local result = M.rpc_call(request.method, request.args or {})
+      return safe_json_encode(result)
+    end
+
+    return safe_json_encode({ success = false, error = 'Unknown request format' })
+  end
+
+  -- Handle string command (backwards compatibility for vim commands)
+  if type(request) == 'string' then
+    return M.execute_command(request)
+  end
+
+  return safe_json_encode({ success = false, error = 'Invalid request type' })
+end
+
+-- =============================================================================
+-- OTHER RPC METHODS (keeping compatibility)
+-- =============================================================================
+
+-- Get context information
 function M.get_context()
   M.update_layout()
-  return vim.json.encode({
+  return safe_json_encode({
     rpc_enabled = state.enabled,
     terminal_window = state.terminal_window,
     main_window = state.main_window,
@@ -120,42 +303,28 @@ function M.get_window_info()
   return windows
 end
 
--- Read the main file buffer (not the terminal!)
+-- Read main buffer content
 function M.read_main_buffer(start_line, end_line)
   if not state.main_buffer then
-    return vim.json.encode({ error = 'No main buffer found' })
+    return safe_json_encode({ error = 'No main buffer found' })
   end
 
   start_line = start_line or 1
   end_line = end_line or -1
 
   local lines = vim.api.nvim_buf_get_lines(state.main_buffer, start_line - 1, end_line, false)
-  return vim.json.encode(lines)
+  return safe_json_encode(lines)
 end
 
--- Helper functions for common patterns
-function M.escape_pattern(pattern)
-  -- Helper to properly escape patterns for vim search/replace
-  -- This helps with common escaping issues
-  return pattern
-end
-
--- Smart execute function - takes commands as you'd type them in Vim
--- Examples: "w" to save, "42" for line 42, "%s/old/new/g" to replace
--- For patterns with quotes, use Lua long strings: [[%s/'old'/'new'/g]]
-function M.execute(command)
+-- Execute vim command (enhanced with informative responses)
+function M.execute_command(command)
   if not state.main_window then
-    return vim.json.encode({ error = 'No main window found' })
+    return safe_json_encode({ error = 'No main window found' })
   end
 
-  -- Save current window
   local current_win = vim.api.nvim_get_current_win()
-
-  -- Execute in main window
   vim.cmd(state.main_window .. 'wincmd w')
   local ok, result = pcall(vim.cmd, command)
-
-  -- Restore window
   vim.api.nvim_set_current_win(current_win)
 
   -- Provide more informative success messages
@@ -181,56 +350,24 @@ function M.execute(command)
       response.result = result or ''
     end
   else
-    response.error = result
+    response.error = tostring(result)
   end
 
-  return vim.json.encode(response)
-end
-
--- Helper function for safe substitution commands
-function M.substitute(pattern, replacement, flags)
-  -- Use Lua long strings to avoid escaping issues
-  flags = flags or 'g'
-  local cmd = string.format([[%%s/%s/%s/%s]], pattern, replacement, flags)
-  return M.execute(cmd)
-end
-
--- Helper for patterns with special characters
-function M.execute_raw(command)
-  -- Execute command using Lua long string to avoid escaping
-  return M.execute(command)
-end
-
--- Backward compatibility alias
-M.execute_in_main = M.execute
-
--- These wrapper functions are DEPRECATED - just use execute() directly!
--- Keeping for backward compatibility only
-function M.save()
-  return M.execute('w')
-end
-function M.goto_line(line)
-  return M.execute(tostring(line))
-end
-function M.replace(pattern, replacement, flags)
-  flags = flags or 'g'
-  local cmd = string.format('%%s/%s/%s/%s', pattern, replacement, flags)
-  return M.execute(cmd)
+  return safe_json_encode(response)
 end
 
 -- Get buffer statistics
 function M.get_stats()
   if not state.main_buffer then
-    return vim.json.encode({ error = 'No main buffer found' })
+    return safe_json_encode({ error = 'No main buffer found' })
   end
 
-  -- Switch to main window for wordcount
   local current_win = vim.api.nvim_get_current_win()
   vim.cmd(state.main_window .. 'wincmd w')
   local wc = vim.fn.wordcount()
   vim.api.nvim_set_current_win(current_win)
 
-  return vim.json.encode({
+  return safe_json_encode({
     lines = vim.api.nvim_buf_line_count(state.main_buffer),
     words = wc.words,
     chars = wc.chars,
@@ -238,83 +375,14 @@ function M.get_stats()
   })
 end
 
--- Set/get registers (useful for Claude)
+-- Set/get registers
 function M.set_register(reg, content)
   vim.fn.setreg(reg, content)
-  return vim.json.encode({ success = true })
+  return safe_json_encode({ success = true })
 end
 
 function M.get_register(reg)
-  return vim.json.encode({ content = vim.fn.getreg(reg) })
-end
-
--- Get RPC instructions for Claude
-function M.get_instructions()
-  if not state.enabled then
-    return nil
-  end
-
-  -- Get the actual server name from config or use what's running
-  local config = require('pairup.config')
-  local configured_server = config.get('rpc_port') or '127.0.0.1:6666'
-  local servername = vim.v.servername or configured_server
-
-  -- Build the usage line dynamically
-  local usage_line = string.format(
-    'Use: nvim --server %s --remote-expr "v:lua.require(\'pairup.rpc\').METHOD_NAME(args)"\n\n',
-    servername
-  )
-
-  -- Load instructions from markdown file
-  local source_path = debug.getinfo(1, 'S').source:sub(2)
-  local plugin_root = vim.fn.fnamemodify(source_path, ':h:h:h') -- Go up 3 levels from lua/pairup/rpc.lua
-  local prompt_file = plugin_root .. '/lua/pairup/claude_instructions.md'
-
-  -- Read the markdown file
-  local file = io.open(prompt_file, 'r')
-  if not file then
-    -- If file doesn't exist, return inline instructions
-    return usage_line
-      .. [[
-You have two overlay functions to suggest code changes:
-
-1. overlay_single(line, new_text, reasoning) - For single line changes
-2. overlay_multiline(start_line, end_line, new_lines, reasoning) - For multi-line changes
-
-Always provide clear reasoning for your suggestions.
-]]
-  end
-
-  local content = file:read('*all')
-  file:close()
-
-  -- Concatenate usage line with instructions
-  return '\n' .. usage_line .. content .. '\n'
-end
-
--- Check if RPC is enabled
-function M.is_enabled()
-  return state.enabled
-end
-
--- REMOVED: All old overlay functions replaced with just two simple functions below
-
--- Apply overlay at given line
-function M.apply_overlay(line_num)
-  local overlay = require('pairup.overlay')
-
-  -- Switch to main window first
-  if state.main_window then
-    vim.cmd(state.main_window .. 'wincmd w')
-  end
-
-  -- Set cursor to the line
-  vim.api.nvim_win_set_cursor(0, { line_num, 0 })
-
-  -- Apply the overlay
-  local result = overlay.apply_at_cursor()
-
-  return vim.json.encode({ success = result })
+  return safe_json_encode({ content = vim.fn.getreg(reg) })
 end
 
 -- Get available plugins and commands for Claude
@@ -336,7 +404,6 @@ function M.get_capabilities()
   caps.commands = vim.tbl_keys(vim.api.nvim_get_commands({}))
 
   -- Get active LSP clients
-  -- Use get_clients for Neovim 0.10+ compatibility, fallback to get_active_clients
   local get_clients = vim.lsp.get_clients or vim.lsp.get_active_clients
   for _, client in pairs(get_clients()) do
     table.insert(caps.lsp_clients, client.name)
@@ -354,219 +421,38 @@ function M.get_capabilities()
     end
   end
 
-  return vim.json.encode(caps)
-end
-
--- Get the RPC server address from config
-function M.get_server_address()
-  local config = require('pairup.config')
-  return config.get('rpc_port') or '127.0.0.1:6666'
-end
-
--- Get XDG data directory for persistent storage
-function M.get_data_dir()
-  local xdg_data = vim.env.XDG_DATA_HOME or (vim.env.HOME .. '/.local/share')
-  local data_dir = xdg_data .. '/nvim/pairup/overlays'
-  return data_dir
-end
-
--- Export overlays to file (for user to save/share)
-function M.export_overlays(filename)
-  if not filename then
-    -- Use default location with timestamp
-    local data_dir = M.get_data_dir()
-    vim.fn.mkdir(data_dir, 'p')
-    filename = string.format('%s/overlays_%s.json', data_dir, os.date('%Y%m%d_%H%M%S'))
-  end
-
-  local file = io.open(filename, 'w')
-  if not file then
-    return vim.json.encode({ error = 'Cannot create file: ' .. filename })
-  end
-
-  -- Get current suggestions from all buffers
-  local overlay = require('pairup.overlay')
-  local all_suggestions = {}
-
-  -- Export from overlay module
-  for bufnr, suggestions in pairs(overlay.get_all_suggestions and overlay.get_all_suggestions() or {}) do
-    if vim.api.nvim_buf_is_valid(bufnr) then
-      local buf_name = vim.api.nvim_buf_get_name(bufnr)
-      all_suggestions[buf_name] = suggestions
-    end
-  end
-
-  -- Also include queued overlays
-  all_suggestions.queued = overlay_queue
-
-  file:write(vim.json.encode(all_suggestions, { indent = true }))
-  file:close()
-
-  return vim.json.encode({ success = true, file = filename })
-end
-
--- Import overlays from file
-function M.import_overlays(filename)
-  if not filename then
-    -- Look for most recent export
-    local data_dir = M.get_data_dir()
-    local files = vim.fn.glob(data_dir .. '/overlays_*.json', false, true)
-    if #files == 0 then
-      return vim.json.encode({ error = 'No overlay files found' })
-    end
-    table.sort(files)
-    filename = files[#files]
-  end
-
-  local file = io.open(filename, 'r')
-  if not file then
-    return vim.json.encode({ error = 'Cannot read file: ' .. filename })
-  end
-
-  local content = file:read('*all')
-  file:close()
-
-  local ok, data = pcall(vim.json.decode, content)
-  if not ok then
-    return vim.json.encode({ error = 'Invalid JSON in file' })
-  end
-
-  -- Import queued overlays
-  if data.queued then
-    overlay_queue = data.queued
-  end
-
-  -- Apply overlays to buffers
-  local imported = 0
-  for buf_name, suggestions in pairs(data) do
-    if buf_name ~= 'queued' then
-      -- Find or create buffer
-      local bufnr = vim.fn.bufnr(buf_name)
-      if bufnr ~= -1 then
-        -- Apply suggestions to buffer
-        for line_num, suggestion in pairs(suggestions) do
-          if type(line_num) == 'number' then
-            imported = imported + 1
-            -- Apply suggestion
-            local overlay = require('pairup.overlay')
-            if suggestion.is_multiline then
-              overlay.show_multiline_suggestion(
-                bufnr,
-                suggestion.start_line,
-                suggestion.end_line,
-                suggestion.old_lines,
-                suggestion.new_lines,
-                suggestion.reasoning
-              )
-            else
-              overlay.show_suggestion(bufnr, line_num, suggestion.old_text, suggestion.new_text, suggestion.reasoning)
-            end
-          end
-        end
-      end
-    end
-  end
-
-  return vim.json.encode({ success = true, imported = imported, file = filename })
-end
-
--- OVERLAY FUNCTION 1: Single-line suggestions
-function M.overlay_single(line, new_text, reasoning)
-  local overlay_api = require('pairup.overlay_api')
-  return overlay_api.single(line, new_text, reasoning)
-end
-
--- OVERLAY FUNCTION 2: Multi-line suggestions (JSON-based for RPC compatibility)
-function M.overlay_multiline_json(start_line, end_line, new_lines_json, reasoning)
-  local new_lines = vim.json.decode(new_lines_json)
-  local overlay_api = require('pairup.overlay_api')
-  return overlay_api.multiline(start_line, end_line, new_lines, reasoning)
-end
-
--- OVERLAY FUNCTION 3: Single-line with variants (JSON-based for RPC compatibility)
-function M.overlay_single_variants_json(line, variants_json)
-  -- Better error handling for JSON
-  local ok, variants = pcall(vim.json.decode, variants_json)
-  if not ok then
-    return { success = false, error = 'JSON decode failed: ' .. tostring(variants) }
-  end
-  local overlay_api = require('pairup.overlay_api')
-  local result = overlay_api.single_variants(line, variants)
-  -- Decode the JSON response from overlay_api
-  local decode_ok, decoded = pcall(vim.json.decode, result)
-  if decode_ok then
-    return decoded
-  else
-    return { success = true } -- Fallback if decoding fails
-  end
-end
-
--- OVERLAY FUNCTION 4: Multi-line with variants (JSON-based for RPC compatibility)
-function M.overlay_multiline_variants_json(start_line, end_line, variants_json)
-  -- Better error handling for JSON
-  local ok, variants = pcall(vim.json.decode, variants_json)
-  if not ok then
-    return { success = false, error = 'JSON decode failed: ' .. tostring(variants) }
-  end
-  local overlay_api = require('pairup.overlay_api')
-  local result = overlay_api.multiline_variants(start_line, end_line, variants)
-  -- Decode the JSON response from overlay_api
-  local decode_ok, decoded = pcall(vim.json.decode, result)
-  if decode_ok then
-    return decoded
-  else
-    return { success = true } -- Fallback if decoding fails
-  end
-end
-
--- OVERLAY FUNCTION 5: Simplified multi-line variants using base64 encoding to avoid escaping issues
-function M.overlay_multiline_variants_b64(start_line, end_line, variants_b64)
-  -- Decode base64 first, then JSON
-  local json_str = vim.fn.system('echo "' .. variants_b64 .. '" | base64 -d')
-  local ok, variants = pcall(vim.json.decode, json_str)
-  if not ok then
-    return { success = false, error = 'Failed to decode base64/JSON: ' .. tostring(variants) }
-  end
-  local overlay_api = require('pairup.overlay_api')
-  local result = overlay_api.multiline_variants(start_line, end_line, variants)
-  -- Decode the JSON response from overlay_api
-  local decode_ok, decoded = pcall(vim.json.decode, result)
-  if decode_ok then
-    return decoded
-  else
-    return { success = true } -- Fallback if decoding fails
-  end
+  return safe_json_encode(caps)
 end
 
 -- Accept overlay at line
 function M.overlay_accept(line)
-  local state = M.get_state()
+  M.update_layout()
   if not state.main_buffer then
-    return vim.json.encode({ error = 'No main buffer found' })
+    return safe_json_encode({ error = 'No main buffer found' })
   end
 
   local overlay = require('pairup.overlay')
   overlay.apply_at_line(state.main_buffer, line)
-  return vim.json.encode({ success = true, line = line, message = 'Overlay accepted' })
+  return safe_json_encode({ success = true, line = line, message = 'Overlay accepted' })
 end
 
 -- Reject overlay at line
 function M.overlay_reject(line)
-  local state = M.get_state()
+  M.update_layout()
   if not state.main_buffer then
-    return vim.json.encode({ error = 'No main buffer found' })
+    return safe_json_encode({ error = 'No main buffer found' })
   end
 
   local overlay = require('pairup.overlay')
   overlay.reject_at_line(state.main_buffer, line)
-  return vim.json.encode({ success = true, line = line, message = 'Overlay rejected' })
+  return safe_json_encode({ success = true, line = line, message = 'Overlay rejected' })
 end
 
 -- List all overlays
 function M.overlay_list()
-  local state = M.get_state()
+  M.update_layout()
   if not state.main_buffer then
-    return vim.json.encode({ error = 'No main buffer found', overlays = {}, count = 0 })
+    return safe_json_encode({ error = 'No main buffer found', overlays = {}, count = 0 })
   end
 
   local overlay = require('pairup.overlay')
@@ -599,11 +485,62 @@ function M.overlay_list()
     return a.line < b.line
   end)
 
-  return vim.json.encode({
+  return safe_json_encode({
     success = true,
     overlays = list,
     count = #list,
   })
+end
+
+-- Get RPC instructions for Claude
+function M.get_instructions()
+  if not state.enabled then
+    return nil
+  end
+
+  -- Get the actual server name from config or use what's running
+  local config = require('pairup.config')
+  local configured_server = config.get('rpc_port') or '127.0.0.1:6666'
+  local servername = vim.v.servername or configured_server
+
+  -- Load the instructions markdown file
+  local instructions_path = vim.fn.fnamemodify(debug.getinfo(1).source:sub(2), ':h') .. '/claude_instructions.md'
+  local instructions_file = io.open(instructions_path, 'r')
+  local instructions_content = ''
+
+  if instructions_file then
+    instructions_content = instructions_file:read('*all')
+    instructions_file:close()
+  else
+    -- Fallback if file can't be read
+    instructions_content = [[
+# Claude RPC Instructions
+
+You can interact with Neovim through RPC commands using the luaeval approach with _A parameter.
+See the claude_instructions.md file for full documentation.
+]]
+  end
+
+  -- Replace the placeholder with the actual server address
+  -- The pattern will match lines like:
+  -- nvim --server :6666 --remote-expr 'luaeval("require(\"pairup.rpc\").execute(_A)", TABLE)'
+  instructions_content = instructions_content:gsub(':6666', servername)
+
+  -- Add a header with the actual server address for clarity
+  local header = string.format(
+    [[
+# RPC CONTROL AVAILABLE at %s
+
+]],
+    servername
+  )
+
+  return header .. instructions_content
+end
+
+-- Check if enabled
+function M.is_enabled()
+  return state.enabled
 end
 
 return M

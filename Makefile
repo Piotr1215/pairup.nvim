@@ -4,20 +4,20 @@
 test:
 	@echo "Running tests with Plenary..."
 	@nvim --headless -c "PlenaryBustedDirectory test/pairup/ {minimal_init='test/minimal_init.vim'}" -c "qa!" 2>&1 | tee /tmp/pairup-test-output.txt
-	@echo ""
-	@echo "============================================"
-	@echo "TEST SUMMARY"
-	@echo "============================================"
-	@echo -n "Total tests run: "
-	@grep -E "Success: |Failed :" /tmp/pairup-test-output.txt | awk '{sum+=$$3} END {print sum}'
-	@echo -n "Tests passed: "
-	@grep "Success: " /tmp/pairup-test-output.txt | awk '{sum+=$$3} END {print sum}'
-	@echo -n "Tests failed: "
-	@grep "Failed : " /tmp/pairup-test-output.txt | awk '{sum+=$$3} END {if(sum=="") print 0; else print sum}' | tee /tmp/pairup-failures.txt
-	@echo "============================================"
-	@FAILURES=$$(cat /tmp/pairup-failures.txt); if [ "$$FAILURES" -gt 0 ] 2>/dev/null || grep -q "Tests Failed" /tmp/pairup-test-output.txt 2>/dev/null; then rm -f /tmp/pairup-test-output.txt /tmp/pairup-failures.txt; exit 1; fi
-	@rm -f /tmp/pairup-failures.txt
-	@rm -f /tmp/pairup-test-output.txt
+	@if grep -q "Tests Failed" /tmp/pairup-test-output.txt 2>/dev/null; then \
+		echo ""; \
+		echo "============================================"; \
+		echo "TESTS FAILED - Check output above for details"; \
+		echo "============================================"; \
+		rm -f /tmp/pairup-test-output.txt; \
+		exit 1; \
+	else \
+		echo ""; \
+		echo "============================================"; \
+		echo "ALL TESTS PASSED"; \
+		echo "============================================"; \
+		rm -f /tmp/pairup-test-output.txt; \
+	fi
 
 # Run tests with output visible (not headless)
 test-verbose:
