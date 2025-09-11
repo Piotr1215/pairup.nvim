@@ -250,6 +250,22 @@ function M.execute(request)
       return safe_json_encode(result)
     end
 
+    -- Route to insert methods
+    if request.method == 'insert_above' then
+      local result = M.insert_above(request.args or request)
+      return safe_json_encode(result)
+    end
+
+    if request.method == 'insert_below' then
+      local result = M.insert_below(request.args or request)
+      return safe_json_encode(result)
+    end
+
+    if request.method == 'append_to_file' then
+      local result = M.append_to_file(request.args or request)
+      return safe_json_encode(result)
+    end
+
     -- Route to other methods if specified
     if request.method and M[request.method] then
       local result = M.rpc_call(request.method, request.args or {})
@@ -265,6 +281,153 @@ function M.execute(request)
   end
 
   return safe_json_encode({ success = false, error = 'Invalid request type' })
+end
+
+-- =============================================================================
+-- INSERT METHODS - For adding content above/below lines
+-- =============================================================================
+
+-- Insert content above a specific line
+function M.insert_above(args)
+  M.update_layout()
+
+  if not state.main_buffer then
+    return { success = false, error = 'No main buffer found' }
+  end
+
+  local line = tonumber(args.line)
+  local content = args.content
+  local reasoning = args.reasoning or 'Inserted content'
+
+  if not line or not content then
+    return { success = false, error = 'Missing required parameters: line, content' }
+  end
+
+  -- Ensure content is a table of lines
+  if type(content) == 'string' then
+    content = vim.split(content, '\n', { plain = true })
+  elseif type(content) ~= 'table' then
+    return { success = false, error = 'content must be a string or array of strings' }
+  end
+
+  -- Special case: inserting at line 1 (beginning of file)
+  if line == 1 then
+    -- Get current first line
+    local first_line = vim.api.nvim_buf_get_lines(state.main_buffer, 0, 1, false)[1] or ''
+
+    -- Show overlay suggestion at line 1 that includes new content + existing line
+    local combined = vim.deepcopy(content)
+    table.insert(combined, first_line)
+
+    local overlay = require('pairup.overlay')
+    overlay.show_multiline_suggestion(state.main_buffer, 1, 1, { first_line }, combined, reasoning)
+  else
+    -- Normal case: insert above line (which means at end of previous line)
+    local insert_pos = line - 1
+
+    -- Show as multiline suggestion spanning from insert_pos to insert_pos
+    local overlay = require('pairup.overlay')
+    local current_line = vim.api.nvim_buf_get_lines(state.main_buffer, insert_pos - 1, insert_pos, false)[1] or ''
+
+    -- Create suggestion that keeps current line and adds new content
+    local combined = { current_line }
+    for _, new_line in ipairs(content) do
+      table.insert(combined, new_line)
+    end
+
+    overlay.show_multiline_suggestion(state.main_buffer, insert_pos, insert_pos, { current_line }, combined, reasoning)
+  end
+
+  return { success = true }
+end
+
+-- Insert content below a specific line
+function M.insert_below(args)
+  M.update_layout()
+
+  if not state.main_buffer then
+    return { success = false, error = 'No main buffer found' }
+  end
+
+  local line = tonumber(args.line)
+  local content = args.content
+  local reasoning = args.reasoning or 'Inserted content'
+
+  if not line or not content then
+    return { success = false, error = 'Missing required parameters: line, content' }
+  end
+
+  -- Ensure content is a table of lines
+  if type(content) == 'string' then
+    content = vim.split(content, '\n', { plain = true })
+  elseif type(content) ~= 'table' then
+    return { success = false, error = 'content must be a string or array of strings' }
+  end
+
+  local line_count = vim.api.nvim_buf_line_count(state.main_buffer)
+
+  -- Special case: inserting after last line (EOF)
+  if line >= line_count then
+    -- Show as multiline suggestion at end of file
+    local overlay = require('pairup.overlay')
+    local last_line = vim.api.nvim_buf_get_lines(state.main_buffer, line_count - 1, line_count, false)[1] or ''
+
+    -- Create suggestion that keeps last line and adds new content
+    local combined = { last_line }
+    for _, new_line in ipairs(content) do
+      table.insert(combined, new_line)
+    end
+
+    overlay.show_multiline_suggestion(state.main_buffer, line_count, line_count, { last_line }, combined, reasoning)
+  else
+    -- Normal case: insert after line
+    local next_line = line + 1
+    local current_line = vim.api.nvim_buf_get_lines(state.main_buffer, next_line - 1, next_line, false)[1] or ''
+
+    -- Show overlay that adds content before the next line
+    local overlay = require('pairup.overlay')
+    local combined = {}
+    for _, new_line in ipairs(content) do
+      table.insert(combined, new_line)
+    end
+    table.insert(combined, current_line)
+
+    overlay.show_multiline_suggestion(state.main_buffer, next_line, next_line, { current_line }, combined, reasoning)
+  end
+
+  return { success = true }
+end
+
+-- Append content at end of file
+function M.append_to_file(args)
+  M.update_layout()
+
+  if not state.main_buffer then
+    return { success = false, error = 'No main buffer found' }
+  end
+
+  local content = args.content
+  local reasoning = args.reasoning or 'Appended to end of file'
+
+  if not content then
+    return { success = false, error = 'Missing required parameter: content' }
+  end
+
+  -- Ensure content is a table of lines
+  if type(content) == 'string' then
+    content = vim.split(content, '\n', { plain = true })
+  elseif type(content) ~= 'table' then
+    return { success = false, error = 'content must be a string or array of strings' }
+  end
+
+  local line_count = vim.api.nvim_buf_line_count(state.main_buffer)
+
+  -- Use insert_below for last line
+  return M.insert_below({
+    line = line_count,
+    content = content,
+    reasoning = reasoning,
+  })
 end
 
 -- =============================================================================

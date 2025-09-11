@@ -48,9 +48,32 @@ nvim --server :6666 --remote-expr "luaeval('require(\"pairup.rpc\").execute(_A)'
 {'start_line': 10, 'end_line': 15, 'new_lines': ['function calculate(x, y) {', '  const sum = x + y;', '  return sum;', '}'], 'reasoning': 'Simplified function implementation'}
 ```
 
-Complete command example:
+### Insert Above Line
+```vim
+{'method': 'insert_above', 'args': {'line': 10, 'content': ['// TODO: Add error handling', '// This function needs validation'], 'reasoning': 'Added TODO comments'}}
+```
+
+### Insert Below Line
+```vim
+{'method': 'insert_below', 'args': {'line': 20, 'content': ['', '// End of section'], 'reasoning': 'Added section delimiter'}}
+```
+
+### Append to End of File
+```vim
+{'method': 'append_to_file', 'args': {'content': ['', '// EOF'], 'reasoning': 'Added EOF marker'}}
+```
+
+Complete command examples for insert operations:
+
 ```bash
-nvim --server :6666 --remote-expr "luaeval('require(\"pairup.rpc\").execute(_A)', {'start_line': 10, 'end_line': 15, 'new_lines': ['function calculate(x, y) {', '  const sum = x + y;', '  return sum;', '}'], 'reasoning': 'Simplified function implementation'})"
+# Insert above line 10
+nvim --server :6666 --remote-expr "luaeval('require(\"pairup.rpc\").execute(_A)', {'method': 'insert_above', 'args': {'line': 10, 'content': ['// TODO: Add error handling', '// This function needs validation'], 'reasoning': 'Added TODO comments'}})"
+
+# Insert below line 20
+nvim --server :6666 --remote-expr "luaeval('require(\"pairup.rpc\").execute(_A)', {'method': 'insert_below', 'args': {'line': 20, 'content': ['', '// End of section'], 'reasoning': 'Added section delimiter'}})"
+
+# Append to end of file
+nvim --server :6666 --remote-expr "luaeval('require(\"pairup.rpc\").execute(_A)', {'method': 'append_to_file', 'args': {'content': ['', '// EOF'], 'reasoning': 'Added EOF marker'}})"
 ```
 
 ### Single Line with Variants
