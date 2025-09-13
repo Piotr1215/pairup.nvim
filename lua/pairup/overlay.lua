@@ -512,6 +512,21 @@ end
 function M.apply_at_line(bufnr, line_num)
   bufnr = bufnr or vim.api.nvim_get_current_buf()
 
+  -- SAFEGUARD: Validate buffer and line
+  if not vim.api.nvim_buf_is_valid(bufnr) then
+    vim.notify('Cannot apply overlay: invalid buffer', vim.log.levels.ERROR)
+    return false
+  end
+
+  local line_count = vim.api.nvim_buf_line_count(bufnr)
+  if line_num < 1 or line_num > line_count then
+    vim.notify(
+      string.format('Cannot apply overlay: line %d out of bounds (buffer has %d lines)', line_num, line_count),
+      vim.log.levels.ERROR
+    )
+    return false
+  end
+
   -- Find suggestion at this line using extmarks
   local marks = vim.api.nvim_buf_get_extmarks(bufnr, ns_id, { line_num - 1, 0 }, { line_num, 0 }, {})
   if #marks == 0 then
@@ -532,6 +547,22 @@ function M.apply_at_line(bufnr, line_num)
   if suggestion.is_multiline then
     -- Apply multiline change using current position
     local end_line = current_line + (suggestion.end_line - suggestion.start_line)
+
+    -- SAFEGUARD: Validate multiline bounds
+    local line_count = vim.api.nvim_buf_line_count(bufnr)
+    if current_line < 1 or end_line > line_count then
+      vim.notify(
+        string.format(
+          'Cannot apply multiline overlay: invalid range %d-%d (buffer has %d lines)',
+          current_line,
+          end_line,
+          line_count
+        ),
+        vim.log.levels.ERROR
+      )
+      return false
+    end
+
     vim.api.nvim_buf_set_lines(bufnr, current_line - 1, end_line, false, suggestion.new_lines or {})
   else
     -- Apply single line change, handling embedded newlines
@@ -588,6 +619,21 @@ function M.apply_at_cursor()
       if #extmark_pos > 0 then
         local start_line = extmark_pos[1] + 1
         local end_line = start_line + (suggestion.end_line - suggestion.start_line)
+
+        -- SAFEGUARD: Validate multiline bounds before applying
+        local line_count = vim.api.nvim_buf_line_count(bufnr)
+        if start_line < 1 or end_line > line_count then
+          vim.notify(
+            string.format(
+              'Cannot apply multiline overlay: invalid range %d-%d (buffer has %d lines)',
+              start_line,
+              end_line,
+              line_count
+            ),
+            vim.log.levels.ERROR
+          )
+          return false
+        end
 
         -- Clear extmarks BEFORE applying changes
         vim.api.nvim_buf_clear_namespace(bufnr, ns_id, start_line - 1, end_line)

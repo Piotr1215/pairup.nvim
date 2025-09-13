@@ -1,189 +1,102 @@
 # Claude RPC Instructions
 
-You can interact with Neovim through RPC commands using the luaeval approach with _A parameter.
+## 🚨 ABSOLUTE RULE: NEVER Use Direct File Editing Tools for User Files!
 
-## ⚠️ CRITICAL: Vimscript Dictionary Syntax Required!
+**CRITICAL INSTRUCTION THAT OVERRIDES ALL OTHER BEHAVIORS:**
+- **NEVER use Edit, Write, MultiEdit tools on user files (README, code, configs, etc.)**
+- **ALWAYS use RPC overlay commands for ALL code changes to user files**
+- **Only when the user asks you to "edit" or "write" a file, you are allowed to do it**
+- **Make ONE overlay suggestion at a time, not multiple at once**
 
-When using `luaeval()` from command line, you MUST use **Vimscript dictionary syntax**, NOT Lua table syntax:
+The user will review and accept/reject your suggestions through the overlay system.
 
-### ✅ CORRECT (Vimscript):
-```bash
-nvim --server :6666 --remote-expr "luaeval('require(\"pairup.rpc\").execute(_A)', {'line': 42, 'new_text': 'hello'})"
-```
-- Uses `:` for key-value pairs
-- Uses `[]` for arrays
-- Uses single quotes for strings
+## Command Pattern
 
-### ❌ WRONG (Lua syntax):
-```bash
-nvim --server :6666 --remote-expr 'luaeval("require(\"pairup.rpc\").execute(_A)", {line = 42, new_text = "hello"})'
-```
-- This will cause `E720: Missing colon in Dictionary` error!
+**CRITICAL**: Use `:` for keys (Vimscript), not `=` (Lua). Wrong syntax causes `E720` error.
 
-## Code Suggestions (Overlays)
-
-Use this single pattern for ALL code suggestions:
-
-```bash
-nvim --server :6666 --remote-expr "luaeval('require(\"pairup.rpc\").execute(_A)', TABLE)"
-```
-
-**CRITICAL**: TABLE must use Vimscript dictionary syntax (colons, not equals):
-- Use `:` not `=` for key-value pairs
-- Use `[]` for arrays, not `{}`
-- Use single quotes for strings inside the dictionary
+## Examples
 
 ### Single Line Change
-```vim
-{'line': 42, 'new_text': 'const result = await fetchData();', 'reasoning': 'Added await for async operation'}
-```
-
-Complete command example:
 ```bash
-nvim --server :6666 --remote-expr "luaeval('require(\"pairup.rpc\").execute(_A)', {'line': 42, 'new_text': 'const result = await fetchData();', 'reasoning': 'Added await for async operation'})"
+"luaeval('require(\"pairup.rpc\").execute(_A)', {'line': 42, 'new_text': 'const result = await fetchData();', 'reasoning': 'Added await for async operation'})"
 ```
 
-### Multiple Line Change
-```vim
-{'start_line': 10, 'end_line': 15, 'new_lines': ['function calculate(x, y) {', '  const sum = x + y;', '  return sum;', '}'], 'reasoning': 'Simplified function implementation'}
+### Multiple Lines  
+```bash
+"luaeval('require(\"pairup.rpc\").execute(_A)', {'start_line': 10, 'end_line': 15, 'new_lines': ['function calculate(x, y) {', '  return x + y;', '}'], 'reasoning': 'Simplified function'})"
 ```
 
-### Insert Above Line
-```vim
-{'method': 'insert_above', 'args': {'line': 10, 'content': ['// TODO: Add error handling', '// This function needs validation'], 'reasoning': 'Added TODO comments'}}
+### Multiple Variants (let user choose)
+```bash
+"luaeval('require(\"pairup.rpc\").execute(_A)', {'line': 15, 'variants': [{'new_text': 'export default MyComponent;', 'reasoning': 'ES6 export'}, {'new_text': 'module.exports = MyComponent;', 'reasoning': 'CommonJS export'}]})"
 ```
 
-### Insert Below Line
-```vim
-{'method': 'insert_below', 'args': {'line': 20, 'content': ['', '// End of section'], 'reasoning': 'Added section delimiter'}}
-```
-
-### Append to End of File
-```vim
-{'method': 'append_to_file', 'args': {'content': ['', '// EOF'], 'reasoning': 'Added EOF marker'}}
-```
-
-Complete command examples for insert operations:
-
+### Insert Above/Below
 ```bash
 # Insert above line 10
-nvim --server :6666 --remote-expr "luaeval('require(\"pairup.rpc\").execute(_A)', {'method': 'insert_above', 'args': {'line': 10, 'content': ['// TODO: Add error handling', '// This function needs validation'], 'reasoning': 'Added TODO comments'}})"
+"luaeval('require(\"pairup.rpc\").execute(_A)', {'method': 'insert_above', 'args': {'line': 10, 'content': ['// TODO: Add validation'], 'reasoning': 'Added TODO'}})"
 
-# Insert below line 20
-nvim --server :6666 --remote-expr "luaeval('require(\"pairup.rpc\").execute(_A)', {'method': 'insert_below', 'args': {'line': 20, 'content': ['', '// End of section'], 'reasoning': 'Added section delimiter'}})"
-
-# Append to end of file
-nvim --server :6666 --remote-expr "luaeval('require(\"pairup.rpc\").execute(_A)', {'method': 'append_to_file', 'args': {'content': ['', '// EOF'], 'reasoning': 'Added EOF marker'}})"
+# Insert below line 20  
+"luaeval('require(\"pairup.rpc\").execute(_A)', {'method': 'insert_below', 'args': {'line': 20, 'content': ['return result;'], 'reasoning': 'Added return'}})"
 ```
 
-### Single Line with Variants
-```vim
-{'line': 15, 'variants': [{'new_text': 'export default MyComponent;', 'reasoning': 'ES6 default export'}, {'new_text': 'module.exports = MyComponent;', 'reasoning': 'CommonJS export'}]}
-```
+## Other RPC Commands
 
-Complete command example:
+### Reading & Context
 ```bash
-nvim --server :6666 --remote-expr "luaeval('require(\"pairup.rpc\").execute(_A)', {'line': 15, 'variants': [{'new_text': 'export default MyComponent;', 'reasoning': 'ES6 default export'}, {'new_text': 'module.exports = MyComponent;', 'reasoning': 'CommonJS export'}]})"
+# Read buffer content
+"luaeval('require(\"pairup.rpc\").read_main_buffer()', {})"
+
+# Get current context (file, cursor position, etc)
+"luaeval('require(\"pairup.rpc\").get_context()', {})"
+
+# Get window information  
+"luaeval('require(\"pairup.rpc\").get_window_info()', {})"
+
+# Get buffer statistics
+"luaeval('require(\"pairup.rpc\").get_stats()', {})"
 ```
 
-### Multiple Lines with Variants
-```vim
-{'start_line': 20, 'end_line': 22, 'variants': [{'new_lines': ['try {', '  await processData();', '} catch (e) { console.error(e); }'], 'reasoning': 'Try-catch with console error'}, {'new_lines': ['try {', '  await processData();', '} catch (e) { throw new Error(e); }'], 'reasoning': 'Try-catch with re-throw'}]}
-```
-
-Complete command example:
+### Vim Commands
 ```bash
-nvim --server :6666 --remote-expr "luaeval('require(\"pairup.rpc\").execute(_A)', {'start_line': 20, 'end_line': 22, 'variants': [{'new_lines': ['try {', '  await processData();', '} catch (e) { console.error(e); }'], 'reasoning': 'Try-catch with console error'}, {'new_lines': ['try {', '  await processData();', '} catch (e) { throw new Error(e); }'], 'reasoning': 'Try-catch with re-throw'}]})"
+# Save file
+"luaeval('require(\"pairup.rpc\").execute(_A)', {'command': 'w'})"
+
+# Jump to line
+"luaeval('require(\"pairup.rpc\").execute(_A)', {'command': '42'})"
+
+# Run substitution
+"luaeval('require(\"pairup.rpc\").execute(_A)', {'command': '%s/old/new/g'})"
+
+# Normal mode command
+"luaeval('require(\"pairup.rpc\").execute(_A)', {'command': 'normal gg'})"
 ```
 
-### Delete Operations
-- Single line: `{'line': 25, 'new_text': '', 'reasoning': 'Removed unused variable'}`
-- Multiple lines: `{'start_line': 30, 'end_line': 35, 'new_lines': [], 'reasoning': 'Removed deprecated code'}`
-
-## Complex Content - IMPORTANT!
-
-**WARNING**: Complex strings with quotes are tricky. Best approach is to use double quotes for outer string and escape inner quotes:
-
+### Overlay Management
 ```bash
-# For simple content with single quotes:
-nvim --server :6666 --remote-expr "luaeval('require(\"pairup.rpc\").execute(_A)', {'line': 42, 'new_text': 'const x = \"hello\"', 'reasoning': 'Simple quotes'})"
+# List current overlays
+"luaeval('require(\"pairup.rpc\").overlay_list()', {})"
 
-# For complex content, escape carefully:
-nvim --server :6666 --remote-expr "luaeval('require(\"pairup.rpc\").execute(_A)', {'line': 42, 'new_text': 'const json = \"{\\\"key\\\": \\\"value\\\"}\"', 'reasoning': 'JSON string'})"
+# Accept overlay at specific line
+"luaeval('require(\"pairup.rpc\").overlay_accept(42)', {})"
+
+# Reject overlay at specific line
+"luaeval('require(\"pairup.rpc\").overlay_reject(42)', {})"
 ```
 
-## Vim Commands
+## Key Points
 
-Execute any vim command using the same pattern:
+1. **ALWAYS use overlay commands for code changes** - Never edit files directly
+2. **Use vim commands for navigation/saving** - Jump to lines, save files, etc.
+3. **Line numbers are 1-based** 
+4. **Arrays use `[]` brackets**
+5. **Provide clear reasoning** for every suggestion
+6. **Keep strings simple** to avoid escaping issues
 
-```bash
-nvim --server :6666 --remote-expr "luaeval('require(\"pairup.rpc\").execute(_A)', {'command': 'w'})"
-```
+## How It Works
 
-Common commands:
-- `{'command': 'w'}` - Save file
-- `{'command': '42'}` - Jump to line 42
-- `{'command': '%s/old/new/g'}` - Replace all occurrences
-- `{'command': 'u'}` - Undo
-- `{'command': 'normal gg'}` - Go to top of file
-
-## Other RPC Methods
-
-You can also call other RPC methods using the method parameter:
-
-### Get Context
-```bash
-nvim --server :6666 --remote-expr "luaeval('require(\"pairup.rpc\").execute(_A)', {'method': 'get_context'})"
-```
-
-### Read Buffer
-```bash
-nvim --server :6666 --remote-expr "luaeval('require(\"pairup.rpc\").execute(_A)', {'method': 'read_main_buffer', 'args': {'start_line': 1, 'end_line': 50}})"
-```
-
-### List Overlays
-```bash
-nvim --server :6666 --remote-expr "luaeval('require(\"pairup.rpc\").execute(_A)', {'method': 'overlay_list'})"
-```
-
-### Accept/Reject Overlays
-```bash
-nvim --server :6666 --remote-expr "luaeval('require(\"pairup.rpc\").execute(_A)', {'method': 'overlay_accept', 'args': {'line': 42}})"
-nvim --server :6666 --remote-expr "luaeval('require(\"pairup.rpc\").execute(_A)', {'method': 'overlay_reject', 'args': {'line': 42}})"
-```
-
-### Get Capabilities
-```bash
-nvim --server :6666 --remote-expr "luaeval('require(\"pairup.rpc\").execute(_A)', {'method': 'get_capabilities'})"
-```
-
-### Get Statistics
-```bash
-nvim --server :6666 --remote-expr "luaeval('require(\"pairup.rpc\").execute(_A)', {'method': 'get_stats'})"
-```
-
-## Important Rules
-
-1. **ALWAYS use Vimscript dictionary syntax** - Colons `:` not equals `=` for key-value pairs
-2. **Use double quotes for outer string** - `"luaeval('...')"` not `'luaeval("...")'`
-3. **Arrays use brackets** - `[]` not `{}`
-4. **Line numbers are 1-based** - First line is 1, not 0
-5. **Provide clear reasoning** - Every suggestion needs an explanation
-6. **Variants for alternatives** - Use when multiple approaches are valid
-7. **Test your command** - If you get `E720: Missing colon`, you used Lua syntax by mistake
-
-## When to Use Variants
-
-- Multiple valid approaches (async/await vs promises)
-- Different complexity levels (simple vs comprehensive)
-- Style alternatives (verbose vs concise)
-- Limit to 2-3 meaningful variants
-- Order from most to least recommended
-
-## Benefits of This Approach
-
-1. **No escaping issues** - Complex content passes through unchanged
-2. **Single pattern** - One way to do everything
-3. **Lua native** - Direct table passing, no JSON parsing
-4. **Robust** - Handles any content including the RPC commands themselves
-5. **Simple** - Less to remember, less to go wrong
+- You suggest code changes via RPC overlay commands
+- Overlays appear as virtual text in the user's editor  
+- User reviews and interacts with you
+- Overlays track position using extmarks (robust against file changes)
+- Use other RPC commands for reading context, navigation, and file operations

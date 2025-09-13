@@ -661,8 +661,13 @@ function M.get_instructions()
     return nil
   end
 
-  -- Get the actual server name from config or use what's running
+  -- Check if experimental RPC instructions are enabled
   local config = require('pairup.config')
+  if not config.get('experimental.inject_rpc_instructions') then
+    return nil -- Don't inject instructions if feature is disabled
+  end
+
+  -- Get the actual server name from config or use what's running
   local configured_server = config.get('rpc_port') or '127.0.0.1:6666'
   local servername = vim.v.servername or configured_server
 
@@ -692,9 +697,15 @@ See the claude_instructions.md file for full documentation.
   -- Add a header with the actual server address for clarity
   local header = string.format(
     [[
-# RPC CONTROL AVAILABLE at %s
+# RPC CONTROL AVAILABLE
+
+Use this command pattern with server %s:
+```bash
+nvim --server %s --remote-expr "any command below"
+```
 
 ]],
+    servername,
     servername
   )
 

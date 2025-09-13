@@ -7,7 +7,7 @@ Neovim.**
 environment with real-time git diff streaming, intelligent code awareness, and
 seamless workflow integration.
 
-* [Why pairup.nvim?](#why-pairup.nvim?)
+* [Why pairup.nvim?](#why-pairupnvim)
 * [Getting Started](#getting-started)
 * [Installation](#installation)
 * [Features](#features)
@@ -42,6 +42,15 @@ seamless workflow integration.
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 
 </div>
+
+
+## 🚀 What"s New in v2.0
+
+- **Enhanced Overlay Engine**: Completely redesigned overlay system with improved performance and reliability
+- **Insert Methods**: New `insert_above` and `insert_below` methods for more precise code suggestions
+- **Multi-variant Suggestions**: AI can now provide multiple alternatives that you can cycle through with Tab/Shift+Tab
+- **Improved Extmark Tracking**: More robust position tracking that survives file edits
+- **Overlay Persistence**: Save and restore overlay suggestions across sessions
 
 ## Why pairup.nvim?
 
@@ -123,20 +132,15 @@ Run `:checkhealth pairup` to verify installation.
 
 ## Features
 
-- **Real-time Git Diff Streaming** - Automatically sends unstaged changes as you
-  save
+- **Real-time Git Diff Streaming** - Automatically sends unstaged changes as you save
+- **Virtual Text Overlays** - Review code suggestions before accepting them
 - **Neovim RPC Control** - AI can directly control your Neovim instance via RPC
 - **Smart Batching** - Groups multiple saves within 1.5s to reduce noise
-- **Staged/Unstaged Workflow** - Once you stage changes, they disappear from
-  updates
-- **Critical Notifications** - AI can alert you via `notify-send` for important
-  issues
+- **Staged/Unstaged Workflow** - Stage completed work to hide it from AI updates
 - **Auto-reload Buffers** - Files automatically refresh when AI makes edits
-- **Workspace Awareness** - Shows current file diff with info about other
-  changes
+- **Workspace Awareness** - Shows current file diff with info about other changes
 - **Provider Abstraction** - Extensible provider architecture
-- **Intelligent Context** - Uses git staging area to track work progress
-- **Periodic Updates** - Optional automatic status updates at intervals
+- **Session Persistence** - Resume previous work sessions
 - **Shell/Vim Command Integration** - Send command outputs directly to AI
 
 ## Neovim RPC Control
@@ -176,47 +180,47 @@ This enables the following scenarios.
 - Docker containers: nvim --listen 0.0.0.0:6666 inside container
 - WSL/VMs: Same TCP detection works across boundaries
 
-## Overlay Feature (Virtual Text Suggestions)
+## Overlay Feature (Virtual Text Suggestions) [EXPERIMENTAL]
 
-When RPC is enabled, Claude can suggest code changes using overlays - virtual text that shows proposed modifications without immediately changing your files. This allows you to review suggestions before accepting them.
+⚠️ **Note: This feature is experimental and unstable. It may have bugs or unexpected behavior.**
+
+Claude can suggest code changes using overlays - virtual text that shows proposed modifications without immediately changing your files. This allows you to review suggestions before accepting them.
 
 ### How Overlays Work
 
-Overlays appear as virtual text in your buffer showing:
-- The original line content
-- The suggested replacement
-- A clear reasoning for the change
-
-You can accept or reject each suggestion individually, maintaining full control over your code.
-
 ### Overlay Persistence
 
-Save and restore overlay suggestions across sessions:
+Save and restore overlay suggestions across sessions to preserve your workflow:
 
 ```vim
-" Save current overlays to auto-generated file
-:PairupOverlaySave
-" Or save to specific file  
-:PairupOverlaySave ~/my-overlays.json
+" Save current overlays to a timestamped file
+:PairupOverlaySave [file]     " or :PairSave
 
 " Restore overlays (shows picker if no file specified)
-:PairupOverlayRestore
-" Or restore from specific file
-:PairupOverlayRestore ~/my-overlays.json
+:PairupOverlayRestore [file]  " or :PairRestore
 
 " List all saved overlay sessions
 :PairupOverlayList
-
-" Shorter aliases
-:PairSave        " Same as :PairupOverlaySave
-:PairRestore     " Same as :PairupOverlayRestore
 ```
 
-**How it works:**
-- Overlays are saved as JSON with file content and suggestions
-- File hash checking detects if the file changed since save
-- Extmarks are recreated fresh when restoring (not persisted)
-- Auto-save can be configured to save on buffer write/unload
+**Storage Details:**
+- Overlays are saved as JSON files in `~/.local/share/nvim/pairup/overlays/`
+- Each save includes file content hash to detect changes since save
+- Files are named with timestamps for easy identification
+
+**Auto-save Use Cases:**
+- Enable auto-save when working on complex refactoring to preserve suggestions
+- Useful for code reviews where you want to save suggestions for later
+- Configure with `overlay_persistence.auto_save = true` to save on buffer write/unload
+
+" Restore overlays (shows picker if no file specified)
+:PairupOverlayRestore [file]  " or :PairRestore
+
+" List all saved overlay sessions
+:PairupOverlayList
+```
+
+Overlays are saved as JSON with file content and suggestions. File hash checking detects if the file changed since save. Auto-save can be configured to save on buffer write/unload.
 
 For remote network scenarios claude can run either locally in neovim buffer and
 operate on remote neovim instance or run in remote server and operate on the
@@ -270,109 +274,90 @@ new changes on top.
 :PairupSay ![shell cmd]         " Execute shell command and send output to AI (e.g., :PairupSay !npm test)
 :PairupSay :[vim cmd]           " Execute vim command and send output to AI (e.g., :PairupSay :messages)
 
-" Feature Toggles
-:PairupToggleDiff               " Toggle automatic git diff sending on/off
-:PairupToggleLSP                " Toggle LSP diagnostics sending on/off
+require("pairup").setup({
+  -- AI Provider Selection
+  provider = "claude",                                            -- Currently only "claude" is supported
 
-" Session Management
-:PairupIntent [text]            " Set or update the intent for current session
-:PairupWipeSessions             " Clear all saved sessions
-:PairupWipeSessions [pattern]   " Clear sessions matching pattern
-
-" Directory Management
-:PairupAddDir                   " Add current directory to Claude's context
-```
-
-
-### Complete Configuration
-
-All available configuration options with defaults and descriptions:
-
-```lua
-require('pairup').setup({                                         
-                                                                  -- AI Provider Selection
-  provider = 'claude',                                            -- Currently only 'claude' is supported
-                                                                  
-                                                                  -- Session Management
+  -- Session Management
   persist_sessions = true,                                        -- Save sessions for later resume
   prompt_session_resume = false,                                  -- Use :PairupSessions to manually select sessions
   auto_populate_intent = true,                                    -- Auto-populate intent when starting
-  intent_template = "I'm planning to work on the file `%s` to...",-- Starting text to prompt claude for task
-  suggestion_mode = true,                                         -- Claude only provides suggestions, doesn't edit directly
-                                                                  
-                                                                  -- Provider-specific configurations
-  providers = {                                                   
-    claude = {                                                    
-      path = vim.fn.exepath('claude'),                            -- Path to Claude CLI executable
-      permission_mode = 'plan',                                   -- 'plan' or 'acceptEdits' (auto-accept edits)
+  intent_template = "I"m planning to work on the file `%s` to...",-- Starting text to prompt claude for task
+  suggestion_mode = true,                                         -- Claude only provides suggestions, doesn"t edit directly
+
+  -- Provider-specific configurations
+  providers = {
+    claude = {
+      path = vim.fn.exepath("claude"),                            -- Path to Claude CLI executable
+      permission_mode = "plan",                                   -- "plan" or "acceptEdits" (auto-accept edits)
       add_dir_on_start = true,                                    -- Automatically add project directory on start
       default_args = {},                                          -- Additional CLI arguments
-    },                                                            
-                                                                  -- Future providers (not yet implemented)
-    openai = {                                                    
+    },
+    -- Future providers (not yet implemented)
+    openai = {
        -- api_key = "",                                           -- OpenAI API key (future)
        -- model = "gpt-4",                                        -- Model selection (future)
-    },                                                            
-    ollama = {                                                    
+    },
+    ollama = {
        -- host = "localhost:11434",                               -- Ollama host (future)
        -- model = "codellama",                                    -- Ollama model (future)
-    },                                                            
-  },                                                              
-                                                                  
-                                                                  -- Git Integration
+    },
+  },
+
+  -- Git Integration
   diff_context_lines = 10,                                        -- Lines of context around changes in diffs
   enabled = true,                                                 -- Enable/disable automatic diff sending
-                                                                  
-                                                                  -- RPC Settings
-  rpc_port = '127.0.0.1:6666',                                    -- Expected TCP port for nvim --listen
-                                                                  
-                                                                  -- Terminal Window Settings
-  terminal = {                                                    
-    split_position = 'left',                                      -- 'left' or 'right' side of screen
+
+  -- RPC Settings
+  rpc_port = "127.0.0.1:6666",                                    -- Expected TCP port for nvim --listen
+
+  -- Terminal Window Settings
+  terminal = {
+    split_position = "left",                                      -- "left" or "right" side of screen
     split_width = 0.4,                                            -- 40% for AI, 60% for editor
     auto_insert = true,                                           -- Auto-enter insert mode in terminal
     auto_scroll = true,                                           -- Auto-scroll to bottom on new output
-  },                                                              
-                                                                  
-                                                                  -- Filtering Settings
-  filter = {                                                      
+  },
+
+  -- Filtering Settings
+  filter = {
     ignore_whitespace_only = true,                                -- Ignore whitespace-only changes
-    ignore_comment_only = false,                                  -- Don't ignore comment-only changes
+    ignore_comment_only = false,                                  -- Don"t ignore comment-only changes
     min_change_lines = 0,                                         -- Minimum lines changed to trigger update
     batch_delay_ms = 500,                                         -- Delay for batching multiple saves
-  },                                                              
-                                                                  
-                                                                  -- Context Update Settings
-  fyi_suffix = '\nYou have received a git diff...',               -- Message appended to context updates
-                                                                  
-                                                                  -- LSP Integration
-  lsp = {                                                         
+  },
+
+  -- Context Update Settings
+  fyi_suffix = "\nYou have received a git diff...",               -- Message appended to context updates
+
+  -- LSP Integration
+  lsp = {
     enabled = true,                                               -- Enable LSP integration
     include_diagnostics = true,                                   -- Include LSP diagnostics in context
     include_hover_info = true,                                    -- Include hover information
     include_references = true,                                    -- Include reference information
-  },                                                              
-                                                                  
-                                                                  -- Auto-refresh Settings
-  auto_refresh = {                                                
+  },
+
+  -- Auto-refresh Settings
+  auto_refresh = {
     enabled = true,                                               -- Auto-refresh on external changes
     interval_ms = 500,                                            -- Check interval in milliseconds
-  },                                                              
-                                                                  
-                                                                  -- Periodic Updates
-  periodic_updates = {                                            
+  },
+
+  -- Periodic Updates
+  periodic_updates = {
     enabled = false,                                              -- Send periodic status updates
     interval_minutes = 10,                                        -- Update interval in minutes
   },
-  
+
   -- Overlay Persistence Settings
   overlay_persistence = {
     enabled = false,                                              -- Enable overlay persistence features
     auto_save = false,                                            -- Auto-save overlays on buffer write/unload
     auto_restore = false,                                         -- Auto-restore overlays when opening files
     max_sessions = 10,                                            -- Maximum saved sessions to keep per file
-  },                                                              
-})                                                                
+  },
+})
 ```
 
 ### Keymaps
@@ -385,6 +370,14 @@ vim.keymap.set('n', '<leader>ct', ':PairupToggle<cr>', { desc = 'Toggle AI assis
 vim.keymap.set('n', '<leader>cc', ':PairupContext<cr>', { desc = 'Send context to AI' })
 vim.keymap.set('n', '<leader>cs', ':PairupStatus<cr>', { desc = 'Send git status to AI' })
 vim.keymap.set('n', '<leader>cm', ':PairupSay ', { desc = 'Send message to AI' })
+
+-- Overlay keymaps
+vim.keymap.set("n", "<leader>sa", "<cmd>PairAccept<cr>", { desc = "Accept overlay suggestion" })
+vim.keymap.set("n", "<leader>sr", "<cmd>PairReject<cr>", { desc = "Reject overlay suggestion" })
+vim.keymap.set("n", "<leader>sn", "<cmd>PairNext<cr>", { desc = "Next overlay suggestion" })
+vim.keymap.set("n", "<leader>sp", "<cmd>PairPrev<cr>", { desc = "Previous overlay suggestion" })
+vim.keymap.set("n", "<Tab>", "<cmd>PairupOverlayCycle<cr>", { desc = "Cycle overlay variants" })
+vim.keymap.set("n", "<S-Tab>", "<cmd>PairupOverlayCyclePrev<cr>", { desc = "Cycle overlay variants (reverse)" })
 ```
 
 ### Statusline Integration
@@ -441,6 +434,26 @@ The plugin deeply integrates with git:
 :PairupSay :messages           " Recent messages
 :PairupSay :ls                 " Buffer list
 ```
+
+## Known Issues & Limitations
+
+### Overlay System (EXPERIMENTAL)
+
+The overlay suggestion system has known edge cases:
+
+- **Partial application on multi-line edits**: When editing/accepting large multi-line overlays (especially those spanning code blocks), the system may leave duplicate content or fail to properly clean up old lines
+- **Boundary detection**: Overlays that cross markdown code block boundaries (```) may not apply correctly
+- **Extmark tracking**: While extmarks handle most file changes, rapid successive edits can sometimes desync overlay positions
+
+**Workarounds:**
+- For large edits, accept the overlay first, then make modifications
+- Use `:PairReject` to clear problematic overlays and request smaller, focused changes
+- Restart the assistant if overlays become severely desynced
+
+### RPC Escaping
+
+- Complex strings with nested quotes/backticks may fail to transmit correctly
+- Special shell characters in overlay content require careful escaping
 
 ## Troubleshooting
 

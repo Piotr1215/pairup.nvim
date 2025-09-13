@@ -95,6 +95,12 @@ local defaults = {
     auto_restore = true, -- Automatically restore overlays when starting Claude
     max_sessions = 10, -- Maximum number of overlay sessions to keep per file
   },
+
+  -- Experimental features (use with caution)
+  experimental = {
+    -- Inject RPC instructions to Claude to enable overlay suggestions via RPC
+    inject_rpc_instructions = false, -- Disabled by default, enable to send RPC overlay instructions to Claude
+  },
 }
 
 -- Current configuration

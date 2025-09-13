@@ -1,10 +1,8 @@
--- Pairup plugin entry point
 if vim.g.loaded_pairup then
   return
 end
 vim.g.loaded_pairup = true
 
--- Create user commands
 vim.api.nvim_create_user_command('PairupStart', function(opts)
   require('pairup').start(opts.args ~= '' and opts.args or nil)
 end, { nargs = '?', desc = 'Start AI pair programming assistant' })
@@ -68,11 +66,6 @@ vim.api.nvim_create_user_command('PairupRestoreLayout', function()
   require('pairup').restore_layout()
 end, { desc = 'Restore Claude/buffer window split to configured width' })
 
--- ============================================================================
--- OVERLAY COMMANDS - All overlay-related commands use PairupOverlay* prefix
--- ============================================================================
-
--- Overlay creation command
 vim.api.nvim_create_user_command('PairupOverlayCreate', function(opts)
   local overlay = require('pairup.overlay')
   overlay.setup()
@@ -82,7 +75,6 @@ vim.api.nvim_create_user_command('PairupOverlayCreate', function(opts)
   local line = cursor[1]
 
   if opts.args and opts.args ~= '' then
-    -- Send to Claude to get suggestion
     local providers = require('pairup.providers')
     local current_text = vim.api.nvim_buf_get_lines(bufnr, line - 1, line, false)[1]
     local message = string.format(
@@ -94,7 +86,6 @@ vim.api.nvim_create_user_command('PairupOverlayCreate', function(opts)
     providers.send_to_provider(message)
     vim.notify('Sent to Claude for suggestion. Claude can use overlays to show the suggestion.', vim.log.levels.INFO)
   else
-    -- Test with simple suggestion
     local current_text = vim.api.nvim_buf_get_lines(bufnr, line - 1, line, false)[1]
     overlay.show_suggestion(bufnr, line, current_text, '// TODO: Claude suggests changing this line')
     vim.notify(
@@ -109,7 +100,6 @@ vim.api.nvim_create_user_command('PairupOverlayClear', function()
   vim.notify('Overlay cleared', vim.log.levels.INFO)
 end, {})
 
--- Overlay interaction commands
 vim.api.nvim_create_user_command('PairupOverlayAccept', function()
   require('pairup.overlay').apply_at_cursor()
 end, { desc = 'Accept suggestion at cursor position' })
@@ -142,7 +132,6 @@ vim.api.nvim_create_user_command('PairupOverlaySuggestionOnly', function()
   require('pairup.overlay').toggle_suggestion_only()
 end, { desc = 'Toggle suggestion-only mode (hide buffer content)' })
 
--- Overlay scope commands
 vim.api.nvim_create_user_command('PairupOverlayScope', function()
   require('pairup.overlay_scope').open_scope()
 end, { desc = 'Open overlay scope view showing only suggestions' })
@@ -175,7 +164,6 @@ vim.api.nvim_create_user_command('PairupOverlayImport', function(opts)
   end
 end, { desc = 'Import overlays from file', nargs = '?' })
 
--- Variant cycling commands
 vim.api.nvim_create_user_command('PairupOverlayCycle', function()
   local overlay = require('pairup.overlay')
   local cursor = vim.api.nvim_win_get_cursor(0)
@@ -197,10 +185,6 @@ vim.api.nvim_create_user_command('PairupOverlayCyclePrev', function()
     vim.notify('No variants to cycle', vim.log.levels.WARN)
   end
 end, { desc = 'Cycle to previous overlay variant' })
-
--- ============================================================================
--- SHORTER COMMAND ALIASES FOR BETTER UX
--- ============================================================================
 
 vim.api.nvim_create_user_command('PairAccept', function()
   require('pairup.overlay').apply_at_cursor()
@@ -273,10 +257,6 @@ Tips:
   vim.notify(help, vim.log.levels.INFO)
 end, { desc = 'Show overlay command help' })
 
--- ============================================================================
--- OVERLAY PERSISTENCE COMMANDS
--- ============================================================================
-
 vim.api.nvim_create_user_command('PairupOverlaySave', function(opts)
   local persist = require('pairup.overlay_persistence')
   local ok, path, count = persist.save_overlays(opts.args ~= '' and opts.args or nil)
@@ -291,7 +271,6 @@ end, { desc = 'Save current overlays to file', nargs = '?' })
 vim.api.nvim_create_user_command('PairupOverlayRestore', function(opts)
   local persist = require('pairup.overlay_persistence')
 
-  -- If no file specified, show picker
   if opts.args == '' then
     local sessions = persist.list_sessions()
     if #sessions == 0 then
@@ -299,7 +278,6 @@ vim.api.nvim_create_user_command('PairupOverlayRestore', function(opts)
       return
     end
 
-    -- Build picker items
     local items = {}
     for _, session in ipairs(sessions) do
       table.insert(
@@ -313,7 +291,6 @@ vim.api.nvim_create_user_command('PairupOverlayRestore', function(opts)
       )
     end
 
-    -- Show picker
     vim.ui.select(items, {
       prompt = 'Select overlay session to restore:',
     }, function(choice, idx)
@@ -328,7 +305,6 @@ vim.api.nvim_create_user_command('PairupOverlayRestore', function(opts)
       end
     end)
   else
-    -- Direct file path provided
     local ok, msg = persist.restore_overlays(opts.args)
     if ok then
       vim.notify(msg, vim.log.levels.INFO)
@@ -362,7 +338,6 @@ vim.api.nvim_create_user_command('PairupOverlayAutoSave', function()
   require('pairup.overlay_persistence').auto_save()
 end, { desc = 'Auto-save current overlays' })
 
--- Shorter aliases for persistence
 vim.api.nvim_create_user_command('PairSave', function(opts)
   vim.cmd('PairupOverlaySave ' .. opts.args)
 end, { desc = 'Save overlays (alias)', nargs = '?' })
@@ -371,18 +346,15 @@ vim.api.nvim_create_user_command('PairRestore', function(opts)
   vim.cmd('PairupOverlayRestore ' .. opts.args)
 end, { desc = 'Restore overlays (alias)', nargs = '?' })
 
--- Set up autocmds for overlay persistence
 local function setup_overlay_persistence_autocmds()
   local config = require('pairup.config')
 
-  -- Only set up autocmds if persistence is enabled
   if not config.get('overlay_persistence.enabled') or not config.get('overlay_persistence.auto_save') then
     return
   end
 
   local group = vim.api.nvim_create_augroup('PairupOverlayPersistence', { clear = true })
 
-  -- Auto-save on buffer write
   vim.api.nvim_create_autocmd('BufWritePost', {
     group = group,
     pattern = '*',
@@ -393,15 +365,13 @@ local function setup_overlay_persistence_autocmds()
         local bufnr = vim.api.nvim_get_current_buf()
         local suggestions = overlay.get_suggestions(bufnr)
 
-        -- Only save if there are overlays
         local count = 0
         for _, _ in pairs(suggestions) do
           count = count + 1
         end
 
         if count > 0 then
-          persist.auto_save(true) -- Silent mode
-          -- Clean old sessions based on config
+          persist.auto_save(true)
           local max_sessions = config.get('overlay_persistence.max_sessions')
           if max_sessions then
             persist.clean_old_sessions(max_sessions)
@@ -412,25 +382,22 @@ local function setup_overlay_persistence_autocmds()
     desc = 'Auto-save overlays after buffer write',
   })
 
-  -- Auto-save on buffer unload
   vim.api.nvim_create_autocmd('BufUnload', {
     group = group,
     pattern = '*',
     callback = function()
       pcall(function()
         local persist = require('pairup.overlay_persistence')
-        persist.auto_save(true) -- Silent mode
+        persist.auto_save(true)
       end)
     end,
     desc = 'Auto-save overlays when unloading buffer',
   })
 
-  -- Auto-save before exiting Neovim (use special exit-safe function)
   vim.api.nvim_create_autocmd('VimLeavePre', {
     group = group,
     pattern = '*',
     callback = function()
-      -- Use pcall to prevent any errors from blocking exit
       pcall(function()
         local persist = require('pairup.overlay_persistence')
         persist.auto_save_on_exit()
@@ -440,7 +407,6 @@ local function setup_overlay_persistence_autocmds()
   })
 end
 
--- Initialize overlay persistence autocmds after config is loaded
 vim.defer_fn(function()
   setup_overlay_persistence_autocmds()
 end, 0)

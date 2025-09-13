@@ -9,8 +9,31 @@ local editor_state = {
   editor_buf = nil,
   editor_win = nil,
   current_suggestion = nil,
-  line_num = nil,
+  extmark_id = nil, -- Store extmark ID instead of line number
 }
+
+-- Helper to get extmark ID at current position
+local function get_extmark_at_line(bufnr, line)
+  local ns_id = vim.api.nvim_create_namespace('pairup_overlay')
+  local marks = vim.api.nvim_buf_get_extmarks(bufnr, ns_id, { line - 1, 0 }, { line, 0 }, {})
+  if #marks > 0 then
+    return marks[1][1]
+  end
+  return nil
+end
+
+-- Helper to get current line from extmark
+local function get_line_from_extmark(bufnr, extmark_id)
+  if not extmark_id then
+    return nil
+  end
+  local ns_id = vim.api.nvim_create_namespace('pairup_overlay')
+  local extmark_pos = vim.api.nvim_buf_get_extmark_by_id(bufnr, ns_id, extmark_id, {})
+  if #extmark_pos > 0 then
+    return extmark_pos[1] + 1 -- Convert to 1-based
+  end
+  return nil
+end
 
 -- Create an editable buffer for a suggestion
 function M.edit_overlay_at_cursor()
@@ -18,22 +41,29 @@ function M.edit_overlay_at_cursor()
   local cursor = vim.api.nvim_win_get_cursor(0)
   local line = cursor[1]
 
-  -- Get suggestions for current buffer
-  local suggestions = overlay.get_suggestions(bufnr)
-  if not suggestions or not suggestions[line] then
+  -- Get extmark ID at current position
+  local extmark_id = get_extmark_at_line(bufnr, line)
+  if not extmark_id then
     vim.notify('No overlay at current position', vim.log.levels.WARN)
     return false
   end
 
-  local suggestion = suggestions[line]
+  -- Get suggestions using the raw storage
+  local raw_suggestions = overlay.get_all_suggestions()[bufnr]
+  if not raw_suggestions or not raw_suggestions[extmark_id] then
+    vim.notify('No overlay at current position', vim.log.levels.WARN)
+    return false
+  end
 
-  -- Store state
+  local suggestion = raw_suggestions[extmark_id]
+
+  -- Store state with extmark ID
   editor_state.source_buf = bufnr
   editor_state.current_suggestion = suggestion
-  editor_state.line_num = line
+  editor_state.extmark_id = extmark_id
 
-  -- Check if we already have an editor buffer for this line and reuse it
-  local buffer_name = 'overlay-editor://' .. line
+  -- Check if we already have an editor buffer for this extmark and reuse it
+  local buffer_name = 'overlay-editor://extmark_' .. extmark_id
   local existing_buf = nil
 
   -- Search for existing buffer with this name
@@ -53,10 +83,13 @@ function M.edit_overlay_at_cursor()
   local buf = existing_buf or vim.api.nvim_create_buf(false, true)
   editor_state.editor_buf = buf
 
+  -- Get current line position for display
+  local current_line = get_line_from_extmark(bufnr, extmark_id) or line
+
   -- Prepare content for editing
   local lines = {}
   table.insert(lines, '# Edit Overlay Suggestion')
-  table.insert(lines, '# Line: ' .. line)
+  table.insert(lines, '# Line: ' .. current_line)
   table.insert(lines, '# Save (:w) to apply your edited version')
   table.insert(lines, '# Close without saving to cancel')
   table.insert(lines, '')
@@ -150,50 +183,43 @@ function M.edit_overlay_at_cursor()
   local original_win = vim.api.nvim_get_current_win()
   local original_buf = vim.api.nvim_get_current_buf()
 
-  -- Open in split
-  vim.cmd('split')
+  -- Create a split for the editor
+  vim.cmd('new')
   local win = vim.api.nvim_get_current_win()
-  vim.api.nvim_win_set_buf(win, buf)
   editor_state.editor_win = win
-  editor_state.original_win = original_win
-  editor_state.original_buf = original_buf
 
-  -- Set up autocmd for saving
+  -- Set the buffer in the new window
+  vim.api.nvim_win_set_buf(win, buf)
+
+  -- Set up autocommands for saving
   vim.api.nvim_create_autocmd('BufWriteCmd', {
     buffer = buf,
     callback = function()
       M.apply_edited_overlay()
       -- Mark buffer as saved
       vim.api.nvim_buf_set_option(buf, 'modified', false)
-      return true
     end,
   })
 
-  -- Handle :wq and :q properly - only close the editor window
-  vim.api.nvim_create_autocmd('WinClosed', {
-    pattern = tostring(win),
-    once = true,
+  -- Also set up autocmd to clean up state when window is closed
+  vim.api.nvim_create_autocmd({ 'BufWipeout', 'BufDelete', 'BufUnload' }, {
+    buffer = buf,
     callback = function()
-      -- Ensure we go back to the original window after closing editor
-      if editor_state.original_win and vim.api.nvim_win_is_valid(editor_state.original_win) then
-        vim.api.nvim_set_current_win(editor_state.original_win)
-      end
-      -- Clean up state
-      editor_state.editor_buf = nil
-      editor_state.editor_win = nil
-      editor_state.original_win = nil
-      editor_state.original_buf = nil
+      editor_state = {
+        source_buf = nil,
+        editor_buf = nil,
+        editor_win = nil,
+        current_suggestion = nil,
+        extmark_id = nil,
+      }
     end,
   })
 
-  -- Note: We can't override :wq or :x commands as they're built-in
-  -- The WinClosed autocmd above handles proper cleanup when the window is closed
-
-  -- Position cursor at the editable section
+  -- Move cursor to the edit section for convenience
   local edit_start = 0
-  for i, l in ipairs(lines) do
-    if l == '## Your Edit (modify below):' then
-      edit_start = i + 2 -- Skip header and ``` line
+  for i, line in ipairs(lines) do
+    if line == '## Your Edit (modify below):' then
+      edit_start = i + 2 -- Skip to first line after ```
       break
     end
   end
@@ -209,6 +235,11 @@ end
 -- Apply the edited overlay
 function M.apply_edited_overlay()
   if not editor_state.editor_buf or not vim.api.nvim_buf_is_valid(editor_state.editor_buf) then
+    return false
+  end
+
+  if not editor_state.extmark_id then
+    vim.notify('Lost track of overlay position', vim.log.levels.ERROR)
     return false
   end
 
@@ -242,34 +273,46 @@ function M.apply_edited_overlay()
     end
   end
 
+  -- Get current position of the overlay using extmark
+  local current_line = get_line_from_extmark(editor_state.source_buf, editor_state.extmark_id)
+  if not current_line then
+    vim.notify('Cannot find overlay position - it may have been removed', vim.log.levels.ERROR)
+    return false
+  end
+
   -- Prepare the edited text
   local edited_text = table.concat(edited_lines, '\n')
   local notes = #notes_lines > 0 and table.concat(notes_lines, '\n') or nil
 
-  -- Apply the edit to the source buffer
+  -- CRITICAL: First clear the overlay to remove the visual suggestion
+  -- This must happen BEFORE applying the edit to prevent confusion
+  local ns_id = vim.api.nvim_create_namespace('pairup_overlay')
+
+  -- Remove from suggestions storage
+  local raw_suggestions = overlay.get_all_suggestions()
+  if raw_suggestions[editor_state.source_buf] then
+    raw_suggestions[editor_state.source_buf][editor_state.extmark_id] = nil
+  end
+
+  -- Delete the extmark
+  vim.api.nvim_buf_del_extmark(editor_state.source_buf, ns_id, editor_state.extmark_id)
+
+  -- Now apply the edit to the source buffer
   if editor_state.current_suggestion.is_multiline then
-    local start_line = editor_state.line_num
-    local end_line = editor_state.current_suggestion.end_line
-      or (start_line + #editor_state.current_suggestion.old_lines - 1)
+    -- Calculate the range based on current position
+    local start_line = current_line
+    local line_count = #(editor_state.current_suggestion.old_lines or {})
+    local end_line = start_line + line_count - 1
 
     -- Replace the lines
     vim.api.nvim_buf_set_lines(editor_state.source_buf, start_line - 1, end_line, false, edited_lines)
   else
     -- Single line replacement
-    vim.api.nvim_buf_set_lines(
-      editor_state.source_buf,
-      editor_state.line_num - 1,
-      editor_state.line_num,
-      false,
-      edited_lines
-    )
+    vim.api.nvim_buf_set_lines(editor_state.source_buf, current_line - 1, current_line, false, edited_lines)
   end
 
-  -- Clear the overlay (remove the visual suggestion)
-  overlay.clear_overlay_at_line(editor_state.source_buf, editor_state.line_num)
-
   -- Force a redraw to ensure the overlay disappears immediately
-  vim.cmd('redraw')
+  vim.cmd('redraw!')
 
   -- Send feedback to Claude if we have RPC enabled
   local ok, rpc = pcall(require, 'pairup.rpc')
@@ -293,74 +336,37 @@ function M.apply_edited_overlay()
     editor_buf = nil,
     editor_win = nil,
     current_suggestion = nil,
-    line_num = nil,
+    extmark_id = nil,
   }
 
-  -- vim.notify('Applied edited overlay', vim.log.levels.INFO)
+  vim.notify('Applied edited overlay', vim.log.levels.INFO)
   return true
 end
 
--- Send feedback about the edit to Claude
+-- Send feedback to Claude about the edit
 function M.send_edited_feedback(edited_text, notes)
   local providers = require('pairup.providers')
-  local active_provider = providers.get_current()
 
-  if not active_provider then
-    return
-  end
-
-  -- Construct feedback message
-  local feedback = {
-    'USER EDITED YOUR SUGGESTION:',
-    '',
-    'Line: ' .. editor_state.line_num,
-    '',
-    'Original text:',
-    editor_state.current_suggestion.old_text or table.concat(editor_state.current_suggestion.old_lines or {}, '\n'),
-    '',
-    'Your suggestion was:',
-    editor_state.current_suggestion.new_text or table.concat(editor_state.current_suggestion.new_lines or {}, '\n'),
-    '',
-    'User edited it to:',
-    edited_text,
-  }
-
+  -- Build feedback message
+  local feedback = 'I edited your suggestion.'
   if notes then
-    table.insert(feedback, '')
-    table.insert(feedback, 'User notes:')
-    table.insert(feedback, notes)
+    feedback = feedback .. '\nNotes: ' .. notes
   end
 
-  table.insert(feedback, '')
-  table.insert(feedback, 'Please learn from this edit for future suggestions.')
+  feedback = feedback .. '\nFinal version applied:\n```\n' .. edited_text .. '\n```'
 
-  -- Send to Claude
-  active_provider.send_message(table.concat(feedback, '\n'))
+  -- Send feedback to provider
+  providers.send_to_provider(feedback)
 end
 
--- Edit overlay from quickfix
-function M.edit_from_quickfix()
-  -- Get current quickfix item
-  local qf_idx = vim.fn.line('.')
-  local qf_list = vim.fn.getqflist()
-
-  if qf_idx < 1 or qf_idx > #qf_list then
-    vim.notify('Invalid quickfix entry', vim.log.levels.WARN)
-    return false
-  end
-
-  local qf_item = qf_list[qf_idx]
-
-  -- Jump to the location
-  vim.cmd('cc ' .. qf_idx)
-
-  -- Edit the overlay at that position
-  return M.edit_overlay_at_cursor()
+-- Check if there's an active editor
+function M.has_active_editor()
+  return editor_state.editor_buf ~= nil and vim.api.nvim_buf_is_valid(editor_state.editor_buf)
 end
 
--- Clear an overlay at a specific line
-function M.clear_overlay_at_line(bufnr, line_num)
-  overlay.clear_overlay_at_line(bufnr, line_num)
+-- Get the active editor buffer (for testing)
+function M.get_editor_buffer()
+  return editor_state.editor_buf
 end
 
 return M

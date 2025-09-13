@@ -9,18 +9,41 @@ M.scope_state = {
   window = nil,
   source_buffer = nil,
   source_window = nil,
-  suggestion_map = {}, -- Maps scope buffer line to suggestion
+  line_to_extmark = {}, -- Maps scope buffer line to extmark_id instead of suggestion
 }
+
+-- Helper to get current suggestion from extmark
+local function get_suggestion_from_extmark(bufnr, extmark_id)
+  local suggestions = overlay.get_all_suggestions()
+  if suggestions and suggestions[bufnr] then
+    return suggestions[bufnr][extmark_id]
+  end
+  return nil
+end
 
 -- Create a scope buffer showing only lines with suggestions
 function M.create_scope_buffer(source_buf)
   source_buf = source_buf or vim.api.nvim_get_current_buf()
 
-  -- Get all suggestions for this buffer
+  -- Get all suggestions for this buffer with current line positions
   local suggestions = overlay.get_suggestions(source_buf)
   if not suggestions or vim.tbl_count(suggestions) == 0 then
     -- Return nil explicitly to indicate no buffer was created
     return nil
+  end
+
+  -- Get the raw suggestions indexed by extmark_id
+  local raw_suggestions = overlay.get_all_suggestions()[source_buf] or {}
+
+  -- Create mapping from line to extmark_id
+  local line_to_extmark = {}
+  for extmark_id, suggestion in pairs(raw_suggestions) do
+    local ns_id = vim.api.nvim_create_namespace('pairup_overlay')
+    local extmark_pos = vim.api.nvim_buf_get_extmark_by_id(source_buf, ns_id, extmark_id, {})
+    if #extmark_pos > 0 then
+      local line = extmark_pos[1] + 1
+      line_to_extmark[line] = extmark_id
+    end
   end
 
   -- Create a new buffer
@@ -28,7 +51,7 @@ function M.create_scope_buffer(source_buf)
 
   -- Collect lines with suggestions
   local scope_lines = {}
-  local line_to_suggestion = {}
+  local scope_line_to_extmark = {}
   local scope_line = 1
 
   -- Get source buffer lines
@@ -44,21 +67,22 @@ function M.create_scope_buffer(source_buf)
   -- Build the scope buffer content
   for _, line_num in ipairs(line_nums) do
     local suggestion = suggestions[line_num]
-    if suggestion then
+    local extmark_id = line_to_extmark[line_num]
+    if suggestion and extmark_id then
       -- Add separator
       table.insert(scope_lines, string.rep('─', 60))
-      line_to_suggestion[scope_line] = nil
+      scope_line_to_extmark[scope_line] = nil
       scope_line = scope_line + 1
 
       -- Add separator line
       table.insert(scope_lines, string.rep('-', 60))
-      line_to_suggestion[scope_line] = nil
+      scope_line_to_extmark[scope_line] = nil
       scope_line = scope_line + 1
 
       -- Add line number header
       local header = string.format('Line %d:', line_num)
       table.insert(scope_lines, header)
-      line_to_suggestion[scope_line] = suggestion
+      scope_line_to_extmark[scope_line] = extmark_id
       scope_line = scope_line + 1
 
       -- Show original text
@@ -67,7 +91,7 @@ function M.create_scope_buffer(source_buf)
         if suggestion.old_lines then
           for _, old_line in ipairs(suggestion.old_lines) do
             table.insert(scope_lines, '  - ' .. old_line)
-            line_to_suggestion[scope_line] = suggestion
+            scope_line_to_extmark[scope_line] = extmark_id
             scope_line = scope_line + 1
           end
         end
@@ -75,7 +99,7 @@ function M.create_scope_buffer(source_buf)
         -- Single line original
         if line_num <= #source_lines then
           table.insert(scope_lines, '  - ' .. source_lines[line_num])
-          line_to_suggestion[scope_line] = suggestion
+          scope_line_to_extmark[scope_line] = extmark_id
           scope_line = scope_line + 1
         end
       end
@@ -89,7 +113,7 @@ function M.create_scope_buffer(source_buf)
             local lines = vim.split(new_line, '\n', { plain = true })
             for _, line in ipairs(lines) do
               table.insert(scope_lines, '  + ' .. line)
-              line_to_suggestion[scope_line] = suggestion
+              scope_line_to_extmark[scope_line] = extmark_id
               scope_line = scope_line + 1
             end
           end
@@ -101,13 +125,13 @@ function M.create_scope_buffer(source_buf)
           local lines = vim.split(suggestion.new_text, '\n', { plain = true })
           for _, line in ipairs(lines) do
             table.insert(scope_lines, '  + ' .. line)
-            line_to_suggestion[scope_line] = suggestion
+            scope_line_to_extmark[scope_line] = extmark_id
             scope_line = scope_line + 1
           end
         else
           -- Deletion
           table.insert(scope_lines, '  + (delete line)')
-          line_to_suggestion[scope_line] = suggestion
+          scope_line_to_extmark[scope_line] = extmark_id
           scope_line = scope_line + 1
         end
       end
@@ -144,7 +168,7 @@ function M.create_scope_buffer(source_buf)
   -- Store state
   M.scope_state.buffer = buf
   M.scope_state.source_buffer = source_buf
-  M.scope_state.suggestion_map = line_to_suggestion
+  M.scope_state.line_to_extmark = scope_line_to_extmark
 
   -- Setup keymaps for the scope buffer
   M.setup_scope_keymaps(buf)
@@ -239,12 +263,22 @@ function M.setup_scope_keymaps(buf)
   })
 end
 
+-- Get current position from extmark
+local function get_extmark_position(bufnr, extmark_id)
+  local ns_id = vim.api.nvim_create_namespace('pairup_overlay')
+  local extmark_pos = vim.api.nvim_buf_get_extmark_by_id(bufnr, ns_id, extmark_id, {})
+  if #extmark_pos > 0 then
+    return extmark_pos[1] + 1 -- Convert to 1-based
+  end
+  return nil
+end
+
 -- Apply the suggestion at cursor in scope buffer
 function M.apply_suggestion_at_cursor()
   local line = vim.api.nvim_win_get_cursor(0)[1]
-  local suggestion = M.scope_state.suggestion_map[line]
+  local extmark_id = M.scope_state.line_to_extmark[line]
 
-  if not suggestion then
+  if not extmark_id then
     -- vim.notify('No suggestion at this line', vim.log.levels.WARN)
     return
   end
@@ -261,8 +295,8 @@ function M.apply_suggestion_at_cursor()
     vim.api.nvim_set_current_buf(source_buf)
   end
 
-  -- Apply the suggestion
-  local line_num = suggestion.is_multiline and suggestion.start_line or suggestion.line_num
+  -- Get current line position from extmark
+  local line_num = get_extmark_position(source_buf, extmark_id)
   if line_num then
     vim.api.nvim_win_set_cursor(0, { line_num, 0 })
     overlay.apply_at_cursor()
@@ -275,9 +309,9 @@ end
 -- Reject the suggestion at cursor in scope buffer
 function M.reject_suggestion_at_cursor()
   local line = vim.api.nvim_win_get_cursor(0)[1]
-  local suggestion = M.scope_state.suggestion_map[line]
+  local extmark_id = M.scope_state.line_to_extmark[line]
 
-  if not suggestion then
+  if not extmark_id then
     -- vim.notify('No suggestion at this line', vim.log.levels.WARN)
     return
   end
@@ -294,8 +328,8 @@ function M.reject_suggestion_at_cursor()
     vim.api.nvim_set_current_buf(source_buf)
   end
 
-  -- Reject the suggestion
-  local line_num = suggestion.is_multiline and suggestion.start_line or suggestion.line_num
+  -- Get current line position from extmark
+  local line_num = get_extmark_position(source_buf, extmark_id)
   if line_num then
     vim.api.nvim_win_set_cursor(0, { line_num, 0 })
     overlay.reject_at_cursor()
@@ -308,9 +342,9 @@ end
 -- Highlight source location without switching windows
 function M.highlight_source_location()
   local line = vim.api.nvim_win_get_cursor(0)[1]
-  local suggestion = M.scope_state.suggestion_map[line]
+  local extmark_id = M.scope_state.line_to_extmark[line]
 
-  if not suggestion then
+  if not extmark_id then
     return
   end
 
@@ -318,7 +352,8 @@ function M.highlight_source_location()
   local source_buf = M.scope_state.source_buffer
 
   if source_win and vim.api.nvim_win_is_valid(source_win) and source_buf then
-    local line_num = suggestion.is_multiline and suggestion.start_line or suggestion.line_num
+    -- Get current line position from extmark
+    local line_num = get_extmark_position(source_buf, extmark_id)
     if line_num then
       -- Move cursor in source window without switching to it
       vim.api.nvim_win_set_cursor(source_win, { line_num, 0 })
@@ -330,9 +365,14 @@ function M.highlight_source_location()
         M.scope_state.highlight_ns = vim.api.nvim_create_namespace('pairup_scope_highlight')
       end
 
+      -- Get suggestion to check if multiline
+      local suggestion = get_suggestion_from_extmark(source_buf, extmark_id)
+
       -- Highlight the current line(s)
-      if suggestion.is_multiline and suggestion.end_line then
-        for l = suggestion.start_line, suggestion.end_line do
+      if suggestion and suggestion.is_multiline and suggestion.end_line then
+        -- For multiline, recalculate end position based on current start
+        local line_count = suggestion.end_line - suggestion.start_line
+        for l = line_num, line_num + line_count do
           vim.api.nvim_buf_add_highlight(source_buf, M.scope_state.highlight_ns, 'Visual', l - 1, 0, -1)
         end
       else
@@ -347,15 +387,15 @@ function M.next_overlay()
   local current_line = vim.api.nvim_win_get_cursor(0)[1]
   local buf_lines = vim.api.nvim_buf_line_count(0)
 
-  -- Get current suggestion
-  local current_suggestion = M.scope_state.suggestion_map[current_line]
+  -- Get current extmark
+  local current_extmark = M.scope_state.line_to_extmark[current_line]
 
-  -- Find next different suggestion
+  -- Find next different extmark
   for line = current_line + 1, buf_lines do
-    local suggestion = M.scope_state.suggestion_map[line]
-    if suggestion and suggestion ~= current_suggestion then
-      -- Find the header line for this suggestion (Line X:)
-      while line > 1 and M.scope_state.suggestion_map[line - 1] == suggestion do
+    local extmark = M.scope_state.line_to_extmark[line]
+    if extmark and extmark ~= current_extmark then
+      -- Find the header line for this extmark (Line X:)
+      while line > 1 and M.scope_state.line_to_extmark[line - 1] == extmark do
         line = line - 1
       end
       vim.api.nvim_win_set_cursor(0, { line, 0 })
@@ -365,10 +405,10 @@ function M.next_overlay()
 
   -- Wrap around to beginning
   for line = 1, current_line - 1 do
-    local suggestion = M.scope_state.suggestion_map[line]
-    if suggestion and suggestion ~= current_suggestion then
-      -- Find the header line for this suggestion
-      while line > 1 and M.scope_state.suggestion_map[line - 1] == suggestion do
+    local extmark = M.scope_state.line_to_extmark[line]
+    if extmark and extmark ~= current_extmark then
+      -- Find the header line for this extmark
+      while line > 1 and M.scope_state.line_to_extmark[line - 1] == extmark do
         line = line - 1
       end
       vim.api.nvim_win_set_cursor(0, { line, 0 })
@@ -381,23 +421,23 @@ end
 function M.prev_overlay()
   local current_line = vim.api.nvim_win_get_cursor(0)[1]
 
-  -- Get current suggestion
-  local current_suggestion = M.scope_state.suggestion_map[current_line]
+  -- Get current extmark
+  local current_extmark = M.scope_state.line_to_extmark[current_line]
   local last_different = nil
   local last_different_line = nil
 
-  -- Find previous different suggestion
+  -- Find previous different extmark
   for line = current_line - 1, 1, -1 do
-    local suggestion = M.scope_state.suggestion_map[line]
-    if suggestion and suggestion ~= current_suggestion and suggestion ~= last_different then
-      last_different = suggestion
+    local extmark = M.scope_state.line_to_extmark[line]
+    if extmark and extmark ~= current_extmark and extmark ~= last_different then
+      last_different = extmark
       last_different_line = line
     end
   end
 
   if last_different_line then
-    -- Find the header line for this suggestion
-    while last_different_line > 1 and M.scope_state.suggestion_map[last_different_line - 1] == last_different do
+    -- Find the header line for this extmark
+    while last_different_line > 1 and M.scope_state.line_to_extmark[last_different_line - 1] == last_different do
       last_different_line = last_different_line - 1
     end
     vim.api.nvim_win_set_cursor(0, { last_different_line, 0 })
@@ -407,10 +447,10 @@ function M.prev_overlay()
   -- Wrap around to end
   local buf_lines = vim.api.nvim_buf_line_count(0)
   for line = buf_lines, current_line + 1, -1 do
-    local suggestion = M.scope_state.suggestion_map[line]
-    if suggestion and suggestion ~= current_suggestion then
-      -- Find the header line for this suggestion
-      while line > 1 and M.scope_state.suggestion_map[line - 1] == suggestion do
+    local extmark = M.scope_state.line_to_extmark[line]
+    if extmark and extmark ~= current_extmark then
+      -- Find the header line for this extmark
+      while line > 1 and M.scope_state.line_to_extmark[line - 1] == extmark do
         line = line - 1
       end
       vim.api.nvim_win_set_cursor(0, { line, 0 })
@@ -441,17 +481,20 @@ end
 -- Jump to source location
 function M.jump_to_source()
   local line = vim.api.nvim_win_get_cursor(0)[1]
-  local suggestion = M.scope_state.suggestion_map[line]
+  local extmark_id = M.scope_state.line_to_extmark[line]
 
-  if not suggestion then
+  if not extmark_id then
     return
   end
 
   local source_win = M.scope_state.source_window
+  local source_buf = M.scope_state.source_buffer
+
   if source_win and vim.api.nvim_win_is_valid(source_win) then
     vim.api.nvim_set_current_win(source_win)
 
-    local line_num = suggestion.is_multiline and suggestion.start_line or suggestion.line_num
+    -- Get current line position from extmark
+    local line_num = get_extmark_position(source_buf, extmark_id)
     if line_num then
       vim.api.nvim_win_set_cursor(source_win, { line_num, 0 })
       vim.cmd('normal! zz') -- Center the view
@@ -512,7 +555,7 @@ function M.close_scope()
     window = nil,
     source_buffer = nil,
     source_window = nil,
-    suggestion_map = {},
+    line_to_extmark = {},
   }
 
   -- Then close the window if it exists

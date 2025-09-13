@@ -126,18 +126,6 @@ function M.multiline(start_line, end_line, new_lines, reasoning)
   })
 end
 
--- Clear all overlays - REMOVED FROM CLAUDE ACCESS
--- This function is kept for user commands only
--- function M.clear()
---   local state = state_module.get_state()
---   if not main_buffer then
---     return vim.json.encode({ error = 'No main buffer found' })
---   end
---
---   overlay.clear_overlays(main_buffer)
---   return vim.json.encode({ success = true, message = 'All overlays cleared' })
--- end
-
 -- Accept overlay at specific line
 function M.accept(line)
   local rpc = require('pairup.rpc')

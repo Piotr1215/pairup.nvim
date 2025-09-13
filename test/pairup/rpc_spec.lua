@@ -72,6 +72,16 @@ describe('pairup.rpc', function()
 
   describe('get_instructions()', function()
     it('should return instructions when RPC is enabled', function()
+      -- Mock config to enable experimental RPC instructions
+      local config = require('pairup.config')
+      local original_get = config.get
+      config.get = function(key)
+        if key == 'experimental.inject_rpc_instructions' then
+          return true
+        end
+        return original_get(key)
+      end
+
       rpc.check_rpc_available = function()
         return true
       end
@@ -82,6 +92,9 @@ describe('pairup.rpc', function()
       assert.is_string(instructions)
       assert.is_true(instructions:match('luaeval') ~= nil)
       assert.is_true(instructions:match('execute') ~= nil)
+
+      -- Restore original config.get
+      config.get = original_get
     end)
 
     it('should return nil when RPC is not enabled', function()
@@ -92,6 +105,29 @@ describe('pairup.rpc', function()
 
       local instructions = rpc.get_instructions()
       assert.is_nil(instructions)
+    end)
+
+    it('should return nil when experimental feature is disabled', function()
+      -- Mock config to disable experimental RPC instructions
+      local config = require('pairup.config')
+      local original_get = config.get
+      config.get = function(key)
+        if key == 'experimental.inject_rpc_instructions' then
+          return false
+        end
+        return original_get(key)
+      end
+
+      rpc.check_rpc_available = function()
+        return true
+      end
+      rpc.setup()
+
+      local instructions = rpc.get_instructions()
+      assert.is_nil(instructions)
+
+      -- Restore original config.get
+      config.get = original_get
     end)
   end)
 
