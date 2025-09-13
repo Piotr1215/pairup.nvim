@@ -24,8 +24,8 @@ end
 function M.setup(opts)
   opts = opts or {}
 
-  if opts.rpc_port then
-    state.rpc_port = opts.rpc_port
+  if opts.port then
+    state.rpc_port = opts.port
   end
 
   if M.check_rpc_available() then

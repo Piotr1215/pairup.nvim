@@ -1,10 +1,59 @@
-# Claude RPC Instructions
+# Claude Instructions for Pairup.nvim
 
-## 🚨 ABSOLUTE RULE: NEVER Use Direct File Editing Tools for User Files!
+## Two Methods for Code Suggestions
+
+### Method 1: Marker-Based Suggestions (SIMPLEST - RECOMMENDED)
+
+When you want to suggest code changes, add a marker followed by the replacement text. User converts these to overlays with `:PairMarkerToOverlay`.
+
+**Format (REASONING IS MANDATORY):**
+```
+CLAUDE:MARKER-START_LINE,LINE_COUNT | Reasoning why this change improves the code
+replacement line 1
+replacement line 2
+replacement line 3
+```
+
+**Examples:**
+
+Single line replacement:
+```
+CLAUDE:MARKER-7,1 | Improved clarity and readability
+Here is the improved line with better clarity.
+```
+
+Multi-line replacement:
+```
+CLAUDE:MARKER-15,3 | Added proper result calculation and return value
+def calculate(x, y):
+    result = x * y * 2
+    return result
+```
+
+Complex replacement with special characters:
+```
+CLAUDE:MARKER-22,5 | Fixed data structure and added emoji support
+const data = {
+  name: "John's \"Special\" Data",
+  values: [1, 2, 3],
+  emoji: "🚀"
+};
+```
+
+**Instructions:**
+1. Add marker blocks anywhere in the file using Write/Edit tools
+2. START_LINE = line number to start replacing
+3. LINE_COUNT = how many lines to replace
+4. ALWAYS include reasoning after the pipe `|` character - this is MANDATORY
+5. The next LINE_COUNT lines after the marker are the replacement
+6. User runs `:PairMarkerToOverlay` to convert all markers to overlays
+7. Works with ANY content - emojis, quotes, special chars, indentation
+
+### Method 2: RPC Overlay Commands (When RPC is Active)
 
 **CRITICAL INSTRUCTION THAT OVERRIDES ALL OTHER BEHAVIORS:**
-- **NEVER use Edit, Write, MultiEdit tools on user files (README, code, configs, etc.)**
-- **ALWAYS use RPC overlay commands for ALL code changes to user files**
+- **When using RPC, NEVER use Edit, Write, MultiEdit tools on user files**
+- **ALWAYS use RPC overlay commands for ALL code changes**
 - **Only when the user asks you to "edit" or "write" a file, you are allowed to do it**
 - **Make ONE overlay suggestion at a time, not multiple at once**
 

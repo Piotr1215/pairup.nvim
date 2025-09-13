@@ -2,22 +2,40 @@
 
 # Run tests with Plenary (default)
 test:
-	@echo "Running tests with Plenary..."
+	@echo "Running unit tests with Plenary..."
 	@nvim --headless -c "PlenaryBustedDirectory test/pairup/ {minimal_init='test/minimal_init.vim'}" -c "qa!" 2>&1 | tee /tmp/pairup-test-output.txt
 	@if grep -q "Tests Failed" /tmp/pairup-test-output.txt 2>/dev/null; then \
 		echo ""; \
 		echo "============================================"; \
-		echo "TESTS FAILED - Check output above for details"; \
+		echo "UNIT TESTS FAILED - Check output above for details"; \
 		echo "============================================"; \
 		rm -f /tmp/pairup-test-output.txt; \
 		exit 1; \
 	else \
 		echo ""; \
 		echo "============================================"; \
-		echo "ALL TESTS PASSED"; \
+		echo "UNIT TESTS PASSED"; \
 		echo "============================================"; \
 		rm -f /tmp/pairup-test-output.txt; \
 	fi
+	@echo ""
+	@echo "Running integration tests..."
+	@./test/integration/run_marker_test.sh
+	@./test/integration/run_go_marker_test.sh
+	@./test/integration/run_deletion_test.sh
+	@./test/integration/run_boot_test.sh
+	@echo ""
+	@echo "============================================"
+	@echo "ALL TESTS PASSED ✅"
+	@echo "============================================"
+
+test-integration:
+	@echo "Running integration tests..."
+	@./test/integration/run_marker_test.sh
+	@./test/integration/run_go_marker_test.sh
+	@./test/integration/run_deletion_test.sh
+	@./test/integration/run_boot_test.sh
+	@echo ""
 
 # Run tests with output visible (not headless)
 test-verbose:

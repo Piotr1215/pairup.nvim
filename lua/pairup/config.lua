@@ -1,73 +1,66 @@
 -- Configuration module for pairup.nvim
-
 local M = {}
 
--- Default configuration
+-- Default configuration (CLEAN AND SIMPLE!)
 local defaults = {
-  -- Default AI provider (will support 'claude', 'openai', 'ollama', etc.)
+  -- AI provider
   provider = 'claude',
 
-  -- Session management
-  persist_sessions = true,
-  prompt_session_resume = false, -- Use :PairupSessions to manually select sessions
-  auto_populate_intent = true,
-  intent_template = "This is just an intent declaration. I'm planning to work on the file `%s` to...",
-  suggestion_mode = true, -- Claude only provides suggestions, doesn't edit
-
-  -- Provider-specific configurations
+  -- Provider configurations
   providers = {
     claude = {
       path = vim.fn.exepath('claude') or '/home/decoder/.npm-global/bin/claude',
-      -- Claude-specific settings
       permission_mode = 'plan', -- Start in plan mode by default
       add_dir_on_start = true,
-      default_args = {}, -- Additional default arguments
-    },
-    -- Future providers will go here
-    openai = {
-      -- api_key = "", -- Will be added later
-      -- model = "gpt-4",
-    },
-    ollama = {
-      -- host = "localhost:11434",
-      -- model = "codellama",
     },
   },
 
-  -- Git diff context lines
-  diff_context_lines = 10,
+  -- Session management
+  sessions = {
+    persist = true,
+    auto_populate_intent = true,
+    intent_template = "This is just an intent declaration. I'm planning to work on the file `%s` to...",
+  },
 
-  -- Enable/disable automatic diff sending
-  enabled = true,
-
-  -- RPC settings for remote control
-  rpc_port = '127.0.0.1:6666', -- Expected TCP port when using nvim --listen
+  -- Git integration
+  git = {
+    enabled = true,
+    diff_context_lines = 10,
+    fyi_suffix = '\nYou have received a git diff, it is your turn now to be active it our pair programming session. Take over and suggest improvements\n',
+  },
 
   -- Terminal settings
   terminal = {
     split_position = 'left',
-    split_width = 0.4, -- 40% for AI assistant, 60% for editor
+    split_width = 0.4, -- 40% for AI, 60% for editor
     auto_insert = true,
     auto_scroll = true,
+  },
+
+  -- RPC settings (only active when nvim --listen is used)
+  rpc = {
+    port = '127.0.0.1:6666',
+    inject_instructions = false, -- Only inject when RPC is actually active
+    instructions_path = nil, -- Optional custom path
+  },
+
+  -- Overlay settings (marker-based suggestions)
+  overlay = {
+    inject_instructions = true, -- Send marker instructions to Claude
+    instructions_path = nil, -- Optional custom path
+    persistence = {
+      enabled = true,
+      auto_save = true,
+      auto_restore = true,
+      max_sessions = 10,
+    },
   },
 
   -- Filtering settings
   filter = {
     ignore_whitespace_only = true,
-    ignore_comment_only = false,
     min_change_lines = 0,
     batch_delay_ms = 500,
-  },
-
-  -- FYI suffix for context updates
-  fyi_suffix = '\nYou have received a git diff, it is your turn now to be active it our pair programming session. Take over and suggest improvements\n',
-
-  -- LSP integration
-  lsp = {
-    enabled = true,
-    include_diagnostics = true,
-    include_hover_info = true,
-    include_references = true,
   },
 
   -- Auto-refresh settings
@@ -76,30 +69,10 @@ local defaults = {
     interval_ms = 500,
   },
 
-  -- Note: Users should create their own keymaps to the commands
-  -- Example in your config:
-  -- vim.keymap.set('n', '<leader>ct', ':PairupToggle<cr>')
-  -- vim.keymap.set('n', '<leader>cc', ':PairupContext<cr>')
-  -- vim.keymap.set('n', '<leader>cs', ':PairupSay ')
-
   -- Periodic updates
   periodic_updates = {
     enabled = false,
     interval_minutes = 10,
-  },
-
-  -- Overlay persistence settings
-  overlay_persistence = {
-    enabled = true, -- Enable auto-save and auto-restore of overlays
-    auto_save = true, -- Automatically save overlays on buffer write, unload, and exit
-    auto_restore = true, -- Automatically restore overlays when starting Claude
-    max_sessions = 10, -- Maximum number of overlay sessions to keep per file
-  },
-
-  -- Experimental features (use with caution)
-  experimental = {
-    -- Inject RPC instructions to Claude to enable overlay suggestions via RPC
-    inject_rpc_instructions = false, -- Disabled by default, enable to send RPC overlay instructions to Claude
   },
 }
 
@@ -110,31 +83,18 @@ M.values = {}
 function M.setup(opts)
   opts = opts or {}
   M.values = vim.tbl_deep_extend('force', defaults, opts)
-
-  -- Special handling for keymaps - if explicitly set to empty, respect that
-  if opts.keymaps and vim.tbl_isempty(opts.keymaps) then
-    M.values.keymaps = {}
-  end
-
-  -- Validate configuration
   M.validate()
 end
 
 -- Validate configuration
 function M.validate()
-  -- Validate provider
   local provider = M.values.provider
   local provider_config = M.values.providers[provider]
 
   if not provider_config then
     vim.notify(string.format("Unknown provider '%s'. Using 'claude' as default.", provider), vim.log.levels.WARN)
     M.values.provider = 'claude'
-    provider = 'claude'
-    provider_config = M.values.providers.claude
   end
-
-  -- Provider-specific validation (skip in test mode or CI)
-  -- Silently skip if Claude CLI not found
 
   -- Validate terminal split width
   if M.values.terminal.split_width <= 0 or M.values.terminal.split_width >= 1 then

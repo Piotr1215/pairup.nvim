@@ -36,7 +36,7 @@ M.setup = function(opts)
 
   -- Initialize RPC support (auto-detects and enables Claude superpowers)
   require('pairup.rpc').setup({
-    rpc_port = (config.options and config.options.rpc_port) or '127.0.0.1:6666',
+    port = config.get('rpc.port') or '127.0.0.1:6666',
   })
 
   -- Setup autocmds
@@ -152,6 +152,11 @@ end
 M.accept_next_overlay = function()
   local overlay = require('pairup.overlay')
   overlay.accept_next_overlay()
+end
+
+M.accept_all_overlays = function()
+  local overlay = require('pairup.overlay')
+  overlay.accept_all_overlays()
 end
 
 M.next_overlay = function()

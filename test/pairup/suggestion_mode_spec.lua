@@ -120,12 +120,12 @@ describe('pairup suggestion mode', function()
     it('should respect default configuration', function()
       pairup.setup({
         provider = 'claude',
-        -- suggestion_mode not explicitly set
+        -- overlay.inject_instructions not explicitly set
       })
 
       local config = require('pairup.config')
-      -- Default should be true based on spec
-      assert.is_true(config.get('suggestion_mode'))
+      -- Default should be true for overlay.inject_instructions
+      assert.is_true(config.get('overlay.inject_instructions'))
     end)
 
     it('should allow toggling suggestion mode', function()

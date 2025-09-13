@@ -190,6 +190,10 @@ vim.api.nvim_create_user_command('PairAccept', function()
   require('pairup.overlay').apply_at_cursor()
 end, { desc = 'Accept overlay at cursor (alias for PairupOverlayAccept)' })
 
+vim.api.nvim_create_user_command('PairAcceptAll', function()
+  require('pairup.overlay').accept_all_overlays()
+end, { desc = 'Accept all overlay suggestions in buffer' })
+
 vim.api.nvim_create_user_command('PairReject', function()
   require('pairup.overlay').reject_at_cursor()
 end, { desc = 'Reject overlay at cursor (alias for PairupOverlayReject)' })

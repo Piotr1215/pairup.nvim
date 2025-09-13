@@ -55,8 +55,8 @@ describe('pairup pure functions', function()
 
       assert.equals('claude', config.get('provider'))
       assert.equals('plan', config.get('providers.claude.permission_mode'))
-      assert.is_true(config.get('persist_sessions'))
-      assert.is_true(config.get('suggestion_mode'))
+      assert.is_true(config.get('sessions.persist'))
+      assert.is_true(config.get('overlay.inject_instructions'))
     end)
 
     it('should merge user config', function()

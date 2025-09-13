@@ -381,8 +381,8 @@ function M.show_multiline_suggestion(bufnr, start_line, end_line, old_lines, new
     is_multiline = true,
     start_line = start_line,
     end_line = end_line,
-    old_lines = old_lines,
-    new_lines = new_lines,
+    old_lines = old_lines or {}, -- Ensure old_lines is never nil
+    new_lines = new_lines or {}, -- Ensure new_lines is never nil
     reasoning = reasoning,
     extmark_id = extmark_id,
   }
@@ -618,7 +618,27 @@ function M.apply_at_cursor()
       local extmark_pos = vim.api.nvim_buf_get_extmark_by_id(bufnr, ns_id, suggestion.extmark_id, {})
       if #extmark_pos > 0 then
         local start_line = extmark_pos[1] + 1
-        local end_line = start_line + (suggestion.end_line - suggestion.start_line)
+
+        -- CRITICAL FIX: Calculate number of lines to delete based on old_lines
+        -- not on the original line range which might be wrong
+        local lines_to_delete = suggestion.old_lines and #suggestion.old_lines or 0
+
+        -- If no old_lines, this is an insertion, not a replacement
+        if lines_to_delete == 0 then
+          -- Insert at start_line without deleting anything
+          vim.api.nvim_buf_set_lines(bufnr, start_line - 1, start_line - 1, false, new_lines or {})
+
+          -- Clear the extmark
+          vim.api.nvim_buf_del_extmark(bufnr, ns_id, suggestion.extmark_id)
+
+          -- Remove from suggestions
+          suggestions[bufnr][suggestion.extmark_id] = nil
+
+          vim.notify('Applied insertion', vim.log.levels.INFO)
+          return true
+        end
+
+        local end_line = start_line + lines_to_delete - 1
 
         -- SAFEGUARD: Validate multiline bounds before applying
         local line_count = vim.api.nvim_buf_line_count(bufnr)
@@ -639,6 +659,7 @@ function M.apply_at_cursor()
         vim.api.nvim_buf_clear_namespace(bufnr, ns_id, start_line - 1, end_line)
 
         -- Apply multiline change at current position
+        -- This replaces lines [start_line, end_line] with new_lines
         vim.api.nvim_buf_set_lines(bufnr, start_line - 1, end_line, false, new_lines or {})
       end
       -- vim.notify('Applied multiline suggestion', vim.log.levels.INFO)
@@ -794,6 +815,69 @@ function M.accept_next_overlay()
     -- vim.notify('No overlays found', vim.log.levels.WARN)
     return false
   end
+end
+
+-- Accept all overlays in the buffer
+function M.accept_all_overlays()
+  local bufnr = vim.api.nvim_get_current_buf()
+  local accepted_count = 0
+
+  -- Get all extmarks with suggestions
+  local extmarks = vim.api.nvim_buf_get_extmarks(bufnr, ns_id, 0, -1, {})
+
+  -- Sort extmarks in reverse order (bottom to top) to avoid line number shifts
+  table.sort(extmarks, function(a, b)
+    return a[2] > b[2] -- Sort by line number (descending)
+  end)
+
+  -- Accept each overlay
+  for _, mark in ipairs(extmarks) do
+    local extmark_id = mark[1]
+    local line_num = mark[2] + 1 -- Convert to 1-based
+
+    -- Check if we have a suggestion for this extmark
+    if suggestions[bufnr] and suggestions[bufnr][extmark_id] then
+      -- In headless mode or if no window, accept directly without cursor movement
+      local has_window = #vim.api.nvim_list_wins() > 0
+      if has_window then
+        -- Move cursor to the line
+        vim.api.nvim_win_set_cursor(0, { line_num, 0 })
+        -- Accept the overlay
+        if M.apply_at_cursor() then
+          accepted_count = accepted_count + 1
+        end
+      else
+        -- Headless mode - apply directly
+        local suggestion = suggestions[bufnr][extmark_id]
+        if suggestion.multiline then
+          -- Apply multiline suggestion
+          vim.api.nvim_buf_set_lines(
+            bufnr,
+            suggestion.start_line - 1,
+            suggestion.end_line,
+            false,
+            suggestion.replacement_lines[suggestion.current_variant]
+          )
+        else
+          -- Apply single line suggestion
+          vim.api.nvim_buf_set_lines(bufnr, line_num - 1, line_num, false, { suggestion.replacement })
+        end
+
+        -- Clean up the suggestion
+        vim.api.nvim_buf_del_extmark(bufnr, ns_id, extmark_id)
+        suggestions[bufnr][extmark_id] = nil
+        accepted_count = accepted_count + 1
+      end
+    end
+  end
+
+  if accepted_count > 0 then
+    vim.notify(string.format('Accepted %d overlays', accepted_count), vim.log.levels.INFO)
+  else
+    vim.notify('No overlays to accept', vim.log.levels.WARN)
+  end
+
+  return accepted_count
 end
 
 -- Navigate to next overlay

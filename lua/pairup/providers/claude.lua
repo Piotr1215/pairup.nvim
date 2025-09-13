@@ -468,18 +468,15 @@ function M.populate_intent()
       or "This is just an intent declaration. I'm planning to work on the file `%s` to..."
     local intent_text = string.format(intent_template, current_file)
 
-    -- Check if RPC instructions are available
-    local ok, rpc = pcall(require, 'pairup.rpc')
-    local rpc_instructions = nil
-    if ok and rpc and rpc.get_instructions then
-      rpc_instructions = rpc.get_instructions()
-    end
+    -- Get instructions from the new unified instruction system
+    local instructions_module = require('pairup.claude_instructions')
+    local instructions = instructions_module.get_formatted_instructions()
 
-    -- Combine RPC instructions and intent if both exist
+    -- Combine instructions and intent if both exist
     local combined_text
-    if rpc_instructions then
-      -- Add the intent text directly after RPC instructions with proper newlines
-      combined_text = rpc_instructions .. '\n\n' .. intent_text
+    if instructions and instructions ~= '' then
+      -- Add the intent text directly after instructions with proper newlines
+      combined_text = instructions .. '\n\n' .. intent_text
     else
       combined_text = intent_text
     end
