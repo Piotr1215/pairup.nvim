@@ -350,6 +350,16 @@ vim.api.nvim_create_user_command('PairRestore', function(opts)
   vim.cmd('PairupOverlayRestore ' .. opts.args)
 end, { desc = 'Restore overlays (alias)', nargs = '?' })
 
+-- Parse markers in buffer and convert to overlays
+vim.api.nvim_create_user_command('PairMarkerToOverlay', function()
+  require('pairup.marker_parser_direct').parse_to_overlays()
+end, { desc = 'Parse CLAUDE:MARKER markup and convert to overlays' })
+
+-- Alias for backwards compatibility
+vim.api.nvim_create_user_command('PairMarkupToOverlay', function()
+  vim.cmd('PairMarkerToOverlay')
+end, { desc = 'Alias for PairMarkerToOverlay' })
+
 local function setup_overlay_persistence_autocmds()
   local config = require('pairup.config')
 

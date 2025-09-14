@@ -468,9 +468,13 @@ function M.populate_intent()
       or "This is just an intent declaration. I'm planning to work on the file `%s` to..."
     local intent_text = string.format(intent_template, current_file)
 
-    -- Get instructions from the new unified instruction system
-    local instructions_module = require('pairup.claude_instructions')
-    local instructions = instructions_module.get_formatted_instructions()
+    -- Read instructions from the markdown file
+    local instructions_path = vim.fn.fnamemodify(debug.getinfo(1).source:sub(2), ':h:h') .. '/overlay_instructions.md'
+    local instructions = ''
+    if vim.fn.filereadable(instructions_path) == 1 then
+      local lines = vim.fn.readfile(instructions_path)
+      instructions = table.concat(lines, '\n')
+    end
 
     -- Combine instructions and intent if both exist
     local combined_text

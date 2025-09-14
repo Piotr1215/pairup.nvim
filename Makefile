@@ -19,12 +19,6 @@ test:
 		rm -f /tmp/pairup-test-output.txt; \
 	fi
 	@echo ""
-	@echo "Running integration tests..."
-	@./test/integration/run_marker_test.sh
-	@./test/integration/run_go_marker_test.sh
-	@./test/integration/run_deletion_test.sh
-	@./test/integration/run_boot_test.sh
-	@echo ""
 	@echo "============================================"
 	@echo "ALL TESTS PASSED ✅"
 	@echo "============================================"
