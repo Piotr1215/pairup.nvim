@@ -1,13 +1,19 @@
 # pairup.nvim
 
-**🤖 Real-time AI pair programming with intelligent context awareness for
-Neovim.**
+**🤖 AI-powered pair programming that reads your mind and writes your code - intelligently and in real-time.**
+
+Transform your Neovim into a collaborative coding environment where AI understands context like a senior developer.
 
 `pairup.nvim` transforms your Neovim into an AI-powered pair programming
 environment with real-time git diff streaming, intelligent code awareness, and
 seamless workflow integration.
 
-* [Why pairup.nvim?](#why-pairupnvim)
+## Quick Demo
+
+See pairup.nvim in action:
+- **Real-time suggestions**: AI watches your changes and suggests improvements as you type
+- **Smart context**: Understands your git workflow - staged vs unstaged changes
+- **Interactive overlays**: Review and cycle through multiple code suggestions with Tab/Shift+Tab
 * [Getting Started](#getting-started)
 * [Installation](#installation)
 * [Features](#features)
@@ -20,10 +26,12 @@ seamless workflow integration.
 * [Trademarks & Third‑party Tools](#trademarks-&-third‑party-tools)
 * [License](#license)
 
-⚠️ Warning /s
-- pairup.nvim will make you useless. Claude will take over your code, your tests, your editor… and your life.
-- your IQ will plummet, your job will vanish, and soon you’ll be drooling at the screen while AI zips through the tasks.
-- hope you’ve got a few spare organs to sell — you’ll need them to pay rent in the post labor economics.
+⚠️ **Productivity Warning**
+
+While pairup.nvim significantly enhances your coding speed, remember:
+- It's a tool to amplify your skills, not replace them
+- Review AI suggestions critically - you're still the architect
+- Use it to handle repetitive tasks while you focus on creative problem-solving
 
 > Pair programming is a software development technique in which two programmers
 > work together at one workstation. One, the driver, **writes code** while the
@@ -213,12 +221,6 @@ Save and restore overlay suggestions across sessions to preserve your workflow:
 - Useful for code reviews where you want to save suggestions for later
 - Configure with `overlay_persistence.auto_save = true` to save on buffer write/unload
 
-" Restore overlays (shows picker if no file specified)
-:PairupOverlayRestore [file]  " or :PairRestore
-
-" List all saved overlay sessions
-:PairupOverlayList
-```
 
 Overlays are saved as JSON with file content and suggestions. File hash checking detects if the file changed since save. Auto-save can be configured to save on buffer write/unload.
 

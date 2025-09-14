@@ -25,11 +25,31 @@ test:
 
 test-integration:
 	@echo "Running integration tests..."
-	@./test/integration/run_marker_test.sh
-	@./test/integration/run_go_marker_test.sh
-	@./test/integration/run_deletion_test.sh
-	@./test/integration/run_boot_test.sh
-	@echo ""
+	@failed=0; \
+	for test_file in test/pairup/*_spec.lua; do \
+		echo "========================================"; \
+		echo "Testing: $$test_file"; \
+		echo "========================================"; \
+		nvim --headless -u test/minimal_init.vim -c "PlenaryBustedFile $$test_file" -c "qa!" 2>&1 | tee /tmp/test_output.txt; \
+		if grep -q "Tests Failed" /tmp/test_output.txt; then \
+			echo "❌ FAILED: $$test_file"; \
+			failed=$$((failed + 1)); \
+		else \
+			echo "✅ PASSED: $$test_file"; \
+		fi; \
+		echo ""; \
+	done; \
+	rm -f /tmp/test_output.txt; \
+	if [ $$failed -gt 0 ]; then \
+		echo "============================================"; \
+		echo "INTEGRATION TESTS FAILED: $$failed test files"; \
+		echo "============================================"; \
+		exit 1; \
+	else \
+		echo "============================================"; \
+		echo "ALL INTEGRATION TESTS PASSED ✅"; \
+		echo "============================================"; \
+	fi
 
 # Run tests with output visible (not headless)
 test-verbose:

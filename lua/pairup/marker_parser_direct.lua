@@ -37,11 +37,9 @@ function M.parse_to_overlays(bufnr)
     return 0
   end
 
-  -- Parse markers and create overlays
-  local overlay_count = 0
+  -- First, collect all markers and their info
+  local markers = {}
   local i = has_delimiters and marker_start_idx + 1 or marker_start_idx
-  local markers_processed = {}
-
 
   while i <= #lines do
     local line = lines[i]
@@ -54,67 +52,56 @@ function M.parse_to_overlays(bufnr)
     -- Skip non-marker lines but continue processing
     if not line:match('^CLAUDE:MARKER%-') then
       i = i + 1
-      goto continue
-    end
-
-    -- Parse marker
-    local target_line, count, reasoning = line:match('^CLAUDE:MARKER%-(%d+),(%-?%d+)%s*|%s*(.+)$')
-
-    if target_line and count and reasoning then
-      target_line = tonumber(target_line)
-      count = tonumber(count)
-
-      -- Collect replacement lines
-      local replacement_lines = {}
-      local j = i + 1
-
-      if count > 0 or count == 0 then  -- Replacements and insertions need content
-        while j <= #lines do
-          local next_line = lines[j]
-          -- Stop at next marker or END delimiter
-          if next_line:match('^CLAUDE:MARKER%-') or
-             next_line:match('^%-%- CLAUDE:MARKERS:END %-%-$') then
-            break
-          end
-          -- Collect all lines until we hit next marker or end
-          table.insert(replacement_lines, next_line)
-          j = j + 1
-        end
-
-        -- Trim trailing empty lines from replacement content
-        while #replacement_lines > 0 and replacement_lines[#replacement_lines] == '' do
-          table.remove(replacement_lines)
-        end
-      else
-        -- For deletions, we don't collect lines
-        j = i + 1
-      end
-
-      -- Create overlay based on marker type
-      if count < 0 then
-        -- Deletion
-        overlay.show_deletion_suggestion(bufnr, target_line, target_line + math.abs(count) - 1, reasoning)
-      elseif count == 0 then
-        -- Insertion AFTER target line
-        overlay.show_multiline_suggestion(bufnr, target_line + 1, target_line, {}, replacement_lines, reasoning)
-      else
-        -- Replacement
-        local old_lines = vim.api.nvim_buf_get_lines(bufnr, target_line - 1, target_line - 1 + count, false)
-        overlay.show_multiline_suggestion(bufnr, target_line, target_line + count - 1, old_lines, replacement_lines, reasoning)
-      end
-
-      overlay_count = overlay_count + 1
-      table.insert(markers_processed, target_line)
-      i = j
     else
-      i = i + 1
-    end
+      -- Parse marker
+      local target_line, count, reasoning = line:match('^CLAUDE:MARKER%-(%d+),(%-?%d+)%s*|%s*(.+)$')
 
-    ::continue::
+      if target_line and count and reasoning then
+        target_line = tonumber(target_line)
+        count = tonumber(count)
+
+        -- Collect replacement lines
+        local replacement_lines = {}
+        local j = i + 1
+
+        if count > 0 or count == 0 then -- Replacements and insertions need content
+          while j <= #lines do
+            local next_line = lines[j]
+            -- Stop at next marker or END delimiter
+            if next_line:match('^CLAUDE:MARKER%-') or next_line:match('^%-%- CLAUDE:MARKERS:END %-%-$') then
+              break
+            end
+            -- Collect all lines until we hit next marker or end
+            table.insert(replacement_lines, next_line)
+            j = j + 1
+          end
+
+          -- Trim trailing empty lines from replacement content
+          while #replacement_lines > 0 and replacement_lines[#replacement_lines] == '' do
+            table.remove(replacement_lines)
+          end
+        else
+          -- For deletions, we don't collect lines
+          j = i + 1
+        end
+
+        -- Store marker info
+        table.insert(markers, {
+          target_line = target_line,
+          count = count,
+          reasoning = reasoning,
+          replacement_lines = replacement_lines,
+        })
+
+        i = j
+      else
+        i = i + 1
+      end
+    end -- Close the if statement for marker check
   end
 
-  if overlay_count > 0 then
-    -- Remove the marker section from the buffer
+  if #markers > 0 then
+    -- FIRST: Remove the marker section from the buffer
     local clean_lines = {}
 
     if has_delimiters then
@@ -137,7 +124,69 @@ function M.parse_to_overlays(bufnr)
     -- Replace buffer content with clean lines (markers removed)
     vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, clean_lines)
 
+    -- SECOND: Create overlays based on the cleaned buffer
+    local overlay_count = 0
+    for _, marker in ipairs(markers) do
+      local target_line = marker.target_line
+      local count = marker.count
+      local reasoning = marker.reasoning
+      local replacement_lines = marker.replacement_lines
+
+      -- Validate that target line is within the cleaned buffer bounds
+      local line_count = vim.api.nvim_buf_line_count(bufnr)
+      if target_line <= line_count + 1 then
+        -- Create overlay based on marker type
+        if count < 0 then
+          -- Deletion - ensure we don't delete beyond buffer
+          local end_line = math.min(target_line + math.abs(count) - 1, line_count)
+          if target_line <= line_count then
+            overlay.show_deletion_suggestion(bufnr, target_line, end_line, reasoning)
+            overlay_count = overlay_count + 1
+          end
+        elseif count == 0 then
+          -- Insertion AFTER target line
+          if target_line <= line_count then
+            -- For single line insertion, use show_suggestion with nil old_text
+            if #replacement_lines == 1 then
+              overlay.show_suggestion(bufnr, target_line + 1, nil, replacement_lines[1], reasoning)
+              overlay_count = overlay_count + 1
+            else
+              -- For multiline insertion, create a multiline suggestion at the insertion point
+              -- The insertion point is after target_line, so we use target_line+1
+              -- We pretend there's an empty line there that we're replacing
+              overlay.show_multiline_suggestion(
+                bufnr,
+                target_line + 1,
+                target_line + 1,
+                { '' },
+                replacement_lines,
+                reasoning
+              )
+              overlay_count = overlay_count + 1
+            end
+          end
+        else
+          -- Replacement
+          if target_line <= line_count then
+            local end_line = math.min(target_line + count - 1, line_count)
+            local old_lines = vim.api.nvim_buf_get_lines(bufnr, target_line - 1, end_line, false)
+            overlay.show_multiline_suggestion(bufnr, target_line, end_line, old_lines, replacement_lines, reasoning)
+            overlay_count = overlay_count + 1
+          end
+        end
+      end -- Close the validation if
+
+      -- Skip marker processed
+    end
+
+    -- Mark buffer as modified and save it if it's a real file
+    vim.bo[bufnr].modified = true
+    if vim.api.nvim_buf_get_name(bufnr) ~= '' then
+      vim.cmd('write')
+    end
+
     vim.notify(string.format('Created %d overlay suggestions from markers', overlay_count), vim.log.levels.INFO)
+    return overlay_count
   end
 
   return overlay_count

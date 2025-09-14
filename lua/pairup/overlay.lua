@@ -12,6 +12,22 @@ local follow_mode = false -- Auto-jump to new suggestions
 local suggestion_only_mode = false -- Hide buffer, show only suggestions
 local original_conceallevel = {}
 
+-- Overlay states for staging
+local OVERLAY_STATE = {
+  PENDING = 'pending',
+  ACCEPTED = 'accepted',
+  REJECTED = 'rejected',
+  EDITED = 'edited',
+}
+
+-- State emoji indicators
+local STATE_EMOJI = {
+  [OVERLAY_STATE.PENDING] = '⏳',
+  [OVERLAY_STATE.ACCEPTED] = '✅',
+  [OVERLAY_STATE.REJECTED] = '❌',
+  [OVERLAY_STATE.EDITED] = '✏️',
+}
+
 -- Helper to find suggestion at current cursor position by checking extmarks
 local function find_suggestion_at_cursor(bufnr)
   local cursor = vim.api.nvim_win_get_cursor(0)
@@ -47,6 +63,13 @@ local function find_suggestion_at_cursor(bufnr)
   return nil, nil
 end
 
+-- Helper to generate header with state emoji
+local function generate_header(text, state)
+  state = state or OVERLAY_STATE.PENDING
+  local emoji = STATE_EMOJI[state]
+  return emoji .. ' ' .. text
+end
+
 -- Store a suggestion for later application
 local function store_suggestion(bufnr, line_num, old_text, new_text, reasoning, extmark_id)
   if not suggestions[bufnr] then
@@ -58,6 +81,8 @@ local function store_suggestion(bufnr, line_num, old_text, new_text, reasoning, 
     line_num = line_num,
     reasoning = reasoning, -- Store reasoning for the suggestion
     extmark_id = extmark_id, -- Store extmark ID for tracking position
+    state = OVERLAY_STATE.PENDING, -- Default state for staging
+    edited_text = nil, -- Will store edited version if user edits
   }
 end
 
@@ -106,12 +131,22 @@ function M.show_suggestion(bufnr, line_num, old_text, new_text, reasoning)
 
   -- Validate line number
   local line_count = vim.api.nvim_buf_line_count(bufnr)
-  if line_num < 1 or line_num > line_count then
-    return false
+
+  -- Special handling for insertions - allow line_num to be line_count + 1
+  -- This represents inserting after the last line
+  local is_insertion = (old_text == nil)
+  if is_insertion then
+    if line_num < 1 or line_num > line_count + 1 then
+      return false
+    end
+  else
+    if line_num < 1 or line_num > line_count then
+      return false
+    end
   end
 
-  -- If old_text not provided, get it from buffer
-  if not old_text or old_text == '' then
+  -- If old_text not provided and not an insertion, get it from buffer
+  if not is_insertion and (not old_text or old_text == '') then
     old_text = vim.api.nvim_buf_get_lines(bufnr, line_num - 1, line_num, false)[1] or ''
   end
 
@@ -130,7 +165,7 @@ function M.show_suggestion(bufnr, line_num, old_text, new_text, reasoning)
   if new_text == nil or new_text == '' then
     -- Build virtual lines with reasoning if provided
     local virt_lines = {
-      { { '╭─ Claude suggests removing:', 'PairupHeader' } },
+      { { generate_header('╭─ Claude suggests removing:', OVERLAY_STATE.PENDING), 'PairupHeader' } },
     }
     -- Add the old text line with border
     table.insert(
@@ -156,7 +191,7 @@ function M.show_suggestion(bufnr, line_num, old_text, new_text, reasoning)
   -- If it's an addition, show as virtual lines
   elseif old_text == nil or old_text == '' then
     local virt_lines = {
-      { { '╭─ Claude suggests adding:', 'PairupHeader' } },
+      { { generate_header('╭─ Claude suggests adding:', OVERLAY_STATE.PENDING), 'PairupHeader' } },
     }
     -- Add the new text line with border
     table.insert(virt_lines, vim.list_extend({ { '│ ', 'PairupBorder' } }, text_to_virt_line(new_text, 'PairupAdd')))
@@ -168,10 +203,19 @@ function M.show_suggestion(bufnr, line_num, old_text, new_text, reasoning)
       )
     end
 
-    local extmark_id = vim.api.nvim_buf_set_extmark(bufnr, ns_id, line_num - 1, 0, {
+    -- For insertions after the last line, place extmark at the last line with virt_lines_above = false
+    local extmark_line = math.min(line_num - 1, line_count - 1)
+    local extmark_opts = {
       virt_lines = virt_lines,
       priority = 100,
-    })
+    }
+
+    -- If inserting after the last line, show the virtual lines below the last line
+    if line_num > line_count then
+      extmark_opts.virt_lines_above = false
+    end
+
+    local extmark_id = vim.api.nvim_buf_set_extmark(bufnr, ns_id, extmark_line, 0, extmark_opts)
 
     -- Store the suggestion with the extmark ID
     store_suggestion(bufnr, line_num, old_text, new_text, reasoning, extmark_id)
@@ -180,7 +224,7 @@ function M.show_suggestion(bufnr, line_num, old_text, new_text, reasoning)
   else
     -- Build virtual lines with reasoning
     local virt_lines = {
-      { { '╭─ Claude suggests changing:', 'PairupHeader' } },
+      { { generate_header('╭─ Claude suggests changing:', OVERLAY_STATE.PENDING), 'PairupHeader' } },
     }
     -- Add old text with delete marker
     table.insert(
@@ -241,7 +285,15 @@ function M.show_deletion_suggestion(bufnr, start_line, end_line, reasoning)
 
   -- Build virtual lines showing deletion
   local virt_lines = {
-    { { '╭─ Claude suggests removing lines ' .. start_line .. '-' .. end_line .. ':', 'PairupHeader' } },
+    {
+      {
+        generate_header(
+          '╭─ Claude suggests removing lines ' .. start_line .. '-' .. end_line .. ':',
+          OVERLAY_STATE.PENDING
+        ),
+        'PairupHeader',
+      },
+    },
   }
 
   for _, line in ipairs(old_lines) do
@@ -276,6 +328,7 @@ function M.show_deletion_suggestion(bufnr, start_line, end_line, reasoning)
     is_multiline = true,
     reasoning = reasoning,
     extmark_id = extmark_id,
+    state = OVERLAY_STATE.PENDING, -- Default state for staging
   }
 end
 
@@ -327,12 +380,12 @@ function M.show_multiline_suggestion(bufnr, start_line, end_line, old_lines, new
   if is_eof_append then
     -- Special header for EOF append
     table.insert(virt_lines, {
-      { '╭─ Claude suggests adding at end of file:', 'PairupHeader' },
+      { generate_header('╭─ Claude suggests adding at end of file:', OVERLAY_STATE.PENDING), 'PairupHeader' },
     })
   else
     -- Normal replacement header
     table.insert(virt_lines, {
-      { '╭─ Claude suggests replacing lines ', 'PairupHeader' },
+      { generate_header('╭─ Claude suggests replacing lines ', OVERLAY_STATE.PENDING), 'PairupHeader' },
       { tostring(start_line) .. '-' .. tostring(end_line), 'PairupLineNum' },
       { ':', 'PairupHeader' },
     })
@@ -385,6 +438,8 @@ function M.show_multiline_suggestion(bufnr, start_line, end_line, old_lines, new
     new_lines = new_lines or {}, -- Ensure new_lines is never nil
     reasoning = reasoning,
     extmark_id = extmark_id,
+    state = OVERLAY_STATE.PENDING, -- Default state for staging
+    edited_lines = nil, -- Will store edited version if user edits
   }
 
   -- Track this overlay
@@ -590,6 +645,111 @@ function M.reject_at_line(bufnr, line_num)
 end
 
 -- Apply suggestion at cursor position
+-- Refresh overlay display to show updated state emoji
+function M.refresh_overlay_display(bufnr, extmark_id)
+  local suggestion = suggestions[bufnr] and suggestions[bufnr][extmark_id]
+  if not suggestion then
+    return
+  end
+
+  -- Get current extmark details to preserve its position
+  local extmark = vim.api.nvim_buf_get_extmark_by_id(bufnr, ns_id, extmark_id, { details = true })
+  if #extmark == 0 then
+    return
+  end
+
+  local line = extmark[1]
+  local opts = extmark[3]
+
+  -- Update the header in virt_lines with new emoji
+  if opts.virt_lines and #opts.virt_lines > 0 then
+    local header_line = opts.virt_lines[1]
+    if header_line and #header_line > 0 then
+      local header_text = header_line[1][1]
+      -- Remove old emoji if present and add new one
+      header_text = header_text:gsub('^[⏳✅❌✏️] ', '') -- Remove any existing emoji
+      header_text = STATE_EMOJI[suggestion.state] .. ' ' .. header_text
+      header_line[1][1] = header_text
+    end
+  end
+
+  -- Delete old extmark
+  vim.api.nvim_buf_del_extmark(bufnr, ns_id, extmark_id)
+
+  -- Clean opts to only include valid keys for set_extmark
+  local clean_opts = {
+    virt_lines = opts.virt_lines,
+    virt_lines_above = opts.virt_lines_above,
+    virt_text = opts.virt_text,
+    virt_text_pos = opts.virt_text_pos,
+    priority = opts.priority or 100,
+    id = extmark_id, -- Preserve the ID
+  }
+
+  -- Recreate with same ID to maintain reference
+  local new_id = vim.api.nvim_buf_set_extmark(bufnr, ns_id, line, 0, clean_opts)
+
+  -- Update the suggestion's extmark_id if it changed
+  if new_id ~= extmark_id and suggestions[bufnr] then
+    suggestions[bufnr][new_id] = suggestions[bufnr][extmark_id]
+    suggestions[bufnr][new_id].extmark_id = new_id
+    suggestions[bufnr][extmark_id] = nil
+  end
+end
+
+-- Mark overlay at cursor with a specific state (for staging)
+function M.mark_at_cursor(state)
+  local bufnr = vim.api.nvim_get_current_buf()
+  local suggestion, extmark_id = find_suggestion_at_cursor(bufnr)
+
+  if not suggestion then
+    vim.notify('No overlay at cursor', vim.log.levels.WARN)
+    return false
+  end
+
+  -- Update the state
+  suggestion.state = state
+
+  -- Update the visual display to show new emoji
+  M.refresh_overlay_display(bufnr, extmark_id)
+
+  local state_name = state:gsub('^%l', string.upper)
+  vim.notify(string.format('Overlay marked as %s %s', STATE_EMOJI[state], state_name), vim.log.levels.INFO)
+  return true
+end
+
+-- Mark overlay at cursor as accepted (for staging)
+function M.accept_staged()
+  return M.mark_at_cursor(OVERLAY_STATE.ACCEPTED)
+end
+
+-- Mark overlay at cursor as rejected (for staging)
+function M.reject_staged()
+  return M.mark_at_cursor(OVERLAY_STATE.REJECTED)
+end
+
+-- Toggle overlay state at cursor
+function M.toggle_state()
+  local bufnr = vim.api.nvim_get_current_buf()
+  local suggestion, _ = find_suggestion_at_cursor(bufnr)
+
+  if not suggestion then
+    vim.notify('No overlay at cursor', vim.log.levels.WARN)
+    return false
+  end
+
+  -- Cycle through states: pending -> accepted -> rejected -> pending
+  local next_state = {
+    [OVERLAY_STATE.PENDING] = OVERLAY_STATE.ACCEPTED,
+    [OVERLAY_STATE.ACCEPTED] = OVERLAY_STATE.REJECTED,
+    [OVERLAY_STATE.REJECTED] = OVERLAY_STATE.PENDING,
+    [OVERLAY_STATE.EDITED] = OVERLAY_STATE.ACCEPTED,
+  }
+
+  local new_state = next_state[suggestion.state] or OVERLAY_STATE.PENDING
+  return M.mark_at_cursor(new_state)
+end
+
 function M.apply_at_cursor()
   local bufnr = vim.api.nvim_get_current_buf()
   local cursor = vim.api.nvim_win_get_cursor(0)
@@ -669,14 +829,29 @@ function M.apply_at_cursor()
 
       -- Apply single line change at current cursor position
       if new_text == nil or new_text == '' then
-        -- Delete the line
-        vim.api.nvim_buf_set_lines(bufnr, current_line - 1, current_line, false, {})
-        -- vim.notify('Deleted line ' .. current_line, vim.log.levels.INFO)
+        if suggestion.old_text == nil then
+          -- This is actually an empty insertion - do nothing
+        else
+          -- Delete the line
+          vim.api.nvim_buf_set_lines(bufnr, current_line - 1, current_line, false, {})
+          -- vim.notify('Deleted line ' .. current_line, vim.log.levels.INFO)
+        end
       else
-        -- Replace the line, handling embedded newlines
-        local lines = vim.split(new_text, '\n', { plain = true })
-        vim.api.nvim_buf_set_lines(bufnr, current_line - 1, current_line, false, lines)
-        -- vim.notify('Applied suggestion at line ' .. current_line, vim.log.levels.INFO)
+        -- Check if this is an insertion (old_text is nil)
+        if suggestion.old_text == nil then
+          -- This is an insertion - insert without removing
+          local lines = vim.split(new_text, '\n', { plain = true })
+          -- For insertions, we need to handle the case where we're inserting after the last line
+          local line_count = vim.api.nvim_buf_line_count(bufnr)
+          local insert_pos = math.min(current_line - 1, line_count)
+          vim.api.nvim_buf_set_lines(bufnr, insert_pos, insert_pos, false, lines)
+          -- vim.notify('Inserted at line ' .. current_line, vim.log.levels.INFO)
+        else
+          -- Replace the line, handling embedded newlines
+          local lines = vim.split(new_text, '\n', { plain = true })
+          vim.api.nvim_buf_set_lines(bufnr, current_line - 1, current_line, false, lines)
+          -- vim.notify('Applied suggestion at line ' .. current_line, vim.log.levels.INFO)
+        end
       end
     end
 
@@ -947,6 +1122,184 @@ function M.toggle()
       -- vim.notify('No overlay to show', vim.log.levels.INFO)
     end
   end
+end
+
+-- Process all staged overlays at once
+function M.process_overlays(bufnr)
+  bufnr = bufnr or vim.api.nvim_get_current_buf()
+  local buffer_suggestions = suggestions[bufnr]
+
+  if not buffer_suggestions then
+    vim.notify('No overlays to process', vim.log.levels.INFO)
+    return
+  end
+
+  -- Check for unprocessed overlays
+  local unprocessed = {}
+  local to_apply = {}
+
+  for extmark_id, suggestion in pairs(buffer_suggestions) do
+    if suggestion.state == OVERLAY_STATE.PENDING then
+      table.insert(unprocessed, suggestion)
+    elseif suggestion.state ~= OVERLAY_STATE.REJECTED then
+      -- Accepted or edited overlays will be applied
+      table.insert(to_apply, suggestion)
+    end
+  end
+
+  -- If there are unprocessed overlays, jump to the first one
+  if #unprocessed > 0 then
+    local first_unprocessed = unprocessed[1]
+    local extmark = vim.api.nvim_buf_get_extmark_by_id(bufnr, ns_id, first_unprocessed.extmark_id, {})
+    if #extmark > 0 then
+      vim.api.nvim_win_set_cursor(0, { extmark[1] + 1, 0 })
+    end
+    vim.notify(
+      string.format('Found %d unprocessed overlays. Please mark them first.', #unprocessed),
+      vim.log.levels.WARN
+    )
+    return
+  end
+
+  -- Sort overlays by line number (process from bottom to top to avoid shifting)
+  table.sort(to_apply, function(a, b)
+    -- Get current positions of extmarks
+    local mark_a = vim.api.nvim_buf_get_extmark_by_id(bufnr, ns_id, a.extmark_id, {})
+    local mark_b = vim.api.nvim_buf_get_extmark_by_id(bufnr, ns_id, b.extmark_id, {})
+    if #mark_a == 0 or #mark_b == 0 then
+      return false
+    end
+    return mark_a[1] > mark_b[1] -- Sort descending (bottom to top)
+  end)
+
+  -- Apply all accepted/edited overlays
+  local applied_count = 0
+  local rejected_count = 0
+
+  -- First pass: count rejected overlays and remove their extmarks
+  for extmark_id, suggestion in pairs(buffer_suggestions) do
+    if suggestion.state == OVERLAY_STATE.REJECTED then
+      vim.api.nvim_buf_del_extmark(bufnr, ns_id, extmark_id)
+      rejected_count = rejected_count + 1
+    end
+  end
+
+  -- Second pass: apply accepted/edited overlays from bottom to top
+  for _, suggestion in ipairs(to_apply) do
+    local extmark = vim.api.nvim_buf_get_extmark_by_id(bufnr, ns_id, suggestion.extmark_id, {})
+    if #extmark > 0 then
+      local line = extmark[1] + 1 -- Convert to 1-indexed
+
+      -- Determine what text to apply
+      local text_to_apply = suggestion.new_text
+      if suggestion.state == OVERLAY_STATE.EDITED and suggestion.edited_text then
+        text_to_apply = suggestion.edited_text
+      end
+
+      -- Apply based on type
+      if suggestion.is_multiline then
+        local new_lines = suggestion.new_lines
+        if suggestion.state == OVERLAY_STATE.EDITED and suggestion.edited_lines then
+          new_lines = suggestion.edited_lines
+        end
+
+        local lines_to_delete = suggestion.old_lines and #suggestion.old_lines or 0
+        if lines_to_delete == 0 then
+          -- Insertion
+          vim.api.nvim_buf_set_lines(bufnr, line - 1, line - 1, false, new_lines or {})
+        else
+          -- Replacement
+          local end_line = line + lines_to_delete - 1
+          vim.api.nvim_buf_set_lines(bufnr, line - 1, end_line, false, new_lines or {})
+        end
+      else
+        -- Single line
+        if suggestion.old_text == nil then
+          -- Insertion
+          local lines = vim.split(text_to_apply, '\n', { plain = true })
+          local line_count = vim.api.nvim_buf_line_count(bufnr)
+          local insert_pos = math.min(line - 1, line_count)
+          vim.api.nvim_buf_set_lines(bufnr, insert_pos, insert_pos, false, lines)
+        elseif text_to_apply == nil or text_to_apply == '' then
+          -- Deletion
+          vim.api.nvim_buf_set_lines(bufnr, line - 1, line, false, {})
+        else
+          -- Replacement
+          local lines = vim.split(text_to_apply, '\n', { plain = true })
+          vim.api.nvim_buf_set_lines(bufnr, line - 1, line, false, lines)
+        end
+      end
+
+      -- Remove the extmark
+      vim.api.nvim_buf_del_extmark(bufnr, ns_id, suggestion.extmark_id)
+      applied_count = applied_count + 1
+    end
+  end
+
+  -- Clear suggestions for this buffer
+  suggestions[bufnr] = {}
+
+  -- Save the buffer
+  if vim.api.nvim_buf_get_name(bufnr) ~= '' then
+    vim.bo[bufnr].modified = true
+    vim.cmd('write')
+  end
+
+  vim.notify(
+    string.format('Processed overlays: %d applied, %d rejected', applied_count, rejected_count),
+    vim.log.levels.INFO
+  )
+end
+
+-- Find next unprocessed overlay
+function M.next_unprocessed(bufnr)
+  bufnr = bufnr or vim.api.nvim_get_current_buf()
+  local buffer_suggestions = suggestions[bufnr]
+
+  if not buffer_suggestions then
+    vim.notify('No overlays to navigate', vim.log.levels.INFO)
+    return
+  end
+
+  local cursor = vim.api.nvim_win_get_cursor(0)
+  local current_line = cursor[1]
+
+  -- Find all unprocessed overlays and their positions
+  local unprocessed_marks = {}
+  for extmark_id, suggestion in pairs(buffer_suggestions) do
+    if suggestion.state == OVERLAY_STATE.PENDING then
+      local extmark = vim.api.nvim_buf_get_extmark_by_id(bufnr, ns_id, extmark_id, {})
+      if #extmark > 0 then
+        table.insert(unprocessed_marks, { line = extmark[1] + 1, id = extmark_id })
+      end
+    end
+  end
+
+  if #unprocessed_marks == 0 then
+    vim.notify('No unprocessed overlays found', vim.log.levels.INFO)
+    return
+  end
+
+  -- Sort by line number
+  table.sort(unprocessed_marks, function(a, b)
+    return a.line < b.line
+  end)
+
+  -- Find next one after current position
+  for _, mark in ipairs(unprocessed_marks) do
+    if mark.line > current_line then
+      vim.api.nvim_win_set_cursor(0, { mark.line, 0 })
+      vim.notify(string.format('Jumped to unprocessed overlay at line %d', mark.line), vim.log.levels.INFO)
+      return
+    end
+  end
+
+  -- Wrap around to first unprocessed
+  vim.api.nvim_win_set_cursor(0, { unprocessed_marks[1].line, 0 })
+  vim.notify(
+    string.format('Wrapped to first unprocessed overlay at line %d', unprocessed_marks[1].line),
+    vim.log.levels.INFO
+  )
 end
 
 -- Toggle follow mode
@@ -1393,7 +1746,7 @@ function M.display_multiline_variant(bufnr, start_line, variant_index)
 
   local virt_lines = {
     {
-      { '╭─ Claude suggests replacing lines ', 'PairupHeader' },
+      { generate_header('╭─ Claude suggests replacing lines ', OVERLAY_STATE.PENDING), 'PairupHeader' },
       { tostring(start_line) .. '-' .. tostring(suggestion.end_line), 'PairupLineNum' },
       { variant_indicator, 'PairupLineNum' },
       { ':', 'PairupHeader' },

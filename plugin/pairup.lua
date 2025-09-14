@@ -102,7 +102,32 @@ end, {})
 
 vim.api.nvim_create_user_command('PairupOverlayAccept', function()
   require('pairup.overlay').apply_at_cursor()
-end, { desc = 'Accept suggestion at cursor position' })
+end, { desc = 'Accept suggestion at cursor position (immediate apply)' })
+
+-- Staging commands (new workflow)
+vim.api.nvim_create_user_command('PairupOverlayMark', function(opts)
+  local overlay = require('pairup.overlay')
+  local state = opts.args:lower()
+  if state == 'accept' or state == 'accepted' then
+    overlay.accept_staged()
+  elseif state == 'reject' or state == 'rejected' then
+    overlay.reject_staged()
+  else
+    vim.notify('Usage: :PairupOverlayMark [accept|reject]', vim.log.levels.ERROR)
+  end
+end, { desc = 'Mark overlay for staging', nargs = 1 })
+
+vim.api.nvim_create_user_command('PairupOverlayToggleState', function()
+  require('pairup.overlay').toggle_state()
+end, { desc = 'Toggle overlay state (pending/accepted/rejected)' })
+
+vim.api.nvim_create_user_command('PairupProcessOverlays', function()
+  require('pairup.overlay').process_overlays()
+end, { desc = 'Process all staged overlays at once' })
+
+vim.api.nvim_create_user_command('PairupNextUnprocessed', function()
+  require('pairup.overlay').next_unprocessed()
+end, { desc = 'Jump to next unprocessed overlay' })
 
 vim.api.nvim_create_user_command('PairupOverlayAcceptNext', function()
   require('pairup.overlay').accept_next_overlay()
@@ -186,9 +211,32 @@ vim.api.nvim_create_user_command('PairupOverlayCyclePrev', function()
   end
 end, { desc = 'Cycle to previous overlay variant' })
 
+-- Short aliases - immediate application (old workflow)
 vim.api.nvim_create_user_command('PairAccept', function()
   require('pairup.overlay').apply_at_cursor()
-end, { desc = 'Accept overlay at cursor (alias for PairupOverlayAccept)' })
+end, { desc = 'Accept overlay at cursor immediately (old workflow)' })
+
+-- Short aliases - staging workflow (new)
+vim.api.nvim_create_user_command('PairMark', function(opts)
+  local overlay = require('pairup.overlay')
+  if opts.args == '' then
+    overlay.toggle_state()
+  elseif opts.args:lower() == 'accept' or opts.args:lower() == 'a' then
+    overlay.accept_staged()
+  elseif opts.args:lower() == 'reject' or opts.args:lower() == 'r' then
+    overlay.reject_staged()
+  else
+    vim.notify('Usage: :PairMark [accept|reject] or just :PairMark to toggle', vim.log.levels.WARN)
+  end
+end, { desc = 'Mark overlay (accept/reject/toggle)', nargs = '?' })
+
+vim.api.nvim_create_user_command('PairProcess', function()
+  require('pairup.overlay').process_overlays()
+end, { desc = 'Process all marked overlays at once' })
+
+vim.api.nvim_create_user_command('PairUnprocessed', function()
+  require('pairup.overlay').next_unprocessed()
+end, { desc = 'Jump to next unprocessed overlay' })
 
 vim.api.nvim_create_user_command('PairAcceptAll', function()
   require('pairup.overlay').accept_all_overlays()
