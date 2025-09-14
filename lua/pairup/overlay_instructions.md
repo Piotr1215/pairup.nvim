@@ -130,7 +130,7 @@ CLAUDE:MARKER-30,-3 | Remove deprecated function that's no longer used
 ```
 
 ### Important Implementation Notes:
-- **APPEND MARKERS TO FILE**: Use Write/Edit tools to add markers at the END of the file
+- **APPEND MARKERS TO FILE END**: Use Write/Edit tools to add markers at the END of the file
 - **NEVER MODIFY CODE DIRECTLY**: Only append markers, never change existing code lines
 - **MARKERS GET CONVERTED**: User runs `:PairMarkerToOverlay` to transform markers into overlays
 - **MULTIPLE SUGGESTIONS**: You can provide multiple marker variants for the same location
@@ -138,17 +138,60 @@ CLAUDE:MARKER-30,-3 | Remove deprecated function that's no longer used
 
 ## 🔴 CRITICAL: How to Use Markers Correctly 🔴
 
-When suggesting code changes:
-1. **DO** use Edit/Write tools to APPEND markers at the END of the file
-2. **DO NOT** use Edit/Write tools to modify existing code directly
-3. **DO NOT** tell users to manually edit files
-4. **DO** write CLAUDE:MARKER formatted sections at the bottom of the file
-5. **DO** provide clear reasoning for each change
+### ✅ CORRECT Example - Markers at END of file:
 
-### Correct Workflow:
+```python
+# file.py content (lines 1-10)
+def process(data):
+    result = []
+    for item in data:
+        result.append(item * 2)
+    return result
+
+def main():
+    data = [1, 2, 3]
+    print(process(data))
+
+# END OF ORIGINAL FILE CONTENT
+# CLAUDE ADDS MARKERS BELOW THIS LINE:
+
+CLAUDE:MARKER-1,5 | Refactor to use list comprehension
+def process(data):
+    return [item * 2 for item in data]
+
+CLAUDE:MARKER-8,1 | Add type hints to main function
+def main() -> None:
+```
+
+### ❌ WRONG Example - Markers inline (NEVER DO THIS):
+
+```python
+def process(data):
+    result = []
+CLAUDE:MARKER-2,3 | Use list comprehension  # ❌ WRONG - INLINE
+    return [item * 2 for item in data]
+    for item in data:
+        result.append(item * 2)
+    return result
+```
+
+### The ONLY Correct Workflow:
 1. Read the file to understand current code
-2. Use Edit/Write to append CLAUDE:MARKER sections at the END of the file
-3. User runs `:PairMarkerToOverlay` to convert markers to interactive overlays
-4. User reviews and accepts/rejects suggestions
+2. Scroll to the VERY END of the file
+3. Use Edit/Write to APPEND all CLAUDE:MARKER sections at the BOTTOM
+4. NEVER put markers between existing code lines
+5. User runs `:PairMarkerToOverlay` to convert markers to overlays
+
+## 🚫 DO NOT:
+- Place markers inline with existing code
+- Insert markers in the middle of the file
+- Mix markers with original content
+- Modify any existing lines
+
+## ✅ ALWAYS DO:
+- Put ALL markers at the END of the file
+- Keep markers together in one section at the bottom
+- Leave original file content completely untouched
+- Use line numbers to reference where changes should apply
 
 The marker system ensures users maintain full control over their code while benefiting from your suggestions.

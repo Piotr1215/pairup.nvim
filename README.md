@@ -1,13 +1,11 @@
 # pairup.nvim
 
-**🤖 Real-time AI pair programming with interactive code suggestions for
+**🤖 Real-time AI pair programming with intelligent context awareness for
 Neovim.**
 
 `pairup.nvim` transforms your Neovim into an AI-powered pair programming
-environment featuring interactive overlay suggestions, real-time git diff
-streaming, and seamless workflow integration. Review AI code suggestions as
-virtual text overlays before accepting them - with multiple variants you can
-cycle through.
+environment with real-time git diff streaming, intelligent code awareness, and
+seamless workflow integration.
 
 * [Why pairup.nvim?](#why-pairupnvim)
 * [Getting Started](#getting-started)
@@ -46,73 +44,13 @@ cycle through.
 </div>
 
 
-## 🚀 What"s New in v2.0: Interactive Overlay System
+## 🚀 What"s New in v2.0
 
-### 🎯 Game-Changing Overlay Engine
-The completely redesigned overlay system lets you:
-- **Review Before Accepting**: See AI suggestions as virtual text overlays without modifying files
-- **Cycle Through Variants**: Press `Tab`/`Shift+Tab` to explore multiple AI suggestions
-- **Marker-Based System**: Claude outputs special markers that automatically convert to overlays
-- **Session Persistence**: Save and restore overlay suggestions across coding sessions
-- **Precise Positioning**: New insert methods (`insert_above`/`insert_below`) for accurate code placement
-
-**Quick Example:**
-```vim
-" Claude suggests code improvements with markers
-" You convert them to overlays and review:
-:PairMarkerToOverlay    " Convert markers to interactive overlays
-<Tab>                   " Cycle through variants
-<leader>sa              " Accept the suggestion
-```
-
-## ✨ Interactive Code Suggestions with Overlays
-
-Experience a revolutionary way to review AI code suggestions before applying them. The overlay system presents Claude's suggestions as virtual text that doesn't modify your files until you explicitly accept them.
-
-### How It Works
-
-1. **Claude Outputs Markers**: When suggesting code, Claude uses special markers in the terminal
-2. **Convert to Overlays**: Run `:PairMarkerToOverlay` to transform markers into interactive overlays
-3. **Review & Cycle**: Use `Tab`/`Shift+Tab` to explore multiple suggestions
-4. **Accept or Reject**: Apply changes with `<leader>sa` or dismiss with `<leader>sr`
-
-### Marker Format Examples
-
-Claude uses these marker formats to suggest changes:
-
-```python
-# Replace existing code
-CLAUDE:MARKER-7,1 | Added type hints for clarity
-result: int = calculate_value(x)
-
-# Insert new code
-CLAUDE:MARKER-15,0 | Add error handling
-    if not validated:
-        raise ValueError("Invalid input")
-
-# Delete unnecessary code
-CLAUDE:MARKER-22,-3 | Remove deprecated function
-```
-
-### Key Features
-
-- 🎯 **Non-Intrusive**: Review changes without modifying files
-- 🔄 **Multiple Variants**: Cycle through different AI suggestions
-- 💾 **Session Persistence**: Save/restore suggestions across sessions
-- 🎨 **Visual Feedback**: Clear highlighting shows proposed changes
-- ⚡ **Instant Application**: Accept changes with a single keystroke
-
-### Quick Commands
-
-```vim
-:PairMarkerToOverlay    " Convert markers to overlays
-:PairAccept            " Accept current suggestion
-:PairReject            " Reject current suggestion
-:PairNext              " Jump to next overlay
-:PairPrev              " Jump to previous overlay
-:PairSave              " Save overlays for later
-:PairRestore           " Restore saved overlays
-```
+- **Enhanced Overlay Engine**: Completely redesigned overlay system with improved performance and reliability
+- **Insert Methods**: New `insert_above` and `insert_below` methods for more precise code suggestions
+- **Multi-variant Suggestions**: AI can now provide multiple alternatives that you can cycle through with Tab/Shift+Tab
+- **Improved Extmark Tracking**: More robust position tracking that survives file edits
+- **Overlay Persistence**: Save and restore overlay suggestions across sessions
 
 ## Why pairup.nvim?
 
