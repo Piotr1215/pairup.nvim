@@ -356,9 +356,8 @@ vim.api.nvim_create_user_command('PairMarkerToOverlay', function()
 end, { desc = 'Parse CLAUDE:MARKER markup and convert to overlays' })
 
 -- Alias for backwards compatibility
-vim.api.nvim_create_user_command('PairMarkupToOverlay', function()
-  vim.cmd('PairMarkerToOverlay')
-end, { desc = 'Alias for PairMarkerToOverlay' })
+-- Removed PairMarkupToOverlay alias to avoid confusion
+-- Use PairMarkerToOverlay instead
 
 local function setup_overlay_persistence_autocmds()
   local config = require('pairup.config')
