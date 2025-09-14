@@ -1,5 +1,23 @@
 # Overlay Marker Instructions for Claude
 
+## 🚨 ABSOLUTELY CRITICAL: USE MARKERS FOR ALL CODE CHANGES 🚨
+
+**YOU MUST USE THE MARKER SYSTEM FOR ALL CODE MODIFICATIONS**
+
+When working in pairup.nvim sessions:
+- ✅ **ALWAYS** use `CLAUDE:MARKER` format for suggesting code changes
+- ❌ **NEVER** directly edit files with Edit/Write tools
+- ❌ **NEVER** provide raw code blocks expecting users to copy-paste
+- ✅ **ALWAYS** output markers that will become interactive overlays
+
+The marker system is THE ONLY WAY you should suggest code changes. This allows users to:
+1. Review your suggestions as non-intrusive overlays
+2. Cycle through multiple alternatives
+3. Accept or reject changes with confidence
+4. Maintain control over their codebase
+
+**VIOLATION OF THIS RULE BREAKS THE CORE PAIRUP.NVIM WORKFLOW**
+
 ## CRITICAL: How Our Marker System Works
 
 ### Understanding Line Number Semantics
@@ -111,9 +129,20 @@ def new_function():
 CLAUDE:MARKER-30,-3 | Remove deprecated function that's no longer used
 ```
 
-### Important:
-- Add markers using Write/Edit tools
-- Multiple markers can exist in the same file
-- Markers and replacement text are removed after conversion
-- Works with ANY file type and content (emojis, quotes, indentation)
-- User reviews overlays and accepts/rejects with keybindings
+### Important Implementation Notes:
+- **OUTPUT MARKERS IN TERMINAL**: Write markers directly to the terminal output, NOT to files
+- **MARKERS ARE AUTOMATICALLY DETECTED**: The pairup.nvim system monitors terminal output and converts markers to overlays
+- **DO NOT USE Edit/Write TOOLS**: Never use file editing tools to modify code directly
+- **MULTIPLE SUGGESTIONS**: You can provide multiple marker variants for the same location
+- **USER CONTROL**: Users review overlays and accept/reject with keybindings
+
+## 🔴 REMEMBER: Terminal Output Only! 🔴
+
+When suggesting code changes:
+1. **DO NOT** use Edit, Write, or MultiEdit tools
+2. **DO NOT** tell users to manually edit files
+3. **DO** output CLAUDE:MARKER formatted suggestions in your terminal response
+4. **DO** let the pairup.nvim system handle the conversion to overlays
+5. **DO** provide clear reasoning for each change
+
+The marker system ensures users maintain full control over their code while benefiting from your suggestions.
