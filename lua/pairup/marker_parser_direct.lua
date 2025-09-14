@@ -145,10 +145,12 @@ function M.parse_to_overlays(bufnr)
           end
         elseif count == 0 then
           -- Insertion AFTER target line
-          if target_line <= line_count then
+          if target_line <= line_count + 1 then
             -- For single line insertion, use show_suggestion with nil old_text
             if #replacement_lines == 1 then
-              overlay.show_suggestion(bufnr, target_line + 1, nil, replacement_lines[1], reasoning)
+              -- Special case: inserting after the last line
+              local insert_line = math.min(target_line + 1, line_count + 1)
+              overlay.show_suggestion(bufnr, insert_line, nil, replacement_lines[1], reasoning)
               overlay_count = overlay_count + 1
             else
               -- For multiline insertion, create a multiline suggestion at the insertion point
