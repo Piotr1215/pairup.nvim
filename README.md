@@ -13,7 +13,7 @@ seamless workflow integration.
 See pairup.nvim in action:
 - **Real-time suggestions**: AI watches your changes and suggests improvements as you type
 - **Smart context**: Understands your git workflow - staged vs unstaged changes
-- **Interactive overlays**: Review and cycle through multiple code suggestions with Tab/Shift+Tab
+- **Interactive overlays**: Review AI suggestions as virtual text before accepting
 * [Getting Started](#getting-started)
 * [Installation](#installation)
 * [Features](#features)
@@ -51,14 +51,6 @@ While pairup.nvim significantly enhances your coding speed, remember:
 
 </div>
 
-
-## 🚀 What"s New in v2.0
-
-- **Enhanced Overlay Engine**: Completely redesigned overlay system with improved performance and reliability
-- **Insert Methods**: New `insert_above` and `insert_below` methods for more precise code suggestions
-- **Multi-variant Suggestions**: AI can now provide multiple alternatives that you can cycle through with Tab/Shift+Tab
-- **Improved Extmark Tracking**: More robust position tracking that survives file edits
-- **Overlay Persistence**: Save and restore overlay suggestions across sessions
 
 ## Why pairup.nvim?
 
@@ -188,41 +180,33 @@ This enables the following scenarios.
 - Docker containers: nvim --listen 0.0.0.0:6666 inside container
 - WSL/VMs: Same TCP detection works across boundaries
 
-## Overlay Feature (Virtual Text Suggestions) [EXPERIMENTAL]
+## Overlay Feature (Virtual Text Suggestions)
 
-⚠️ **Note: This feature is experimental and unstable. It may have bugs or unexpected behavior.**
+AI suggests code changes as interactive overlays - virtual text showing proposed modifications without immediately changing your files.
 
-Claude can suggest code changes using overlays - virtual text that shows proposed modifications without immediately changing your files. This allows you to review suggestions before accepting them.
+### Overlay Workflow
 
-### How Overlays Work
-
-### Overlay Persistence
-
-Save and restore overlay suggestions across sessions to preserve your workflow:
-
-```vim
-" Save current overlays to a timestamped file
-:PairupOverlaySave [file]     " or :PairSave
-
-" Restore overlays (shows picker if no file specified)
-:PairupOverlayRestore [file]  " or :PairRestore
-
-" List all saved overlay sessions
-:PairupOverlayList
+**1. Creating Overlays**
+When Claude suggests changes, it outputs markers at the end of your file:
+```
+CLAUDE:MARKER-15,3 | Refactor to use list comprehension for better performance
+def process(data: list) -> list:
+    return [item * 2 for item in data]
 ```
 
-**Storage Details:**
-- Overlays are saved as JSON files in `~/.local/share/nvim/pairup/overlays/`
-- Each save includes file content hash to detect changes since save
-- Files are named with timestamps for easy identification
+**2. Converting Markers to Overlays**
+Run `:PairMarkerToOverlay` to transform all markers into visual overlays at their target locations.
 
-**Auto-save Use Cases:**
-- Enable auto-save when working on complex refactoring to preserve suggestions
-- Useful for code reviews where you want to save suggestions for later
-- Configure with `overlay_persistence.auto_save = true` to save on buffer write/unload
+**3. Reviewing Suggestions**
+- Navigate between overlays: `:PairNext` and `:PairPrev`
+- Visual feedback shows proposed changes inline
+- Each overlay includes the reasoning for the change
 
-
-Overlays are saved as JSON with file content and suggestions. File hash checking detects if the file changed since save. Auto-save can be configured to save on buffer write/unload.
+**4. Taking Action**
+- **Accept**: `:PairAccept` - Apply the suggestion immediately
+- **Reject**: `:PairReject` - Discard the suggestion
+- **Edit**: `:PairEdit` - Modify the suggestion before accepting
+- Overlays track their position automatically - no line shifting issues when editing around them
 
 For remote network scenarios claude can run either locally in neovim buffer and
 operate on remote neovim instance or run in remote server and operate on the
@@ -351,14 +335,6 @@ require("pairup").setup({
     enabled = false,                                              -- Send periodic status updates
     interval_minutes = 10,                                        -- Update interval in minutes
   },
-
-  -- Overlay Persistence Settings
-  overlay_persistence = {
-    enabled = false,                                              -- Enable overlay persistence features
-    auto_save = false,                                            -- Auto-save overlays on buffer write/unload
-    auto_restore = false,                                         -- Auto-restore overlays when opening files
-    max_sessions = 10,                                            -- Maximum saved sessions to keep per file
-  },
 })
 ```
 
@@ -376,10 +352,9 @@ vim.keymap.set('n', '<leader>cm', ':PairupSay ', { desc = 'Send message to AI' }
 -- Overlay keymaps
 vim.keymap.set("n", "<leader>sa", "<cmd>PairAccept<cr>", { desc = "Accept overlay suggestion" })
 vim.keymap.set("n", "<leader>sr", "<cmd>PairReject<cr>", { desc = "Reject overlay suggestion" })
+vim.keymap.set("n", "<leader>se", "<cmd>PairEdit<cr>", { desc = "Edit overlay before accepting" })
 vim.keymap.set("n", "<leader>sn", "<cmd>PairNext<cr>", { desc = "Next overlay suggestion" })
 vim.keymap.set("n", "<leader>sp", "<cmd>PairPrev<cr>", { desc = "Previous overlay suggestion" })
-vim.keymap.set("n", "<Tab>", "<cmd>PairupOverlayCycle<cr>", { desc = "Cycle overlay variants" })
-vim.keymap.set("n", "<S-Tab>", "<cmd>PairupOverlayCyclePrev<cr>", { desc = "Cycle overlay variants (reverse)" })
 ```
 
 ### Statusline Integration
@@ -439,22 +414,9 @@ The plugin deeply integrates with git:
 
 ## Known Issues & Limitations
 
-### Overlay System (EXPERIMENTAL)
-
-The overlay suggestion system has known edge cases:
-
-- **Partial application on multi-line edits**: When editing/accepting large multi-line overlays (especially those spanning code blocks), the system may leave duplicate content or fail to properly clean up old lines
-- **Boundary detection**: Overlays that cross markdown code block boundaries (```) may not apply correctly
-- **Extmark tracking**: While extmarks handle most file changes, rapid successive edits can sometimes desync overlay positions
-
-**Workarounds:**
-- For large edits, accept the overlay first, then make modifications
-- Use `:PairReject` to clear problematic overlays and request smaller, focused changes
-- Restart the assistant if overlays become severely desynced
-
 ### RPC Escaping
 
-- Complex strings with nested quotes/backticks may fail to transmit correctly
+- Complex strings with nested quotes/backticks may fail to transmit correctly via RPC
 - Special shell characters in overlay content require careful escaping
 
 ## Troubleshooting
