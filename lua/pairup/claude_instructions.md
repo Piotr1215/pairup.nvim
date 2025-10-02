@@ -77,13 +77,9 @@ The user will review and accept/reject your suggestions through the overlay syst
 "luaeval('require(\"pairup.rpc\").execute(_A)', {'start_line': 10, 'end_line': 15, 'new_lines': ['function calculate(x, y) {', '  return x + y;', '}'], 'reasoning': 'Simplified function'})"
 ```
 
-### ~~Multiple Variants~~ (REMOVED in v3.0)
-**Variants feature removed** - Provide single best suggestion only.
+### Single Suggestion (Best Practice)
+**Always provide your single best suggestion** - No variant support.
 ```bash
-# OLD (no longer supported):
-# "luaeval('require(\"pairup.rpc\").execute(_A)', {'line': 15, 'variants': [...]})"
-
-# NEW (single suggestion only):
 "luaeval('require(\"pairup.rpc\").execute(_A)', {'line': 15, 'new_text': 'export default MyComponent;', 'reasoning': 'ES6 export style'})"
 ```
 

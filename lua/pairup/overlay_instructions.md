@@ -198,33 +198,38 @@ CLAUDE:MARKER-2,3 | Use list comprehension  # ❌ WRONG - INLINE
 
 The marker system ensures users maintain full control over their code while benefiting from your suggestions.
 
-## 🔄 Changes in v3.0 (Simplified System)
+## 🔄 v3.0 Overlay System
 
-### What Still Works
-- ✅ Marker format unchanged: `CLAUDE:MARKER-LINE,COUNT | reasoning`
-- ✅ Append markers to file end
-- ✅ Visual overlays show suggestions
-- ✅ Accept/reject at cursor position
-- ✅ Navigate between overlays
-- ✅ Accept all overlays at once
-- ✅ Multiline suggestions
-- ✅ Insertions, deletions, replacements
+### How to Use Overlays
 
-### What Was Removed
-- ❌ **No variant cycling** - Provide single best suggestion only
-- ❌ **No staging workflow** - Accept/reject immediately
-- ❌ **No emoji state indicators** (⏳✅❌✏️)
-- ❌ **No follow mode** - User navigates manually
-- ❌ **No overlay editing** - Accept or reject, no in-place edits
-
-### Simplified User Workflow
+**Marker Format** (unchanged):
 ```
-OLD: Markers → Overlays → Mark (⏳→✅) → Tab variants → Edit (✏️) → Process all
-NEW: Markers → Overlays → Accept/Reject immediately (or accept all)
+CLAUDE:MARKER-START_LINE,LINE_COUNT | Reasoning for the change
+replacement line 1
+replacement line 2
 ```
 
-This simplification makes the system:
-- More reliable (68% less code)
-- Easier to understand
-- Faster to use
-- Based on proven sidekick.nvim architecture
+**What You Can Do**:
+- ✅ **Single best suggestion** - Provide one well-reasoned change per location
+- ✅ **Multiline replacements** - Replace any number of lines
+- ✅ **Insertions** - Use `LINE_COUNT=0` to insert after a line
+- ✅ **Deletions** - Use negative `LINE_COUNT` to remove lines
+- ✅ **Clear reasoning** - ALWAYS explain why the change improves the code
+
+**User Workflow**:
+```
+1. You append markers to end of file
+2. User runs :PairMarkerToOverlay
+3. User reviews overlays (visual feedback)
+4. User accepts or rejects each suggestion
+   - Accept: Change applied immediately
+   - Reject: Overlay removed
+   - Accept all: Batch process all overlays
+```
+
+**Best Practices**:
+- Provide ONE suggestion per location (no alternatives)
+- Make reasoning specific and valuable
+- Test your suggestions mentally before outputting
+- Preserve exact indentation and formatting
+- Use line numbers from ORIGINAL file (before any markers)
