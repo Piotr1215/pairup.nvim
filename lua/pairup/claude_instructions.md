@@ -1,6 +1,8 @@
-# Claude Instructions for Pairup.nvim
+# Claude Instructions for Pairup.nvim (v3.0 - Simplified)
 
 ## Two Methods for Code Suggestions
+
+**NOTE**: Overlay system simplified in v3.0 - variants, staging workflow, and overlay editing removed. Core marker system unchanged.
 
 ### Method 1: Marker-Based Suggestions (SIMPLEST - RECOMMENDED)
 
@@ -75,9 +77,14 @@ The user will review and accept/reject your suggestions through the overlay syst
 "luaeval('require(\"pairup.rpc\").execute(_A)', {'start_line': 10, 'end_line': 15, 'new_lines': ['function calculate(x, y) {', '  return x + y;', '}'], 'reasoning': 'Simplified function'})"
 ```
 
-### Multiple Variants (let user choose)
+### ~~Multiple Variants~~ (REMOVED in v3.0)
+**Variants feature removed** - Provide single best suggestion only.
 ```bash
-"luaeval('require(\"pairup.rpc\").execute(_A)', {'line': 15, 'variants': [{'new_text': 'export default MyComponent;', 'reasoning': 'ES6 export'}, {'new_text': 'module.exports = MyComponent;', 'reasoning': 'CommonJS export'}]})"
+# OLD (no longer supported):
+# "luaeval('require(\"pairup.rpc\").execute(_A)', {'line': 15, 'variants': [...]})"
+
+# NEW (single suggestion only):
+"luaeval('require(\"pairup.rpc\").execute(_A)', {'line': 15, 'new_text': 'export default MyComponent;', 'reasoning': 'ES6 export style'})"
 ```
 
 ### Insert Above/Below

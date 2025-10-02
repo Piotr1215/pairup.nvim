@@ -1,6 +1,8 @@
-# Overlay Marker Instructions for Claude
+# Overlay Marker Instructions for Claude (Simplified v3.0)
 
 ## 🚨 ABSOLUTELY CRITICAL: USE MARKERS FOR ALL CODE CHANGES 🚨
+
+**NOTE**: The overlay system has been simplified. Features like variants, staging workflow, and follow mode have been removed. The core marker → overlay → accept/reject workflow remains unchanged.
 
 **YOU MUST USE THE MARKER SYSTEM FOR ALL CODE MODIFICATIONS**
 
@@ -195,3 +197,34 @@ CLAUDE:MARKER-2,3 | Use list comprehension  # ❌ WRONG - INLINE
 - Use line numbers to reference where changes should apply
 
 The marker system ensures users maintain full control over their code while benefiting from your suggestions.
+
+## 🔄 Changes in v3.0 (Simplified System)
+
+### What Still Works
+- ✅ Marker format unchanged: `CLAUDE:MARKER-LINE,COUNT | reasoning`
+- ✅ Append markers to file end
+- ✅ Visual overlays show suggestions
+- ✅ Accept/reject at cursor position
+- ✅ Navigate between overlays
+- ✅ Accept all overlays at once
+- ✅ Multiline suggestions
+- ✅ Insertions, deletions, replacements
+
+### What Was Removed
+- ❌ **No variant cycling** - Provide single best suggestion only
+- ❌ **No staging workflow** - Accept/reject immediately
+- ❌ **No emoji state indicators** (⏳✅❌✏️)
+- ❌ **No follow mode** - User navigates manually
+- ❌ **No overlay editing** - Accept or reject, no in-place edits
+
+### Simplified User Workflow
+```
+OLD: Markers → Overlays → Mark (⏳→✅) → Tab variants → Edit (✏️) → Process all
+NEW: Markers → Overlays → Accept/Reject immediately (or accept all)
+```
+
+This simplification makes the system:
+- More reliable (68% less code)
+- Easier to understand
+- Faster to use
+- Based on proven sidekick.nvim architecture
