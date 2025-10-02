@@ -291,6 +291,29 @@ function M.apply_at_cursor()
   return true
 end
 
+---Remove overlay by ID
+---@param overlay_id number
+---@return boolean success
+function M.remove_by_id(overlay_id)
+  local found = false
+  local new_overlays = {}
+  for _, o in ipairs(overlays) do
+    if o.id ~= overlay_id then
+      table.insert(new_overlays, o)
+    else
+      found = true
+    end
+  end
+
+  if not found then
+    return false
+  end
+
+  overlays = new_overlays
+  M.render_all()
+  return true
+end
+
 ---Reject overlay at cursor (just remove it)
 ---@return boolean success
 function M.reject_at_cursor()
@@ -304,17 +327,8 @@ function M.reject_at_cursor()
     return false
   end
 
-  -- Remove this overlay
-  local new_overlays = {}
-  for _, o in ipairs(overlays) do
-    if o.id ~= overlay.id then
-      table.insert(new_overlays, o)
-    end
-  end
-  overlays = new_overlays
-
-  -- Re-render
-  M.render_all()
+  -- Remove using the new function
+  M.remove_by_id(overlay.id)
 
   vim.notify('Rejected overlay', vim.log.levels.INFO)
   return true

@@ -517,24 +517,3 @@ MIT
 [Request Feature](https://github.com/Piotr1215/pairup.nvim/issues)
 
 </div>
-
-CLAUDE:MARKER-3,1 | Simplify tagline - remove marketing hype and focus on core value
-**🤖 Real-time AI pair programming for Neovim.**
-
-CLAUDE:MARKER-16,1 | Update to reflect v3.0 - variants feature was removed in the simplification
-- **Interactive overlays**: Review and accept/reject code suggestions with clear visual feedback
-
-CLAUDE:MARKER-29,0 | Add note about testing the overlay system
-> **Testing Note**: This file contains test markers for the overlay system. Use `:PairMarkerToOverlay` to convert them to overlays.
-
-CLAUDE:MARKER-55,1 | Update version number to current v3.0
-## 🚀 What's New in v3.0
-
-CLAUDE:MARKER-57,5 | Replace v2.0 feature list with actual v3.0 changes
-- **Simplified Overlay System**: 68% code reduction by removing complex features
-- **Improved Reliability**: Eliminated edge cases from variants, staging workflow, and follow mode
-- **Better Performance**: Streamlined marker parsing and overlay application logic
-- **Cleaner Codebase**: Easier to maintain and extend for future enhancements
-- **Same Core Workflow**: Marker → overlay → accept/reject remains unchanged
-
-CLAUDE:MARKER-381,2 | Remove obsolete keymaps for deleted variant cycling feature

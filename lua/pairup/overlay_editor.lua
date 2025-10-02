@@ -200,16 +200,16 @@ function M.apply_edited_overlay()
     return false
   end
 
-  -- Apply the edit: first reject the old overlay, then apply new lines
-  -- This is cleaner than directly manipulating buffer lines
+  -- Store line info before removing overlay
   local start_line = target_overlay.start_line
   local end_line = target_overlay.end_line
+  local buf = target_overlay.buf
 
-  -- Remove the overlay (this will clear visual display)
-  overlay.reject_at_cursor()
+  -- Remove the overlay (clears visual display)
+  overlay.remove_by_id(editor_state.overlay_id)
 
   -- Apply the edited lines to the buffer
-  vim.api.nvim_buf_set_lines(editor_state.source_buf, start_line - 1, end_line, false, edited_lines)
+  vim.api.nvim_buf_set_lines(buf, start_line - 1, end_line, false, edited_lines)
 
   -- Close editor window
   if editor_state.editor_win and vim.api.nvim_win_is_valid(editor_state.editor_win) then
