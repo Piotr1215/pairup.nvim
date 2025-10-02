@@ -37,7 +37,7 @@ vim.api.nvim_create_user_command('PairupFileInfo', function()
 end, { desc = 'Send file information to AI' })
 
 vim.api.nvim_create_user_command('PairupToggleDiff', function()
-  pairup.toggle_diff()
+  pairup.toggle_git_diff_send()
 end, { desc = 'Toggle automatic diff sending' })
 
 vim.api.nvim_create_user_command('PairupToggleLSP', function()
