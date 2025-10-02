@@ -200,8 +200,7 @@ describe('PairMarkerToOverlay integration', function()
       assert.equals(0, marks[1][2], 'Multiline extmark should start at line 1')
 
       -- Assert: Check that suggestion is stored as multiline
-      local all_suggestions = overlay.get_all_suggestions and overlay.get_all_suggestions() or {}
-      local buffer_suggestions = all_suggestions[bufnr] or {}
+      local buffer_suggestions = overlay.get_suggestions(bufnr)
       local suggestion_count = 0
       for _, suggestion in pairs(buffer_suggestions) do
         suggestion_count = suggestion_count + 1
