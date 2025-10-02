@@ -82,52 +82,22 @@ vim.api.nvim_create_user_command('PairPrev', function()
   require('pairup.overlay').prev_overlay()
 end, { desc = 'Previous overlay' })
 
--- Staging Workflow (NEW - recommended)
-vim.api.nvim_create_user_command('PairMark', function(opts)
-  local overlay = require('pairup.overlay')
-  if opts.args == '' then
-    overlay.toggle_state()
-  elseif opts.args:lower() == 'accept' or opts.args:lower() == 'a' then
-    overlay.accept_staged()
-  elseif opts.args:lower() == 'reject' or opts.args:lower() == 'r' then
-    overlay.reject_staged()
-  else
-    vim.notify('Usage: :PairMark [accept|reject] or just :PairMark to toggle', vim.log.levels.WARN)
-  end
-end, { desc = 'Mark overlay (accept/reject/toggle)', nargs = '?' })
-
-vim.api.nvim_create_user_command('PairProcess', function()
-  require('pairup.overlay').process_overlays()
-end, { desc = 'Process all marked overlays' })
-
-vim.api.nvim_create_user_command('PairUnprocessed', function()
-  require('pairup.overlay').next_unprocessed()
-end, { desc = 'Jump to next unprocessed overlay' })
-
--- Smart Actions - mark and auto-process when done
+-- v3.0 Simplified Actions - immediate accept/reject
 vim.api.nvim_create_user_command('PairAccept', function()
   local overlay = require('pairup.overlay')
-  overlay.accept_staged()
-  -- Move to next unprocessed overlay
-  overlay.next_unprocessed()
-  -- Check if there are any more pending overlays, if not, process all
-  local bufnr = vim.api.nvim_get_current_buf()
-  if not overlay.has_pending_overlays(bufnr) then
-    overlay.process_overlays(bufnr)
+  if overlay.apply_at_cursor() then
+    -- Move to next overlay if available
+    overlay.next_overlay()
   end
-end, { desc = 'Accept overlay and move to next (auto-process when done)' })
+end, { desc = 'Accept overlay at cursor and move to next' })
 
 vim.api.nvim_create_user_command('PairReject', function()
   local overlay = require('pairup.overlay')
-  overlay.reject_staged()
-  -- Move to next unprocessed overlay
-  overlay.next_unprocessed()
-  -- Check if there are any more pending overlays, if not, process all
-  local bufnr = vim.api.nvim_get_current_buf()
-  if not overlay.has_pending_overlays(bufnr) then
-    overlay.process_overlays(bufnr)
+  if overlay.reject_at_cursor() then
+    -- Move to next overlay if available
+    overlay.next_overlay()
   end
-end, { desc = 'Reject overlay and move to next (auto-process when done)' })
+end, { desc = 'Reject overlay at cursor and move to next' })
 
 vim.api.nvim_create_user_command('PairAcceptAll', function()
   require('pairup.overlay').accept_all_overlays()
@@ -135,36 +105,12 @@ end, { desc = 'Accept all overlays immediately' })
 
 -- Utilities
 vim.api.nvim_create_user_command('PairClear', function()
-  require('pairup.overlay').clear_overlays()
-end, { desc = 'Clear all overlays' })
+  require('pairup.overlay').clear_buffer()
+end, { desc = 'Clear all overlays in current buffer' })
 
 vim.api.nvim_create_user_command('PairEdit', function()
   require('pairup.overlay_editor').edit_at_cursor()
-end, { desc = 'Edit overlay at cursor' })
-
--- Persistence
-vim.api.nvim_create_user_command('PairSave', function(opts)
-  local persist = require('pairup.overlay_persistence')
-  local ok, path, count = persist.save_overlays(opts.args ~= '' and opts.args or nil)
-  if ok then
-    vim.notify(string.format('Saved %d overlays to %s', count, vim.fn.fnamemodify(path, ':~')), vim.log.levels.INFO)
-  else
-    vim.notify('Failed to save overlays: ' .. (path or 'unknown error'), vim.log.levels.ERROR)
-  end
-end, { desc = 'Save overlays to file', nargs = '?' })
-
-vim.api.nvim_create_user_command('PairRestore', function(opts)
-  local persist = require('pairup.overlay_persistence')
-  local ok, path, count = persist.restore_overlays(opts.args ~= '' and opts.args or nil)
-  if ok then
-    vim.notify(
-      string.format('Restored %d overlays from %s', count, vim.fn.fnamemodify(path, ':~')),
-      vim.log.levels.INFO
-    )
-  else
-    vim.notify('Failed to restore overlays: ' .. (path or 'unknown error'), vim.log.levels.ERROR)
-  end
-end, { desc = 'Restore overlays from file', nargs = '?' })
+end, { desc = 'Edit overlay at cursor before accepting' })
 
 -- Special Commands
 vim.api.nvim_create_user_command('PairMarkerToOverlay', function()
@@ -174,35 +120,30 @@ end, { desc = 'Convert Claude markers to overlays' })
 
 vim.api.nvim_create_user_command('PairHelp', function()
   local help = [[
-=== Pairup Overlay Commands ===
+=== Pairup Overlay Commands (v3.0 Simplified) ===
 
-STAGING WORKFLOW (Recommended):
-  :PairMark        - Toggle overlay state (pending→accepted→rejected)
-  :PairMark accept - Mark as accepted
-  :PairMark reject - Mark as rejected
-  :PairProcess     - Apply all marked overlays at once
-  :PairUnprocessed - Jump to next unprocessed overlay
+CORE WORKFLOW:
+  1. AI outputs CLAUDE:MARKER suggestions
+  2. Run :PairMarkerToOverlay to create overlays
+  3. Review and accept/reject individual suggestions
 
 NAVIGATION:
   :PairNext        - Jump to next overlay
   :PairPrev        - Jump to previous overlay
 
-IMMEDIATE ACTIONS (Old workflow):
-  :PairAccept      - Accept overlay immediately
-  :PairReject      - Reject overlay immediately
-  :PairAcceptAll   - Accept all overlays
+ACTIONS:
+  :PairAccept      - Accept overlay at cursor and move to next
+  :PairReject      - Reject overlay at cursor and move to next
+  :PairEdit        - Edit overlay before accepting
+  :PairAcceptAll   - Accept all overlays in buffer
 
 UTILITIES:
-  :PairClear       - Clear all overlays
-  :PairEdit        - Edit overlay before accepting
-  :PairSave        - Save overlays to file
-  :PairRestore     - Restore overlays from file
+  :PairClear       - Clear all overlays in buffer
+  :PairMarkerToOverlay - Convert Claude markers to overlays
 
-Visual indicators:
-  ⏳ Pending    - Not yet reviewed
-  ✅ Accepted   - Will be applied with :PairProcess
-  ❌ Rejected   - Will be discarded with :PairProcess
-  ✏️ Edited     - Accepted with modifications]]
+MARKER FORMAT (for AI):
+  CLAUDE:MARKER-LINE,COUNT | Reasoning
+  replacement code here]]
 
   vim.notify(help, vim.log.levels.INFO)
 end, { desc = 'Show overlay command help' })
