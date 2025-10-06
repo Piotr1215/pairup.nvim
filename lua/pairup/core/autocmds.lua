@@ -60,7 +60,8 @@ function M.setup()
       group = 'Pairup',
       pattern = '*',
       callback = function()
-        if vim.fn.mode() ~= 'c' then
+        -- Skip if in command mode or command-line window
+        if vim.fn.mode() ~= 'c' and vim.fn.getcmdwintype() == '' then
           vim.cmd('checktime')
         end
       end,
@@ -75,7 +76,8 @@ function M.setup()
         interval,
         interval,
         vim.schedule_wrap(function()
-          if vim.fn.mode() ~= 'c' then
+          -- Skip if in command mode or command-line window
+          if vim.fn.mode() ~= 'c' and vim.fn.getcmdwintype() == '' then
             vim.cmd('silent! checktime')
           end
         end)
