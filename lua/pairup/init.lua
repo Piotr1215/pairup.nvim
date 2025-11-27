@@ -58,20 +58,38 @@ M.send_message = function(message)
   end
 end
 
--- Toggle git diff sending
-M.toggle_git_diff_send = function()
-  config.values.enabled = not config.values.enabled
-  require('pairup.utils.indicator').update()
-  local status = config.values.enabled and 'enabled' or 'disabled'
-  vim.notify('Git diff sending ' .. status, vim.log.levels.INFO)
+-- Send git diff to Claude
+M.send_diff = function()
+  require('pairup.utils.git').send_git_status()
+  vim.notify('Sent git diff to Claude', vim.log.levels.INFO)
 end
 
--- Toggle LSP integration
-M.toggle_lsp = function()
-  config.values.lsp = config.values.lsp or {}
-  config.values.lsp.enabled = not config.values.lsp.enabled
-  local status = config.values.lsp.enabled and 'enabled' or 'disabled'
-  vim.notify('LSP integration ' .. status, vim.log.levels.INFO)
+-- Send LSP diagnostics to Claude
+M.send_lsp = function()
+  local bufnr = vim.api.nvim_get_current_buf()
+  local filepath = vim.api.nvim_buf_get_name(bufnr)
+  local diagnostics = vim.diagnostic.get(bufnr)
+
+  if #diagnostics == 0 then
+    vim.notify('No LSP diagnostics in current buffer', vim.log.levels.INFO)
+    return
+  end
+
+  local lines = {}
+  table.insert(lines, string.format('File: %s', filepath))
+  table.insert(lines, string.format('Diagnostics (%d):', #diagnostics))
+  table.insert(lines, '')
+
+  for _, d in ipairs(diagnostics) do
+    local severity = vim.diagnostic.severity[d.severity] or 'UNKNOWN'
+    table.insert(lines, string.format('Line %d: [%s] %s', d.lnum + 1, severity, d.message))
+  end
+
+  table.insert(lines, '')
+  table.insert(lines, 'Fix these issues.')
+
+  providers.send_message(table.concat(lines, '\n'))
+  vim.notify(string.format('Sent %d diagnostics to Claude', #diagnostics), vim.log.levels.INFO)
 end
 
 return M

@@ -34,12 +34,12 @@ local subcommand_tbl = {
   -- Toggle commands
   diff = {
     impl = function(args, opts)
-      require('pairup').toggle_git_diff_send()
+      require('pairup').send_diff()
     end,
   },
   lsp = {
     impl = function(args, opts)
-      require('pairup').toggle_lsp()
+      require('pairup').send_lsp()
     end,
   },
   -- Inline mode commands (cc:/uu: markers)
@@ -51,17 +51,6 @@ local subcommand_tbl = {
   questions = {
     impl = function(args, opts)
       require('pairup.inline').update_quickfix()
-    end,
-  },
-  -- Periodic updates
-  ['updates-start'] = {
-    impl = function(args, opts)
-      require('pairup.core.periodic').start_periodic_updates()
-    end,
-  },
-  ['updates-stop'] = {
-    impl = function(args, opts)
-      require('pairup.core.periodic').stop_periodic_updates()
     end,
   },
 }

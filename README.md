@@ -101,8 +101,8 @@ Respond with `cc:` after `uu:`, then save.
 | `say <msg>` | Send message to Claude |
 | `questions` | Show `uu:` in quickfix |
 | `inline` | Manual cc: trigger |
-| `diff` | Toggle git diff sending |
-| `lsp` | Toggle LSP integration |
+| `diff` | Send git diff to Claude |
+| `lsp` | Send LSP diagnostics to Claude |
 
 ## Status Indicator
 

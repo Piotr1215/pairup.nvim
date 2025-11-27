@@ -81,8 +81,8 @@ RULES:
 7. NEVER respond in the terminal - ALL communication goes in the file as `%s` comments
 8. Preserve all other code exactly as is
 
-PROGRESS: Before long tasks, run: echo "30:task description" > /tmp/claude_progress
-When done, run: echo "done" > /tmp/claude_progress
+PROGRESS: ALWAYS run before starting: echo "30:task description" > /tmp/claude_progress
+ALWAYS run when finished: echo "done" > /tmp/claude_progress
 ]],
     filepath,
     cc_marker,

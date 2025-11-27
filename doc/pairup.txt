@@ -136,12 +136,6 @@ Default configuration values are used if not specified.
 *:PairupAddDir*
     Add current git root or working directory to AI assistant context.
 
-*:PairupStartUpdates* [minutes]
-    Start periodic status updates (default 10 minutes).
-
-*:PairupStopUpdates*
-    Stop periodic status updates.
-
 *:PairupReadUnstaged*
     Ask AI assistant to read untracked/unstaged files.
 

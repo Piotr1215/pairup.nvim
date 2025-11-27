@@ -33,6 +33,7 @@ local function update_progress()
   end
 
   local elapsed = os.time() - active_progress.start_time
+  local remaining = math.max(0, active_progress.duration - elapsed)
   local progress = math.min(elapsed / active_progress.duration, 1.0)
 
   if progress >= 1.0 then
@@ -40,8 +41,8 @@ local function update_progress()
     set_indicator('[C:' .. make_bar(1.0) .. '] ' .. active_progress.message)
     M.stop_progress()
   else
-    -- Show progress bar (green)
-    set_indicator('[C:' .. make_bar(progress) .. '] ' .. active_progress.message)
+    -- Show progress bar with remaining seconds (green)
+    set_indicator('[C:' .. make_bar(progress) .. '] ' .. remaining .. 's ' .. active_progress.message)
   end
 end
 
@@ -113,12 +114,10 @@ local function check_progress_file()
     0,
     interval,
     vim.schedule_wrap(function()
-      if active_progress then
+      if active_progress and active_progress.timer then
         update_progress()
-      else
-        timer:stop()
-        timer:close()
       end
+      -- Timer cleanup handled by stop_progress()
     end)
   )
 
@@ -129,8 +128,12 @@ end
 -- Stop progress and return to normal indicator
 function M.stop_progress()
   if active_progress and active_progress.timer then
-    active_progress.timer:stop()
-    active_progress.timer:close()
+    local timer = active_progress.timer
+    active_progress.timer = nil -- Clear first to prevent double-close
+    if not timer:is_closing() then
+      timer:stop()
+      timer:close()
+    end
   end
   active_progress = nil
   M.update()
