@@ -2,81 +2,117 @@
 
 local M = {}
 local config = require('pairup.config')
-local context = require('pairup.core.context')
 local providers = require('pairup.providers')
-local sessions = require('pairup.core.sessions')
 
--- Setup autocmds
 function M.setup()
-  -- Create augroup
   vim.api.nvim_create_augroup('Pairup', { clear = true })
 
-  -- Send context on file save
+  -- Process cc: markers on file save
   vim.api.nvim_create_autocmd('BufWritePost', {
     group = 'Pairup',
     pattern = '*',
     callback = function()
-      if not config.get('enabled') then
-        return
-      end
-
-      -- Skip certain files
       local filepath = vim.fn.expand('%:p')
-      if filepath:match('%.git/') or filepath:match('node_modules/') or filepath:match('%.log$') then
+      if filepath:match('%.git/') or filepath:match('node_modules/') then
         return
       end
 
-      -- Track file in current session if enabled
-      if config.get('persist_sessions') then
-        local current_session = sessions.get_current_session()
-        if current_session then
-          sessions.add_file_to_session(filepath)
-        end
+      if not providers.find_terminal() then
+        return
       end
 
-      -- Only send if AI assistant is running
-      local buf = providers.find_terminal()
-      if buf then
-        -- Send context with suggestions flag if in suggestion mode
-        local opts = {}
-        if config.get('suggestion_mode') then
-          opts.suggestions_only = true
+      if config.get('inline.enabled') then
+        local inline = require('pairup.inline')
+        if inline.has_cc_markers() then
+          inline.process()
         end
-        context.send_context(opts)
+        inline.update_quickfix()
       end
     end,
-    desc = 'Send git diff to AI assistant on file save',
   })
 
-  -- Claude handles its own session saving, no need for VimLeavePre
+  -- Save user's unsaved changes BEFORE reload to prevent data loss
+  vim.api.nvim_create_autocmd('FileChangedShell', {
+    group = 'Pairup',
+    pattern = '*',
+    callback = function()
+      if not config.get('inline.enabled') then
+        return
+      end
 
-  -- Auto-reload files when changed externally (by AI)
+      local filepath = vim.fn.expand('%:p')
+      local indicator = require('pairup.utils.indicator')
+
+      if not indicator.is_pending(filepath) then
+        return
+      end
+
+      local bufnr = vim.api.nvim_get_current_buf()
+      if vim.bo[bufnr].modified then
+        vim.cmd('silent! write')
+      end
+
+      vim.v.fcs_choice = 'reload'
+    end,
+  })
+
+  -- Clear pending when cc: markers are gone
+  vim.api.nvim_create_autocmd('FileChangedShellPost', {
+    group = 'Pairup',
+    pattern = '*',
+    callback = function()
+      if not config.get('inline.enabled') then
+        return
+      end
+
+      local filepath = vim.fn.expand('%:p')
+      local indicator = require('pairup.utils.indicator')
+
+      if vim.g.pairup_pending ~= filepath then
+        return
+      end
+
+      local inline = require('pairup.inline')
+      local bufnr = vim.api.nvim_get_current_buf()
+
+      if not inline.has_cc_markers(bufnr) then
+        indicator.clear_pending()
+      elseif inline.has_uu_markers(bufnr) then
+        indicator.clear_pending()
+      else
+        indicator.clear_pending()
+        vim.defer_fn(function()
+          if vim.api.nvim_buf_is_valid(bufnr) then
+            inline.process(bufnr)
+          end
+        end, 300)
+      end
+
+      inline.update_quickfix()
+    end,
+  })
+
+  -- Auto-reload files changed by Claude
   if config.get('auto_refresh.enabled') then
     vim.o.autoread = true
-    vim.o.updatetime = 1000 -- Check for file changes every 1 second when idle
 
-    -- Event-based reload
-    vim.api.nvim_create_autocmd({ 'FocusGained', 'BufEnter', 'CursorHold', 'CursorHoldI' }, {
+    vim.api.nvim_create_autocmd({ 'FocusGained', 'BufEnter', 'CursorHold' }, {
       group = 'Pairup',
       pattern = '*',
       callback = function()
-        -- Skip if in command mode or command-line window
         if vim.fn.mode() ~= 'c' and vim.fn.getcmdwintype() == '' then
           vim.cmd('checktime')
         end
       end,
-      desc = 'Auto-reload files changed by AI assistant',
     })
 
-    -- Aggressive timer-based reload if configured
     local interval = config.get('auto_refresh.interval_ms')
     if interval and interval > 0 then
-      local reload_timer = vim.loop.new_timer()
-      reload_timer:start(
+      local timer = vim.loop.new_timer()
+      timer:start(
         interval,
         interval,
         vim.schedule_wrap(function()
-          -- Skip if in command mode or command-line window
           if vim.fn.mode() ~= 'c' and vim.fn.getcmdwintype() == '' then
             vim.cmd('silent! checktime')
           end

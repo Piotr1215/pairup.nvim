@@ -1,7 +1,7 @@
 -- Configuration module for pairup.nvim
 local M = {}
 
--- Default configuration (CLEAN AND SIMPLE!)
+-- Default configuration
 local defaults = {
   -- AI provider
   provider = 'claude',
@@ -9,24 +9,14 @@ local defaults = {
   -- Provider configurations
   providers = {
     claude = {
-      path = vim.fn.exepath('claude') or '/home/decoder/.npm-global/bin/claude',
-      permission_mode = 'plan', -- Start in plan mode by default
-      add_dir_on_start = true,
+      path = vim.fn.exepath('claude') or 'claude',
     },
-  },
-
-  -- Session management
-  sessions = {
-    persist = true,
-    auto_populate_intent = true,
-    intent_template = "This is just an intent declaration. I'm planning to work on the file `%s` to...",
   },
 
   -- Git integration
   git = {
     enabled = true,
     diff_context_lines = 10,
-    fyi_suffix = '\nYou have received a git diff, it is your turn now to be active it our pair programming session. Take over and suggest improvements\n',
   },
 
   -- Terminal settings
@@ -37,42 +27,20 @@ local defaults = {
     auto_scroll = true,
   },
 
-  -- RPC settings (only active when nvim --listen is used)
-  rpc = {
-    port = '127.0.0.1:6666',
-    inject_instructions = false, -- Only inject when RPC is actually active
-    instructions_path = nil, -- Optional custom path
-  },
-
-  -- Overlay settings (marker-based suggestions)
-  overlay = {
-    inject_instructions = true, -- Send marker instructions to Claude
-    instructions_path = nil, -- Optional custom path
-    persistence = {
-      enabled = true,
-      auto_save = true,
-      auto_restore = true,
-      max_sessions = 10,
-    },
-  },
-
-  -- Filtering settings
-  filter = {
-    ignore_whitespace_only = true,
-    min_change_lines = 0,
-    batch_delay_ms = 500,
-  },
-
-  -- Auto-refresh settings
+  -- Auto-refresh settings (for detecting Claude's file edits)
   auto_refresh = {
     enabled = true,
     interval_ms = 500,
   },
 
-  -- Periodic updates
-  periodic_updates = {
-    enabled = false,
-    interval_minutes = 10,
+  -- Inline editing (cc:/uu: markers)
+  inline = {
+    enabled = true,
+    markers = {
+      command = 'cc:', -- User command marker
+      question = 'uu:', -- Claude question marker
+    },
+    quickfix = true, -- Show uu: questions in quickfix
   },
 }
 

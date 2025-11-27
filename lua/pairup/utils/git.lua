@@ -22,8 +22,8 @@ end
 
 -- Get unstaged diff for file
 function M.get_file_diff(filepath)
-  local diff_cmd =
-    string.format('git diff --unified=%d -- %s', config.get('diff_context_lines'), vim.fn.shellescape(filepath))
+  local context = config.get('git.diff_context_lines') or 10
+  local diff_cmd = string.format('git diff --unified=%d -- %s', context, vim.fn.shellescape(filepath))
   return vim.fn.system(diff_cmd)
 end
 
@@ -157,7 +157,6 @@ function M.send_git_status()
     message = message .. '\nSTASHES: ' .. stash_count .. ' stashed changes\n'
   end
 
-  message = message .. config.get('fyi_suffix')
   message = message .. '=== End Overview ===\n\n'
 
   providers.send_to_provider(message)
@@ -194,7 +193,6 @@ function M.send_unstaged_files()
   end
 
   message = message .. '\nYou can read these files with your tools if I ask you to.\n'
-  message = message .. config.get('fyi_suffix')
   message = message .. '=== End Request ===\n\n'
 
   providers.send_to_provider(message)
