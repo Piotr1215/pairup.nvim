@@ -1,13 +1,14 @@
 # pairup.nvim
 
-Inline AI pair programming for Neovim using Claude Code.
+Inline AI pair programming for Neovim.
 
 > 🔺 **Breaking Changes in v4.0** 🔺
 >
 > This version removes the overlay system, sessions, RPC, and marker-based suggestions
 > to focus on one thing: simple inline editing with `cc:`/`uu:` markers.
+> See [v4-architecture.md](./v4-architecture.md) for details.
 >
-> **Why?** Less complexity, more reliability. Claude edits files directly - no parsing,
+> **Why?** Less complexity, more reliability. Claude edits files directly — no parsing,
 > no overlays, no state management. Just write `cc:`, save, and Claude handles it.
 >
 > **Need the old features?** Use `git checkout legacy-v3` or `git checkout v3.0.0`
@@ -18,6 +19,7 @@ Write `cc:` markers anywhere in your code, save, and Claude edits the file direc
 
 ```lua
 -- cc: add error handling here
+-- uu: Should I use pcall or assert?
 function process(data)
   return data.value
 end
@@ -28,8 +30,8 @@ Save → Claude reads the file, executes the instruction, removes the marker.
 If Claude needs clarification, it adds `uu:`:
 
 ```lua
--- uu: Should I use pcall or assert?
 -- cc: add error handling here
+-- uu: Should I use pcall or assert?
 function process(data)
   return data.value
 end
@@ -84,9 +86,9 @@ Respond with `cc:` after `uu:`, then save.
 { function() return vim.g.pairup_indicator or '' end }
 ```
 
-- `[C]` - Claude running
-- `[C:pending]` - Waiting for Claude
-- `[C:queued]` - Save queued
+- `[C]` — Claude running
+- `[C:pending]` — Waiting for Claude
+- `[C:queued]` — Save queued
 
 ## Configuration
 
