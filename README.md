@@ -114,6 +114,8 @@ Respond with `cc:` after `uu:`, then save.
 - `[C]` — Claude running
 - `[C:pending]` — Waiting for Claude
 - `[C:queued]` — Save queued
+- `[C:██░░░░░░░░]` — Progress bar (Claude signals estimated duration)
+- `[C:ready]` — Task complete
 
 ## Configuration
 

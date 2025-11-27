@@ -123,3 +123,11 @@ end, { desc = 'Show uu: questions in quickfix' })
 vim.keymap.set('n', '<Plug>(pairup-inline)', function()
   require('pairup.inline').process()
 end, { desc = 'Process cc: markers' })
+
+vim.keymap.set('n', '<Plug>(pairup-next-marker)', function()
+  require('pairup.signs').next()
+end, { desc = 'Jump to next cc: marker' })
+
+vim.keymap.set('n', '<Plug>(pairup-prev-marker)', function()
+  require('pairup.signs').prev()
+end, { desc = 'Jump to previous cc: marker' })

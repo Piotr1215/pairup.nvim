@@ -80,6 +80,9 @@ RULES:
 6. Use the Edit tool to modify the file directly
 7. NEVER respond in the terminal - ALL communication goes in the file as `%s` comments
 8. Preserve all other code exactly as is
+
+PROGRESS: Before long tasks, run: echo "30:task description" > /tmp/claude_progress
+When done, run: echo "done" > /tmp/claude_progress
 ]],
     filepath,
     cc_marker,
@@ -180,16 +183,7 @@ function M.update_quickfix()
 
   vim.fn.setqflist(qf_items, 'r')
   vim.fn.setqflist({}, 'a', { title = 'Claude Questions (uu:)' })
-
-  if #qf_items > 0 then
-    vim.cmd('copen')
-  else
-    -- Close quickfix if empty and it was ours
-    local qf_title = vim.fn.getqflist({ title = 1 }).title or ''
-    if qf_title:match('Claude Questions') then
-      vim.cmd('cclose')
-    end
-  end
+  -- Don't auto-open quickfix - user opens with :copen when ready
 end
 
 --- Jump to next uu: marker in current buffer
