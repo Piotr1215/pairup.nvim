@@ -27,6 +27,31 @@ end
 
 Save → Claude reads the file, executes the instruction, removes the marker.
 
+## Neovim-Native Operator
+
+Use `gC` to insert cc: markers with proper comment syntax for any filetype:
+
+| Keybinding | Action |
+|------------|--------|
+| `gC{motion}` | Insert marker above motion (e.g., `gCip` for paragraph) |
+| `gCC` | Insert marker above current line |
+| `gC` (visual) | Insert marker with selected text as context |
+
+**Example:** Select "controller configuration" and press `gC`:
+```go
+// cc: controller configuration
+// Config holds the controller configuration
+```
+Cursor positions after `cc:` for typing your instruction.
+
+## Signs
+
+Markers show in the gutter:
+- 󰭻 (yellow) — `cc:` command marker
+- 󰞋 (blue) — `uu:` question marker
+
+## Questions
+
 If Claude needs clarification, it adds `uu:`:
 
 ```lua
@@ -114,7 +139,22 @@ require("pairup").setup({
     },
     quickfix = true,
   },
+  operator = {
+    key = "gC", -- change to override default
+  },
 })
+```
+
+## Plug Mappings
+
+Available `<Plug>` mappings for custom keybindings:
+
+```lua
+vim.keymap.set('n', '<leader>cc', '<Plug>(pairup-start)')
+vim.keymap.set('n', '<leader>cx', '<Plug>(pairup-stop)')
+vim.keymap.set('n', '<leader>ct', '<Plug>(pairup-toggle)')
+vim.keymap.set('n', '<leader>cq', '<Plug>(pairup-questions)')
+vim.keymap.set('n', '<leader>ci', '<Plug>(pairup-inline)')
 ```
 
 ## Requirements

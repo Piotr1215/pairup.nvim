@@ -19,6 +19,8 @@ M.setup = function(opts)
   providers.setup()
   require('pairup.core.autocmds').setup()
   require('pairup.utils.indicator').update()
+  require('pairup.operator').setup(opts and opts.operator)
+  require('pairup.signs').setup()
 end
 
 -- Core functions

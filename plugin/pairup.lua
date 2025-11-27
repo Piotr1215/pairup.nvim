@@ -102,3 +102,24 @@ vim.api.nvim_create_user_command('Pairup', pairup_cmd, {
   end,
   bang = false,
 })
+
+-- <Plug> mappings for lazy.nvim compatibility
+vim.keymap.set('n', '<Plug>(pairup-start)', function()
+  require('pairup').start()
+end, { desc = 'Start Pairup' })
+
+vim.keymap.set('n', '<Plug>(pairup-stop)', function()
+  require('pairup').stop()
+end, { desc = 'Stop Pairup' })
+
+vim.keymap.set('n', '<Plug>(pairup-toggle)', function()
+  require('pairup').toggle()
+end, { desc = 'Toggle Pairup' })
+
+vim.keymap.set('n', '<Plug>(pairup-questions)', function()
+  require('pairup.inline').update_quickfix()
+end, { desc = 'Show uu: questions in quickfix' })
+
+vim.keymap.set('n', '<Plug>(pairup-inline)', function()
+  require('pairup.inline').process()
+end, { desc = 'Process cc: markers' })
