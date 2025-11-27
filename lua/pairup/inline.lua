@@ -81,6 +81,14 @@ RULES:
 7. NEVER respond in the terminal - ALL communication goes in the file as `%s` comments
 8. Preserve all other code exactly as is
 
+SCOPE HINTS: Markers may include scope hints like `<line>`, `<paragraph>`, `<word>`, `<sentence>`, `<block>`, `<function>`, or `<selection>`.
+These indicate what the instruction applies to:
+- `<line>` - apply to the line immediately below
+- `<paragraph>` - apply to the paragraph below
+- `<word>` or `<sentence>` - the captured text follows the hint (e.g., `%s <word> myVar <- rename`)
+- `<selection>` - the captured text follows the hint
+- `<block>` or `<function>` - apply to the code block/function below
+
 PROGRESS: ALWAYS run before starting: echo "30:task description" > /tmp/claude_progress
 ALWAYS run when finished: echo "done" > /tmp/claude_progress
 ]],
@@ -92,7 +100,8 @@ ALWAYS run when finished: echo "done" > /tmp/claude_progress
     cc_marker,
     uu_marker,
     cc_marker,
-    uu_marker
+    uu_marker,
+    cc_marker
   )
 end
 
@@ -128,13 +137,12 @@ function M.process(bufnr)
 
   local prompt = M.build_prompt(filepath)
 
-  -- Send directly to terminal using chansend
+  -- Send to terminal (500ms delay for Enter - proven reliable in v2)
   if job_id then
-    vim.fn.chansend(job_id, prompt .. '\n')
+    vim.fn.chansend(job_id, prompt)
     vim.defer_fn(function()
-      vim.fn.chansend(job_id, string.char(13)) -- Send Enter
-    end, 100)
-    -- Set pending status (shows [C:pending] in statusline)
+      vim.fn.chansend(job_id, string.char(13)) -- CR = Enter
+    end, 500)
     indicator.set_pending(filepath)
   else
     providers.send_message(prompt)

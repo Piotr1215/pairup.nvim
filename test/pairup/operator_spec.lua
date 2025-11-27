@@ -36,7 +36,7 @@ describe('pairup.operator', function()
       local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
 
       assert.are.equal(4, #lines)
-      assert.are.equal('cc: refactor this', lines[1])
+      assert.are.equal('cc: refactor this <- ', lines[1])
       assert.are.equal('function hello()', lines[2])
 
       vim.api.nvim_buf_delete(bufnr, { force = true })
@@ -62,7 +62,7 @@ describe('pairup.operator', function()
       operator.insert_marker(1, 'fix this')
 
       local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
-      assert.are.equal('CLAUDE: fix this', lines[1])
+      assert.are.equal('CLAUDE: fix this <- ', lines[1])
 
       vim.api.nvim_buf_delete(bufnr, { force = true })
     end)
@@ -78,6 +78,45 @@ describe('pairup.operator', function()
       assert.are.equal(2, #lines)
       assert.are.equal('cc: ', lines[1])
       assert.are.equal('single line', lines[2])
+
+      vim.api.nvim_buf_delete(bufnr, { force = true })
+    end)
+
+    it('should include scope hint when provided', function()
+      local bufnr = vim.api.nvim_create_buf(false, true)
+      vim.api.nvim_set_current_buf(bufnr)
+      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { 'test line' })
+
+      operator.insert_marker(1, nil, 'line')
+
+      local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+      assert.are.equal('cc: <line> ', lines[1])
+
+      vim.api.nvim_buf_delete(bufnr, { force = true })
+    end)
+
+    it('should include scope hint with context', function()
+      local bufnr = vim.api.nvim_create_buf(false, true)
+      vim.api.nvim_set_current_buf(bufnr)
+      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { 'test line' })
+
+      operator.insert_marker(1, 'some text', 'paragraph')
+
+      local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+      assert.are.equal('cc: <paragraph> some text <- ', lines[1])
+
+      vim.api.nvim_buf_delete(bufnr, { force = true })
+    end)
+
+    it('should handle selection scope', function()
+      local bufnr = vim.api.nvim_create_buf(false, true)
+      vim.api.nvim_set_current_buf(bufnr)
+      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { 'test line' })
+
+      operator.insert_marker(1, 'selected', 'selection')
+
+      local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+      assert.are.equal('cc: <selection> selected <- ', lines[1])
 
       vim.api.nvim_buf_delete(bufnr, { force = true })
     end)
@@ -97,6 +136,91 @@ describe('pairup.operator', function()
       assert.has_no.errors(function()
         operator.operatorfunc('line')
       end)
+
+      vim.api.nvim_buf_delete(bufnr, { force = true })
+    end)
+
+    it('should detect paragraph scope from motion', function()
+      local bufnr = vim.api.nvim_create_buf(false, true)
+      vim.api.nvim_set_current_buf(bufnr)
+      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { 'paragraph text' })
+
+      vim.api.nvim_buf_set_mark(bufnr, '[', 1, 0, {})
+      vim.api.nvim_buf_set_mark(bufnr, ']', 1, 0, {})
+
+      -- Simulate ip motion
+      operator._last_motion = 'ip'
+      operator.operatorfunc('line')
+
+      local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+      assert.are.equal('cc: <paragraph> ', lines[1])
+
+      vim.api.nvim_buf_delete(bufnr, { force = true })
+    end)
+
+    it('should detect word scope from motion', function()
+      local bufnr = vim.api.nvim_create_buf(false, true)
+      vim.api.nvim_set_current_buf(bufnr)
+      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { 'word here' })
+
+      vim.api.nvim_buf_set_mark(bufnr, '[', 1, 0, {})
+      vim.api.nvim_buf_set_mark(bufnr, ']', 1, 0, {})
+
+      operator._last_motion = 'iw'
+      operator.operatorfunc('char')
+
+      local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+      assert.are.equal('cc: <word> ', lines[1])
+
+      vim.api.nvim_buf_delete(bufnr, { force = true })
+    end)
+
+    it('should detect single line scope', function()
+      local bufnr = vim.api.nvim_create_buf(false, true)
+      vim.api.nvim_set_current_buf(bufnr)
+      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { 'single line' })
+
+      vim.api.nvim_buf_set_mark(bufnr, '[', 1, 0, {})
+      vim.api.nvim_buf_set_mark(bufnr, ']', 1, 0, {})
+
+      operator._last_motion = nil
+      operator.operatorfunc('line')
+
+      local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+      assert.are.equal('cc: <line> ', lines[1])
+
+      vim.api.nvim_buf_delete(bufnr, { force = true })
+    end)
+
+    it('should detect multiple lines scope', function()
+      local bufnr = vim.api.nvim_create_buf(false, true)
+      vim.api.nvim_set_current_buf(bufnr)
+      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { 'line 1', 'line 2', 'line 3' })
+
+      vim.api.nvim_buf_set_mark(bufnr, '[', 1, 0, {})
+      vim.api.nvim_buf_set_mark(bufnr, ']', 3, 0, {})
+
+      operator._last_motion = nil
+      operator.operatorfunc('line')
+
+      local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+      assert.are.equal('cc: <lines> ', lines[1])
+
+      vim.api.nvim_buf_delete(bufnr, { force = true })
+    end)
+
+    it('should clear last_motion after use', function()
+      local bufnr = vim.api.nvim_create_buf(false, true)
+      vim.api.nvim_set_current_buf(bufnr)
+      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { 'test' })
+
+      vim.api.nvim_buf_set_mark(bufnr, '[', 1, 0, {})
+      vim.api.nvim_buf_set_mark(bufnr, ']', 1, 0, {})
+
+      operator._last_motion = 'ap'
+      operator.operatorfunc('line')
+
+      assert.is_nil(operator._last_motion)
 
       vim.api.nvim_buf_delete(bufnr, { force = true })
     end)

@@ -157,7 +157,8 @@ function M.send_git_status()
     message = message .. '\nSTASHES: ' .. stash_count .. ' stashed changes\n'
   end
 
-  message = message .. '=== End Overview ===\n\n'
+  message = message .. '=== End Overview ===\n'
+  message = message .. 'This is for your information only. No action required.\n\n'
 
   providers.send_to_provider(message)
 end

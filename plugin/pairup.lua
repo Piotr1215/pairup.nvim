@@ -120,3 +120,20 @@ end, { desc = 'Jump to next cc: marker' })
 vim.keymap.set('n', '<Plug>(pairup-prev-marker)', function()
   require('pairup.signs').prev()
 end, { desc = 'Jump to previous cc: marker' })
+
+vim.keymap.set('n', '<Plug>(pairup-lsp)', function()
+  require('pairup').send_lsp()
+end, { desc = 'Send LSP diagnostics to Claude' })
+
+vim.keymap.set('n', '<Plug>(pairup-diff)', function()
+  require('pairup').send_diff()
+end, { desc = 'Send git diff to Claude' })
+
+vim.keymap.set('n', '<Plug>(pairup-toggle-session)', function()
+  local providers = require('pairup.providers')
+  if providers.find_terminal() then
+    require('pairup').stop()
+  else
+    require('pairup').start()
+  end
+end, { desc = 'Toggle Pairup session (start/stop)' })

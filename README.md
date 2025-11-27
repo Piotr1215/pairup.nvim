@@ -25,24 +25,62 @@ function process(data)
 end
 ```
 
-Save → Claude reads the file, executes the instruction, removes the marker.
+Save → Claude reads the file → executes the instruction → removes the marker.
+The prompt sent to Claude on each save (from `lua/pairup/inline.lua`):
+
+```lua
+File: {filepath}
+
+This file contains inline instructions marked with `cc:`.
+
+RULES:
+1. Read the file and find all `cc:` markers
+2. Execute the instruction at each marker location
+3. Remove the `cc:` line after completing each instruction
+4. If you need clarification, add `uu: <your question>` on a NEW line right after the `cc:` line, then STOP and wait
+5. When you see `uu:` followed by `cc:` answer, act on it and remove BOTH lines
+6. Use the Edit tool to modify the file directly
+7. NEVER respond in the terminal - ALL communication goes in the file as `uu:` comments
+8. Preserve all other code exactly as is
+
+SCOPE HINTS: Markers may include scope hints like `<line>`, `<paragraph>`, `<word>`, `<sentence>`, `<block>`, `<function>`, or `<selection>`.
+These indicate what the instruction applies to:
+- `<line>` - apply to the line immediately below
+- `<paragraph>` - apply to the paragraph below
+- `<word>` or `<sentence>` - the captured text follows the hint (e.g., `cc: <word> myVar <- rename`)
+- `<selection>` - the captured text follows the hint
+- `<block>` or `<function>` - apply to the code block/function below
+
+PROGRESS: ALWAYS run before starting: echo "30:task description" > /tmp/claude_progress
+ALWAYS run when finished: echo "done" > /tmp/claude_progress
+```
 
 ## Neovim-Native Operator
 
 Use `gC` to insert cc: markers with proper comment syntax for any filetype:
 
-| Keybinding | Action |
-|------------|--------|
-| `gC{motion}` | Insert marker above motion (e.g., `gCip` for paragraph) |
-| `gCC` | Insert marker above current line |
-| `gC` (visual) | Insert marker with selected text as context |
+| Keybinding | Action | Scope Hint | Captures Text |
+|------------|--------|------------|---------------|
+| `gCC` | Insert marker above current line | `<line>` | No |
+| `gCip`/`gCap` | Insert marker for paragraph | `<paragraph>` | No |
+| `gCiw`/`gCaw` | Insert marker for word | `<word>` | Yes |
+| `gCis`/`gCas` | Insert marker for sentence | `<sentence>` | Yes |
+| `gCi}`/`gCa}` | Insert marker for block | `<block>` | No |
+| `gCif`/`gCaf` | Insert marker for function | `<function>` | No |
+| `gC` (visual) | Insert marker with selected text | `<selection>` | Yes |
+
+**Scope hints** tell Claude what the instruction applies to:
+```lua
+-- cc: <paragraph> refactor this section
+-- cc: <line> add error handling
+-- cc: <selection> some_variable <- rename to camelCase
+```
 
 **Example:** Select "controller configuration" and press `gC`:
 ```go
-// cc: controller configuration
+// cc: <selection> controller configuration <-
 // Config holds the controller configuration
 ```
-Cursor positions after `cc:` for typing your instruction.
 
 ## Signs
 
@@ -52,7 +90,7 @@ Markers show in the gutter:
 
 ## Questions
 
-If Claude needs clarification, it adds `uu:`:
+If Claude needs clarification, it adds `uu:` and you can continue discussion by appending `cc:` in response.
 
 ```lua
 -- cc: add error handling here
@@ -62,9 +100,9 @@ function process(data)
 end
 ```
 
-Respond with `cc:` after `uu:`, then save.
-
 ## Installation
+
+Key bindings are optional — the plugin works with `:Pairup` commands alone.
 
 ```lua
 -- lazy.nvim
@@ -105,6 +143,8 @@ Respond with `cc:` after `uu:`, then save.
 | `lsp` | Send LSP diagnostics to Claude |
 
 ## Status Indicator
+
+The status indicator is updated by Claude via the prompt — Claude writes progress to `/tmp/claude_progress`.
 
 ```lua
 -- Lualine
@@ -152,11 +192,14 @@ require("pairup").setup({
 Available `<Plug>` mappings for custom keybindings:
 
 ```lua
-vim.keymap.set('n', '<leader>cc', '<Plug>(pairup-start)')
-vim.keymap.set('n', '<leader>cx', '<Plug>(pairup-stop)')
-vim.keymap.set('n', '<leader>ct', '<Plug>(pairup-toggle)')
-vim.keymap.set('n', '<leader>cq', '<Plug>(pairup-questions)')
-vim.keymap.set('n', '<leader>ci', '<Plug>(pairup-inline)')
+vim.keymap.set('n', '<leader>cc', '<Plug>(pairup-toggle-session)')  -- start/stop
+vim.keymap.set('n', '<leader>ct', '<Plug>(pairup-toggle)')          -- show/hide terminal
+vim.keymap.set('n', '<leader>cl', '<Plug>(pairup-lsp)')             -- send LSP diagnostics
+vim.keymap.set('n', '<leader>cd', '<Plug>(pairup-diff)')            -- send git diff
+vim.keymap.set('n', '<leader>cq', '<Plug>(pairup-questions)')       -- show uu: in quickfix
+vim.keymap.set('n', '<leader>ci', '<Plug>(pairup-inline)')          -- process cc: markers
+vim.keymap.set('n', ']C', '<Plug>(pairup-next-marker)')             -- next marker
+vim.keymap.set('n', '[C', '<Plug>(pairup-prev-marker)')             -- prev marker
 ```
 
 ## Requirements

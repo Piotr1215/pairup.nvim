@@ -32,10 +32,17 @@ function M.setup()
   })
 
   -- Save user's unsaved changes BEFORE reload to prevent data loss
+  -- Also snapshot buffer for change highlighting
   vim.api.nvim_create_autocmd('FileChangedShell', {
     group = 'Pairup',
     pattern = '*',
-    callback = function()
+    callback = function(args)
+      local bufnr = args.buf
+
+      -- Snapshot for change highlighting
+      local flash = require('pairup.utils.flash')
+      flash.snapshot(bufnr)
+
       if not config.get('inline.enabled') then
         return
       end
@@ -47,7 +54,6 @@ function M.setup()
         return
       end
 
-      local bufnr = vim.api.nvim_get_current_buf()
       if vim.bo[bufnr].modified then
         vim.cmd('silent! write')
       end
@@ -56,11 +62,17 @@ function M.setup()
     end,
   })
 
-  -- Clear pending when cc: markers are gone
+  -- Clear pending when cc: markers are gone + highlight changes
   vim.api.nvim_create_autocmd('FileChangedShellPost', {
     group = 'Pairup',
     pattern = '*',
-    callback = function()
+    callback = function(args)
+      local bufnr = args.buf
+
+      -- Highlight changed lines (always, not just when inline enabled)
+      local flash = require('pairup.utils.flash')
+      flash.highlight_changes(bufnr)
+
       if not config.get('inline.enabled') then
         return
       end
@@ -73,7 +85,6 @@ function M.setup()
       end
 
       local inline = require('pairup.inline')
-      local bufnr = vim.api.nvim_get_current_buf()
 
       if not inline.has_cc_markers(bufnr) then
         indicator.clear_pending()
@@ -96,11 +107,22 @@ function M.setup()
   if config.get('auto_refresh.enabled') then
     vim.o.autoread = true
 
+    -- Snapshot all file buffers before checktime
+    local function snapshot_all_buffers()
+      local flash = require('pairup.utils.flash')
+      for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
+        if vim.api.nvim_buf_is_loaded(bufnr) and vim.bo[bufnr].buftype == '' then
+          flash.snapshot(bufnr)
+        end
+      end
+    end
+
     vim.api.nvim_create_autocmd({ 'FocusGained', 'BufEnter', 'CursorHold' }, {
       group = 'Pairup',
       pattern = '*',
       callback = function()
         if vim.fn.mode() ~= 'c' and vim.fn.getcmdwintype() == '' then
+          snapshot_all_buffers()
           vim.cmd('checktime')
         end
       end,
@@ -114,6 +136,7 @@ function M.setup()
         interval,
         vim.schedule_wrap(function()
           if vim.fn.mode() ~= 'c' and vim.fn.getcmdwintype() == '' then
+            snapshot_all_buffers()
             vim.cmd('silent! checktime')
           end
         end)

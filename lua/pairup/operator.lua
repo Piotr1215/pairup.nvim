@@ -45,19 +45,25 @@ end
 ---Insert cc: marker with context (as a comment)
 ---@param start_line integer 1-indexed start line
 ---@param context string|nil Selected text as context
-function M.insert_marker(start_line, context)
+---@param scope string|nil Scope hint: 'line', 'paragraph', 'word', 'selection'
+function M.insert_marker(start_line, context, scope)
   local marker = get_marker()
   local bufnr = vim.api.nvim_get_current_buf()
   local prefix, suffix = get_comment_parts()
 
-  -- Build marker content: "cc: " + context (always space after colon)
+  -- Build scope hint
+  local scope_hint = ''
+  if scope then
+    scope_hint = '<' .. scope .. '> '
+  end
+
+  -- Build marker content: "cc: <scope> context <- " (cursor at end after arrow)
   local marker_content
   if context and context ~= '' then
     local clean_context = context:gsub('\n', ' '):gsub('%s+', ' ')
-    marker_content = marker .. ' ' .. clean_context
+    marker_content = marker .. ' ' .. scope_hint .. clean_context .. ' <- '
   else
-    -- Ensure space after marker for cursor positioning
-    marker_content = marker .. ' '
+    marker_content = marker .. ' ' .. scope_hint
   end
 
   -- Wrap in comment syntax
@@ -75,17 +81,42 @@ function M.insert_marker(start_line, context)
   -- Insert marker above the range
   vim.api.nvim_buf_set_lines(bufnr, start_line - 1, start_line - 1, false, { marker_text })
 
-  -- Position cursor after "// cc: " or similar for typing instructions
-  local cursor_col = #prefix + (prefix ~= '' and 1 or 0) + #marker + 1
-  vim.api.nvim_win_set_cursor(0, { start_line, cursor_col })
-  vim.cmd('startinsert')
+  -- Position cursor at end of line for typing instructions
+  vim.api.nvim_win_set_cursor(0, { start_line, #marker_text })
+  vim.cmd('startinsert!')
 end
 
----Operatorfunc for gC motion (no context - just line marker)
+-- Track last motion for scope detection
+M._last_motion = nil
+
+---Operatorfunc for gC motion
 ---@param type string 'line', 'char', or 'block'
 function M.operatorfunc(type)
   local start_line = vim.fn.line("'[")
-  M.insert_marker(start_line, nil)
+  local end_line = vim.fn.line("']")
+
+  -- Determine scope from motion type and last_motion hint
+  local scope
+  local motion = M._last_motion
+  M._last_motion = nil
+
+  if motion == 'ip' or motion == 'ap' then
+    scope = 'paragraph'
+  elseif motion == 'iw' or motion == 'aw' or motion == 'iW' or motion == 'aW' then
+    scope = 'word'
+  elseif motion == 'is' or motion == 'as' then
+    scope = 'sentence'
+  elseif motion == 'i}' or motion == 'a}' or motion == 'iB' or motion == 'aB' then
+    scope = 'block'
+  elseif motion == 'if' or motion == 'af' then
+    scope = 'function'
+  elseif type == 'line' and start_line == end_line then
+    scope = 'line'
+  elseif type == 'line' then
+    scope = 'lines'
+  end
+
+  M.insert_marker(start_line, nil, scope)
 end
 
 ---Wrap lines in cc: marker (legacy, for direct calls)
@@ -96,17 +127,60 @@ function M.wrap_lines(start_line, end_line, prompt)
   M.insert_marker(start_line, prompt)
 end
 
+---Get text under motion using marks
+---@return string
+local function get_motion_text()
+  local start_pos = vim.fn.getpos("'[")
+  local end_pos = vim.fn.getpos("']")
+  return get_text(start_pos[2], start_pos[3] - 1, end_pos[2], end_pos[3] - 1)
+end
+
 ---Setup the gC operator
 ---@param opts table|nil Options (key: string to override default 'gC')
 function M.setup(opts)
   opts = opts or {}
   local key = opts.key or 'gC'
 
-  -- Normal mode: gC{motion}
+  -- Generic operator for arbitrary motions (fallback)
   vim.keymap.set('n', key, function()
     vim.o.operatorfunc = "v:lua.require'pairup.operator'.operatorfunc"
     return 'g@'
   end, { expr = true, desc = 'Pairup: wrap in cc: marker' })
+
+  -- Specific text object mappings that capture scope and content
+  local text_objects = {
+    { motion = 'ip', scope = 'paragraph' },
+    { motion = 'ap', scope = 'paragraph' },
+    { motion = 'iw', scope = 'word', capture = true },
+    { motion = 'aw', scope = 'word', capture = true },
+    { motion = 'iW', scope = 'WORD', capture = true },
+    { motion = 'aW', scope = 'WORD', capture = true },
+    { motion = 'is', scope = 'sentence', capture = true },
+    { motion = 'as', scope = 'sentence', capture = true },
+    { motion = 'i}', scope = 'block' },
+    { motion = 'a}', scope = 'block' },
+    { motion = 'i{', scope = 'block' },
+    { motion = 'a{', scope = 'block' },
+    { motion = 'iB', scope = 'block' },
+    { motion = 'aB', scope = 'block' },
+    { motion = 'if', scope = 'function' },
+    { motion = 'af', scope = 'function' },
+  }
+
+  for _, obj in ipairs(text_objects) do
+    vim.keymap.set('n', key .. obj.motion, function()
+      -- Execute the motion in visual mode, then yank to set '[ and '] marks
+      local esc = vim.api.nvim_replace_termcodes('<Esc>', true, false, true)
+      vim.cmd('normal! v' .. obj.motion .. esc)
+      -- Get the visual selection marks (they're '< and '> after visual mode)
+      local start_line = vim.fn.line("'<")
+      local end_line = vim.fn.line("'>")
+      local start_col = vim.fn.col("'<") - 1
+      local end_col = vim.fn.col("'>") - 1
+      local context = obj.capture and get_text(start_line, start_col, end_line, end_col) or nil
+      M.insert_marker(start_line, context, obj.scope)
+    end, { desc = 'Pairup: wrap ' .. obj.scope .. ' in cc: marker' })
+  end
 
   -- Visual mode: gC wraps selection with context
   vim.keymap.set('x', key, function()
@@ -128,13 +202,13 @@ function M.setup(opts)
     -- Exit visual mode
     vim.cmd('normal! ' .. vim.api.nvim_replace_termcodes('<Esc>', true, false, true))
 
-    M.insert_marker(start_line, context)
+    M.insert_marker(start_line, context, 'selection')
   end, { desc = 'Pairup: wrap selection in cc: marker' })
 
   -- Line-wise: gCC wraps current line (like gcc for comments)
   vim.keymap.set('n', key .. key:sub(-1), function()
     local line = vim.fn.line('.')
-    M.wrap_lines(line, line)
+    M.insert_marker(line, nil, 'line')
   end, { desc = 'Pairup: wrap line in cc: marker' })
 end
 
