@@ -13,3 +13,4 @@ Thumbs.db
 # Editor directories
 .vscode/
 .idea/
+luacov.stats.out
