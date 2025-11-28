@@ -22,6 +22,7 @@ M.setup = function(opts)
   require('pairup.utils.indicator').update()
   require('pairup.operator').setup(opts and opts.operator)
   require('pairup.signs').setup()
+  require('pairup.integrations.statusline').setup(config.values)
 end
 
 -- Core functions

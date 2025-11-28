@@ -42,6 +42,11 @@ local defaults = {
     },
     quickfix = true, -- Show uu: questions in quickfix
   },
+
+  -- Statusline integration
+  statusline = {
+    auto_inject = true, -- Auto-inject into lualine if available
+  },
 }
 
 -- Current configuration
