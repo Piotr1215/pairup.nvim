@@ -11,8 +11,6 @@ local hl_ns = vim.api.nvim_create_namespace('pairup_highlight')
 function M.setup()
   -- Define highlight groups for markers
   vim.api.nvim_set_hl(0, 'PairupMarkerCC', { bg = '#3d3200' }) -- yellow/orange for cc:
-  vim.api.nvim_set_hl(0, 'PairupProgress', { bg = '#1a3d1a' }) -- green for C:progress bar and C:ready
-  vim.api.nvim_set_hl(0, 'PairupError', { bg = '#3d1a1a' }) -- red for C:error
 
   -- Define signs
   vim.fn.sign_define('PairupCC', {
@@ -72,33 +70,8 @@ function M.update(bufnr)
   for lnum, line in ipairs(lines) do
     local cc_start = line:find(cc_marker, 1, true)
     local uu_start = line:find(uu_marker, 1, true)
-    local progress_bar = line:match('C:[█░]+')
-    local ready = line:match('C:ready')
-    local pending = line:match('C:pending')
-    local err = line:match('C:error')
 
-    if progress_bar then
-      -- Progress bar - green
-      vim.fn.sign_place(0, sign_group, 'PairupCC', bufnr, { lnum = lnum, priority = 10 })
-      vim.api.nvim_buf_set_extmark(bufnr, hl_ns, lnum - 1, 0, {
-        end_col = #line,
-        hl_group = 'PairupProgress',
-      })
-    elseif err then
-      -- Error - red
-      vim.fn.sign_place(0, sign_group, 'PairupCC', bufnr, { lnum = lnum, priority = 10 })
-      vim.api.nvim_buf_set_extmark(bufnr, hl_ns, lnum - 1, 0, {
-        end_col = #line,
-        hl_group = 'PairupError',
-      })
-    elseif ready or pending then
-      -- Ready/pending - green
-      vim.fn.sign_place(0, sign_group, 'PairupCC', bufnr, { lnum = lnum, priority = 10 })
-      vim.api.nvim_buf_set_extmark(bufnr, hl_ns, lnum - 1, 0, {
-        end_col = #line,
-        hl_group = 'PairupProgress',
-      })
-    elseif cc_start then
+    if cc_start then
       vim.fn.sign_place(0, sign_group, 'PairupCC', bufnr, { lnum = lnum, priority = 10 })
       vim.api.nvim_buf_set_extmark(bufnr, hl_ns, lnum - 1, 0, {
         end_col = #line,

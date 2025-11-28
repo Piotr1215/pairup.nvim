@@ -11,7 +11,7 @@ Inline AI pair programming for Neovim.
 > **Why?** Less complexity, more reliability. Claude edits files directly — no parsing,
 > no overlays, no state management. Just write `cc:`, save, and Claude handles it.
 >
-> **Need the old features?** Use `git checkout legacy-v3` or `git checkout v3.0.0`
+> **Need the old features?** Use `git checkout legacy-v3` or `git checkout v3.0.0`.
 
 ## How It Works
 
@@ -26,34 +26,8 @@ end
 ```
 
 Save → Claude reads the file → executes the instruction → removes the marker.
-The prompt sent to Claude on each save (from `lua/pairup/inline.lua`):
 
-```lua
-File: {filepath}
-
-This file contains inline instructions marked with `cc:`.
-
-RULES:
-1. Read the file and find all `cc:` markers
-2. Execute the instruction at each marker location
-3. Remove the `cc:` line after completing each instruction
-4. If you need clarification, add `uu: <your question>` on a NEW line right after the `cc:` line, then STOP and wait
-5. When you see `uu:` followed by `cc:` answer, act on it and remove BOTH lines
-6. Use the Edit tool to modify the file directly
-7. NEVER respond in the terminal - ALL communication goes in the file as `uu:` comments
-8. Preserve all other code exactly as is
-
-SCOPE HINTS: Markers may include scope hints like `<line>`, `<paragraph>`, `<word>`, `<sentence>`, `<block>`, `<function>`, or `<selection>`.
-These indicate what the instruction applies to:
-- `<line>` - apply to the line immediately below
-- `<paragraph>` - apply to the paragraph below
-- `<word>` or `<sentence>` - the captured text follows the hint (e.g., `cc: <word> myVar <- rename`)
-- `<selection>` - the captured text follows the hint
-- `<block>` or `<function>` - apply to the code block/function below
-
-PROGRESS: ALWAYS run before starting: echo "30:task description" > /tmp/claude_progress
-ALWAYS run when finished: echo "done" > /tmp/claude_progress
-```
+See [`prompt.md`](prompt.md) for the full prompt.
 
 ## Neovim-Native Operator
 
@@ -76,7 +50,7 @@ Use `gC` to insert cc: markers with proper comment syntax for any filetype:
 -- cc: <selection> some_variable <- rename to camelCase
 ```
 
-**Example:** Select "controller configuration" and press `gC`:
+**Example:** Select “controller configuration” and press `gC`:
 ```go
 // cc: <selection> controller configuration <-
 // Config holds the controller configuration
@@ -90,7 +64,7 @@ Markers show in the gutter:
 
 ## Questions
 
-If Claude needs clarification, it adds `uu:` and you can continue discussion by appending `cc:` in response.
+When Claude needs more information, it adds `uu:` and you can continue discussion by appending `cc:` in response.
 
 ```lua
 -- cc: add error handling here
@@ -144,18 +118,14 @@ Key bindings are optional — the plugin works with `:Pairup` commands alone.
 
 ## Status Indicator
 
-The status indicator is updated by Claude via the prompt — Claude writes progress to `/tmp/claude_progress`.
-
-```lua
--- Lualine
-{ function() return vim.g.pairup_indicator or '' end }
-```
+Automatically injected into lualine (or native statusline as fallback). No config needed.
 
 - `[C]` — Claude running
 - `[C:pending]` — Waiting for Claude
-- `[C:queued]` — Save queued
-- `[C:██░░░░░░░░]` — Progress bar (Claude signals estimated duration)
+- `[C:██░░░░░░░░]` — Progress bar
 - `[C:ready]` — Task complete
+
+Disable with `statusline = { auto_inject = false }`.
 
 ## Configuration
 
@@ -181,6 +151,9 @@ require("pairup").setup({
     },
     quickfix = true,
   },
+  statusline = {
+    auto_inject = true, -- auto-inject into lualine/native statusline
+  },
   operator = {
     key = "gC", -- change to override default
   },
@@ -204,8 +177,7 @@ vim.keymap.set('n', '[C', '<Plug>(pairup-prev-marker)')             -- prev mark
 
 ## Requirements
 
-- Neovim 0.9+
-- [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code)
+- Neovim 0.11+, [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code)
 
 ## License
 
