@@ -14,9 +14,6 @@ describe('pairup.utils.indicator', function()
     -- Mock config
     package.loaded['pairup.config'] = {
       get = function(key)
-        if key == 'inline.enabled' then
-          return true
-        end
         return nil
       end,
       get_provider = function()

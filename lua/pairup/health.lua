@@ -99,14 +99,9 @@ end
 local function check_inline_mode()
   local config = require('pairup.config')
 
-  if config.get('inline.enabled') then
-    ok('Inline mode: ENABLED')
-    info('  Command marker: ' .. config.get('inline.markers.command'))
-    info('  Question marker: ' .. config.get('inline.markers.question'))
-  else
-    info('Inline mode: DISABLED')
-    info('  Enable with: require("pairup").setup({ inline = { enabled = true } })')
-  end
+  ok('Inline mode configured')
+  info('  Command marker: ' .. config.get('inline.markers.command'))
+  info('  Question marker: ' .. config.get('inline.markers.question'))
 end
 
 ---Check session status

@@ -153,20 +153,13 @@ function M.update()
   else
     local provider = config.get_provider()
     local prefix = provider:sub(1, 1):upper()
-    local inline_mode = config.get('inline.enabled')
 
-    if inline_mode then
-      if vim.g.pairup_queued then
-        set_indicator(string.format('[%s:queued]', prefix))
-      elseif vim.g.pairup_pending then
-        set_indicator(string.format('[%s:pending]', prefix))
-      else
-        set_indicator(string.format('[%s]', prefix))
-      end
-    elseif config.get('enabled') then
-      set_indicator(string.format('[%s]', prefix))
+    if vim.g.pairup_queued then
+      set_indicator(string.format('[%s:queued]', prefix))
+    elseif vim.g.pairup_pending then
+      set_indicator(string.format('[%s:pending]', prefix))
     else
-      set_indicator(string.format('[%s-off]', prefix))
+      set_indicator(string.format('[%s]', prefix))
     end
   end
 end

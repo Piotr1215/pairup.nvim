@@ -181,10 +181,6 @@ describe('pairup.inline', function()
   end)
 
   describe('config defaults', function()
-    it('should have inline enabled by default', function()
-      assert.is_true(config.get('inline.enabled'))
-    end)
-
     it('should have default markers', function()
       assert.equals('cc:', config.get('inline.markers.command'))
       assert.equals('uu:', config.get('inline.markers.question'))

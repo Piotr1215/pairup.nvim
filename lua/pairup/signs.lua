@@ -11,6 +11,7 @@ local hl_ns = vim.api.nvim_create_namespace('pairup_highlight')
 function M.setup()
   -- Define highlight groups for markers
   vim.api.nvim_set_hl(0, 'PairupMarkerCC', { bg = '#3d3200' }) -- yellow/orange for cc:
+  vim.api.nvim_set_hl(0, 'PairupMarkerUU', { bg = '#1a3a4a' }) -- blue for uu:
 
   -- Define signs
   vim.fn.sign_define('PairupCC', {
@@ -25,11 +26,16 @@ function M.setup()
     numhl = '',
   })
 
-  -- Setup autocmd to update signs
+  -- Setup autocmd to update signs (only when pairup is running)
   vim.api.nvim_create_autocmd({ 'BufEnter', 'BufWritePost', 'TextChanged', 'TextChangedI' }, {
     group = vim.api.nvim_create_augroup('PairupSigns', { clear = true }),
     pattern = '*',
     callback = function(ev)
+      local ok, providers = pcall(require, 'pairup.providers')
+      if not ok or not providers.find_terminal or not providers.find_terminal() then
+        return
+      end
+
       -- Debounce for TextChanged events
       if ev.event == 'TextChanged' or ev.event == 'TextChangedI' then
         vim.defer_fn(function()
@@ -67,18 +73,23 @@ function M.update(bufnr)
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
 
   -- Find markers, place signs, and highlight
+  -- Check uu: first (AI questions) since cc: (user commands) should not override
   for lnum, line in ipairs(lines) do
     local cc_start = line:find(cc_marker, 1, true)
     local uu_start = line:find(uu_marker, 1, true)
 
-    if cc_start then
+    if uu_start then
+      vim.fn.sign_place(0, sign_group, 'PairupUU', bufnr, { lnum = lnum, priority = 10 })
+      vim.api.nvim_buf_set_extmark(bufnr, hl_ns, lnum - 1, 0, {
+        end_col = #line,
+        hl_group = 'PairupMarkerUU',
+      })
+    elseif cc_start then
       vim.fn.sign_place(0, sign_group, 'PairupCC', bufnr, { lnum = lnum, priority = 10 })
       vim.api.nvim_buf_set_extmark(bufnr, hl_ns, lnum - 1, 0, {
         end_col = #line,
         hl_group = 'PairupMarkerCC',
       })
-    elseif uu_start then
-      vim.fn.sign_place(0, sign_group, 'PairupUU', bufnr, { lnum = lnum, priority = 10 })
     end
   end
 end
@@ -89,6 +100,15 @@ function M.clear(bufnr)
   bufnr = bufnr or vim.api.nvim_get_current_buf()
   vim.fn.sign_unplace(sign_group, { buffer = bufnr })
   vim.api.nvim_buf_clear_namespace(bufnr, hl_ns, 0, -1)
+end
+
+---Clear signs and highlights from all buffers
+function M.clear_all()
+  for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_valid(bufnr) then
+      M.clear(bufnr)
+    end
+  end
 end
 
 ---Get all cc: marker line numbers in buffer

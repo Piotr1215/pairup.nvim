@@ -21,12 +21,13 @@ function M.setup()
         return
       end
 
-      if config.get('inline.enabled') then
-        local inline = require('pairup.inline')
-        if inline.has_cc_markers() then
-          inline.process()
-        end
-        inline.update_quickfix()
+      local inline = require('pairup.inline')
+
+      -- Update quickfix and process markers when pairup is running
+      inline.update_quickfix()
+
+      if inline.has_cc_markers() then
+        inline.process()
       end
     end,
   })
@@ -42,10 +43,6 @@ function M.setup()
       -- Snapshot for change highlighting
       local flash = require('pairup.utils.flash')
       flash.snapshot(bufnr)
-
-      if not config.get('inline.enabled') then
-        return
-      end
 
       local filepath = vim.fn.expand('%:p')
       local indicator = require('pairup.utils.indicator')
@@ -69,13 +66,9 @@ function M.setup()
     callback = function(args)
       local bufnr = args.buf
 
-      -- Highlight changed lines (always, not just when inline enabled)
+      -- Highlight changed lines
       local flash = require('pairup.utils.flash')
       flash.highlight_changes(bufnr)
-
-      if not config.get('inline.enabled') then
-        return
-      end
 
       local filepath = vim.fn.expand('%:p')
       local indicator = require('pairup.utils.indicator')

@@ -27,6 +27,8 @@ end
 
 Save → Claude reads the file → executes the instruction → removes the marker.
 
+cc: <line> just testing
+uu: What would you like me to do with this line? (delete it, modify it, add something to it?)
 See [`prompt.md`](prompt.md) for the full prompt.
 
 ## Neovim-Native Operator
@@ -144,7 +146,6 @@ require("pairup").setup({
     interval_ms = 500,
   },
   inline = {
-    enabled = true,
     markers = {
       command = "cc:",
       question = "uu:",

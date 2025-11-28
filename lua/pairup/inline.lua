@@ -21,11 +21,12 @@ function M.detect_markers(bufnr)
   local cc_pattern = config.get('inline.markers.command') or 'cc:'
   local uu_pattern = config.get('inline.markers.question') or 'uu:'
 
+  -- Check uu: first (AI questions) since cc: (user commands) should not override
   for i, line in ipairs(lines) do
-    if line:match(cc_pattern) then
-      table.insert(markers, { line = i, type = 'cc', content = line })
-    elseif line:match(uu_pattern) then
+    if line:match(uu_pattern) then
       table.insert(markers, { line = i, type = 'uu', content = line })
+    elseif line:match(cc_pattern) then
+      table.insert(markers, { line = i, type = 'cc', content = line })
     end
   end
 

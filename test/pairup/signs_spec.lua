@@ -5,6 +5,7 @@ describe('pairup.signs', function()
     -- Reset modules
     package.loaded['pairup.signs'] = nil
     package.loaded['pairup.config'] = nil
+    package.loaded['pairup.providers'] = nil
 
     -- Mock config
     package.loaded['pairup.config'] = {
@@ -15,6 +16,13 @@ describe('pairup.signs', function()
           return 'uu:'
         end
         return nil
+      end,
+    }
+
+    -- Mock providers (tests call update() directly, autocmd checks terminal)
+    package.loaded['pairup.providers'] = {
+      find_terminal = function()
+        return nil -- No terminal in tests, autocmd won't fire
       end,
     }
 

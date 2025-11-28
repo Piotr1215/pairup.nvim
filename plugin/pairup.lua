@@ -106,8 +106,16 @@ vim.keymap.set('n', '<Plug>(pairup-toggle)', function()
 end, { desc = 'Toggle Pairup' })
 
 vim.keymap.set('n', '<Plug>(pairup-questions)', function()
+  -- Toggle quickfix: close if open, update and open if closed
+  for _, win in ipairs(vim.fn.getwininfo()) do
+    if win.quickfix == 1 then
+      vim.cmd('cclose')
+      return
+    end
+  end
   require('pairup.inline').update_quickfix()
-end, { desc = 'Show uu: questions in quickfix' })
+  vim.cmd('copen')
+end, { desc = 'Toggle uu: questions quickfix' })
 
 vim.keymap.set('n', '<Plug>(pairup-inline)', function()
   require('pairup.inline').process()

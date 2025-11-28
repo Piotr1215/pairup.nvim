@@ -75,63 +75,26 @@ function M.start()
     claude_cmd = "echo 'Mock Claude CLI running'"
   end
 
-  local buf, job_id
+  local orig_buf = vim.api.nvim_get_current_buf()
 
-  if config.get('inline.enabled') then
-    local orig_buf = vim.api.nvim_get_current_buf()
+  local buf = vim.api.nvim_create_buf(true, false)
+  vim.api.nvim_set_current_buf(buf)
 
-    buf = vim.api.nvim_create_buf(true, false)
-    vim.api.nvim_set_current_buf(buf)
+  local job_id = vim.fn.termopen(claude_cmd, { cwd = cwd })
 
-    job_id = vim.fn.termopen(claude_cmd, { cwd = cwd })
-
-    if job_id <= 0 then
-      vim.api.nvim_set_current_buf(orig_buf)
-      vim.api.nvim_buf_delete(buf, { force = true })
-      return false
-    end
-
-    vim.b[buf].is_pairup_assistant = true
-    vim.b[buf].provider = 'claude'
-    vim.b[buf].terminal_job_id = job_id
-
+  if job_id <= 0 then
     vim.api.nvim_set_current_buf(orig_buf)
-
-    M.setup_terminal_keymaps(buf)
-    require('pairup.utils.indicator').update()
-
-    return true
+    vim.api.nvim_buf_delete(buf, { force = true })
+    return false
   end
 
-  -- Visible terminal mode
-  local width = math.floor(vim.o.columns * config.get('terminal.split_width'))
-  local position = config.get('terminal.split_position') == 'left' and 'leftabove' or 'rightbelow'
-
-  vim.cmd(string.format('%s %dvsplit term://%s//%s', position, width, cwd, claude_cmd))
-
-  buf = vim.api.nvim_get_current_buf()
   vim.b[buf].is_pairup_assistant = true
   vim.b[buf].provider = 'claude'
-  vim.b[buf].terminal_job_id = vim.b[buf].terminal_job_id or vim.api.nvim_buf_get_var(buf, 'terminal_job_id')
+  vim.b[buf].terminal_job_id = job_id
 
-  if config.get('terminal.auto_insert') then
-    vim.cmd('startinsert')
-
-    vim.api.nvim_create_autocmd('BufEnter', {
-      buffer = buf,
-      callback = function()
-        vim.cmd('startinsert')
-      end,
-    })
-  end
+  vim.api.nvim_set_current_buf(orig_buf)
 
   M.setup_terminal_keymaps(buf)
-
-  if config.get('terminal.auto_insert') then
-    vim.cmd('stopinsert')
-  end
-  vim.cmd('wincmd p')
-
   require('pairup.utils.indicator').update()
 
   return true
@@ -198,6 +161,10 @@ function M.stop()
   end
 
   vim.api.nvim_buf_delete(buf, { force = true })
+
+  -- Clear signs and quickfix when pairup stops
+  require('pairup.signs').clear_all()
+  vim.fn.setqflist({}, 'r')
 
   require('pairup.utils.indicator').update()
 end

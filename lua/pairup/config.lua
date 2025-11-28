@@ -35,7 +35,6 @@ local defaults = {
 
   -- Inline editing (cc:/uu: markers)
   inline = {
-    enabled = true,
     markers = {
       command = 'cc:', -- User command marker
       question = 'uu:', -- Claude question marker
