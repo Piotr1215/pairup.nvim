@@ -122,6 +122,11 @@ function M.start()
   vim.g.pairup_terminal_buf = buf
   vim.g.pairup_terminal_job = job_id
 
+  -- Respect auto_insert setting: exit terminal mode if disabled
+  if not config.get('terminal.auto_insert') then
+    vim.cmd('stopinsert')
+  end
+
   vim.api.nvim_set_current_buf(orig_buf)
 
   M.setup_terminal_keymaps(buf)
@@ -164,6 +169,10 @@ function M.toggle()
     local position = config.get('terminal.split_position') == 'left' and 'leftabove' or 'rightbelow'
     vim.cmd(string.format('%s %dvsplit', position, width))
     vim.api.nvim_set_current_buf(buf)
+    -- Respect auto_insert setting
+    if not config.get('terminal.auto_insert') then
+      vim.cmd('stopinsert')
+    end
     vim.cmd('wincmd p')
     require('pairup.utils.indicator').update()
     return false

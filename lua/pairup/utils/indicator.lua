@@ -4,7 +4,6 @@ local M = {}
 local config = require('pairup.config')
 
 -- Progress state
-local progress_file = '/tmp/claude_progress'
 local bar_width = 10
 local bar_filled = '█'
 local bar_empty = '░'
@@ -46,8 +45,22 @@ local function update_progress()
   end
 end
 
+---Get progress file path from config
+---@return string|nil
+local function get_progress_file()
+  if not config.get('progress.enabled') then
+    return nil
+  end
+  return config.get('progress.file')
+end
+
 ---Check for progress file and start timer
 local function check_progress_file()
+  local progress_file = get_progress_file()
+  if not progress_file then
+    return
+  end
+
   -- Check file modification time first
   local stat = vim.loop.fs_stat(progress_file)
   if not stat then

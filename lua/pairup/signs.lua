@@ -9,9 +9,26 @@ local hl_ns = vim.api.nvim_create_namespace('pairup_highlight')
 
 ---Setup sign definitions
 function M.setup()
-  -- Define highlight groups for markers
-  vim.api.nvim_set_hl(0, 'PairupMarkerCC', { bg = '#3d3200' }) -- yellow/orange for cc:
-  vim.api.nvim_set_hl(0, 'PairupMarkerUU', { bg = '#1a3a4a' }) -- blue for uu:
+  -- Define highlight groups for markers (respects light/dark background)
+  -- Users can override these in their colorscheme with:
+  --   vim.api.nvim_set_hl(0, 'PairupMarkerCC', { ... })
+  --   vim.api.nvim_set_hl(0, 'PairupMarkerUU', { ... })
+  local is_light = vim.o.background == 'light'
+
+  -- Only set defaults if user hasn't defined them
+  local cc_hl = vim.api.nvim_get_hl(0, { name = 'PairupMarkerCC' })
+  if vim.tbl_isempty(cc_hl) then
+    vim.api.nvim_set_hl(0, 'PairupMarkerCC', {
+      bg = is_light and '#fff3cd' or '#3d3200', -- yellow/orange for cc:
+    })
+  end
+
+  local uu_hl = vim.api.nvim_get_hl(0, { name = 'PairupMarkerUU' })
+  if vim.tbl_isempty(uu_hl) then
+    vim.api.nvim_set_hl(0, 'PairupMarkerUU', {
+      bg = is_light and '#cfe2ff' or '#1a3a4a', -- blue for uu:
+    })
+  end
 
   -- Define signs
   vim.fn.sign_define('PairupCC', {

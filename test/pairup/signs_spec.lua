@@ -48,6 +48,52 @@ describe('pairup.signs', function()
       assert.are.equal(1, #defined)
       assert.are.equal('PairupUU', defined[1].name)
     end)
+
+    it('should set dark theme highlights when background is dark', function()
+      vim.o.background = 'dark'
+      -- Clear any existing highlights
+      vim.api.nvim_set_hl(0, 'PairupMarkerCC', {})
+      vim.api.nvim_set_hl(0, 'PairupMarkerUU', {})
+
+      signs.setup()
+
+      local cc_hl = vim.api.nvim_get_hl(0, { name = 'PairupMarkerCC' })
+      local uu_hl = vim.api.nvim_get_hl(0, { name = 'PairupMarkerUU' })
+
+      -- Dark theme colors
+      assert.is_not_nil(cc_hl.bg)
+      assert.is_not_nil(uu_hl.bg)
+    end)
+
+    it('should set light theme highlights when background is light', function()
+      vim.o.background = 'light'
+      -- Clear any existing highlights
+      vim.api.nvim_set_hl(0, 'PairupMarkerCC', {})
+      vim.api.nvim_set_hl(0, 'PairupMarkerUU', {})
+
+      signs.setup()
+
+      local cc_hl = vim.api.nvim_get_hl(0, { name = 'PairupMarkerCC' })
+      local uu_hl = vim.api.nvim_get_hl(0, { name = 'PairupMarkerUU' })
+
+      -- Light theme colors (different from dark)
+      assert.is_not_nil(cc_hl.bg)
+      assert.is_not_nil(uu_hl.bg)
+
+      -- Restore
+      vim.o.background = 'dark'
+    end)
+
+    it('should not override user-defined highlight groups', function()
+      -- User defines custom highlight before setup
+      vim.api.nvim_set_hl(0, 'PairupMarkerCC', { bg = '#ff0000' })
+
+      signs.setup()
+
+      local cc_hl = vim.api.nvim_get_hl(0, { name = 'PairupMarkerCC' })
+      -- Should preserve user's red color (0xff0000 = 16711680)
+      assert.are.equal(16711680, cc_hl.bg)
+    end)
   end)
 
   describe('update', function()

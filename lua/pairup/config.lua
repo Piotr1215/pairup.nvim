@@ -9,6 +9,7 @@ local defaults = {
   -- Provider configurations
   providers = {
     claude = {
+      -- Full command with flags, e.g.: "claude --permission-mode acceptEdits"
       path = vim.fn.exepath('claude') or 'claude',
     },
   },
@@ -23,7 +24,7 @@ local defaults = {
   terminal = {
     split_position = 'left',
     split_width = 0.4, -- 40% for AI, 60% for editor
-    auto_insert = true,
+    auto_insert = false, -- Enter insert mode when opening terminal
     auto_scroll = true,
   },
 
@@ -45,6 +46,13 @@ local defaults = {
   -- Statusline integration
   statusline = {
     auto_inject = true, -- Auto-inject into lualine if available
+  },
+
+  -- Progress indicator (optional, disabled by default)
+  -- When enabled, user must grant Claude write access: --add-dir /tmp
+  progress = {
+    enabled = false,
+    file = '/tmp/claude_progress',
   },
 }
 

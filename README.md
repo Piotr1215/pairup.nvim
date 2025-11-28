@@ -27,8 +27,6 @@ end
 
 Save → Claude reads the file → executes the instruction → removes the marker.
 
-cc: <line> just testing
-uu: What would you like me to do with this line? (delete it, modify it, add something to it?)
 See [`prompt.md`](prompt.md) for the full prompt.
 
 ## Neovim-Native Operator
@@ -78,7 +76,7 @@ end
 
 ## Installation
 
-Key bindings are optional — the plugin works with `:Pairup` commands alone.
+Key bindings are optional — the plugin works with `:Pairup` commands alone. 
 
 ```lua
 -- lazy.nvim
@@ -95,7 +93,7 @@ Key bindings are optional — the plugin works with `:Pairup` commands alone.
     require("pairup").setup({
       providers = {
         claude = {
-          path = "claude", -- or your custom path
+          path = "claude --permission-mode acceptEdits",
         },
       },
     })
@@ -120,26 +118,41 @@ Key bindings are optional — the plugin works with `:Pairup` commands alone.
 
 ## Status Indicator
 
-Automatically injected into lualine (or native statusline as fallback). No config needed.
+Automatically injected into lualine (or native statusline if no lualine). No config needed.
 
 - `[C]` — Claude running
 - `[C:pending]` — Waiting for Claude
 - `[C:██░░░░░░░░]` — Progress bar
 - `[C:ready]` — Task complete
 
-Disable with `statusline = { auto_inject = false }`.
+**Manual setup** (only if you disable auto-inject or use a custom statusline plugin):
+```lua
+-- Disable auto-inject
+require("pairup").setup({ statusline = { auto_inject = false } })
+
+-- Add to native statusline manually
+vim.o.statusline = '%f %m%=%{g:pairup_indicator} %l:%c'
+```
 
 ## Configuration
+
+**Default:** The `--permission-mode acceptEdits` flag is included by default. This allows Claude to edit files without prompting for confirmation on each change, which is required for the inline editing workflow to function smoothly.
+
+All settings below are defaults. You only need to include values you want to change:
 
 ```lua
 require("pairup").setup({
   provider = "claude",
   providers = {
-    claude = { path = "claude" },
+    claude = {
+      -- Full command with flags
+      path = "claude --permission-mode acceptEdits",
+    },
   },
   terminal = {
     split_position = "left",
     split_width = 0.4,
+    auto_insert = false, -- Enter insert mode when opening terminal
   },
   auto_refresh = {
     enabled = true,
@@ -155,13 +168,31 @@ require("pairup").setup({
   statusline = {
     auto_inject = true, -- auto-inject into lualine/native statusline
   },
+  -- Progress bar (optional, disabled by default)
+  -- NOTE: When enabled, YOU must grant Claude write access to the progress file directory.
+  -- Add to your claude command: --add-dir /tmp (or your custom path)
+  progress = {
+    enabled = false,
+    file = "/tmp/claude_progress", -- Default path, change if needed
+  },
   operator = {
     key = "gC", -- change to override default
   },
 })
 ```
 
-## Plug Mappings
+### Highlight Groups
+
+Customizable highlight groups (respects light/dark background by default):
+
+```lua
+-- In your colorscheme or after/plugin/colors.lua:
+vim.api.nvim_set_hl(0, 'PairupMarkerCC', { bg = '#your_color' }) -- cc: marker line
+vim.api.nvim_set_hl(0, 'PairupMarkerUU', { bg = '#your_color' }) -- uu: marker line
+vim.api.nvim_set_hl(0, 'PairupFlash', { bg = '#your_color' })    -- changed lines flash
+```
+
+### Plug Mappings
 
 Available `<Plug>` mappings for custom keybindings:
 
@@ -178,7 +209,8 @@ vim.keymap.set('n', '[C', '<Plug>(pairup-prev-marker)')             -- prev mark
 
 ## Requirements
 
-- Neovim 0.11+, [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code)
+- Neovim 0.11+ 
+- [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code)
 
 ## License
 

@@ -5,8 +5,19 @@ local M = {}
 local buffer_snapshots = {} -- bufnr -> { lines = {}, mtime = number }
 local ns = vim.api.nvim_create_namespace('pairup_flash')
 
--- Define highlight group
-vim.api.nvim_set_hl(0, 'PairupFlash', { bg = '#2d4f2d' }) -- subtle green
+---Setup flash highlight (respects light/dark background)
+---Users can override with: vim.api.nvim_set_hl(0, 'PairupFlash', { ... })
+local function setup_highlight()
+  local existing = vim.api.nvim_get_hl(0, { name = 'PairupFlash' })
+  if vim.tbl_isempty(existing) then
+    local is_light = vim.o.background == 'light'
+    vim.api.nvim_set_hl(0, 'PairupFlash', {
+      bg = is_light and '#d4edda' or '#2d4f2d', -- subtle green
+    })
+  end
+end
+
+setup_highlight()
 
 ---Get file mtime
 ---@param bufnr integer
