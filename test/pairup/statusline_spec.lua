@@ -1,30 +1,40 @@
 describe('pairup.statusline', function()
   local statusline
+  local original_statusline
 
   before_each(function()
     -- Reset module state
     package.loaded['pairup.integrations.statusline'] = nil
     statusline = require('pairup.integrations.statusline')
     vim.g.pairup_indicator = nil
-    vim.o.statusline = ''
+    -- Save original statusline (may be non-empty on nightly)
+    original_statusline = vim.o.statusline
+  end)
+
+  after_each(function()
+    -- Restore original statusline
+    vim.o.statusline = original_statusline
   end)
 
   describe('setup', function()
     it('should respect auto_inject = false', function()
+      local before = vim.o.statusline
       statusline.setup({ statusline = { auto_inject = false } })
       -- Should not modify statusline when disabled
-      assert.equals('', vim.o.statusline)
+      assert.equals(before, vim.o.statusline)
     end)
 
     it('should inject into native statusline when lualine not loaded', function()
       -- Ensure lualine is not loaded
       package.loaded['lualine'] = nil
+      -- Clear statusline to trigger our custom injection
+      vim.o.statusline = ''
 
       statusline.setup({})
 
-      -- Need to wait for vim.schedule
+      -- Need to wait for vim.schedule to inject pairup_indicator
       vim.wait(100, function()
-        return vim.o.statusline ~= ''
+        return vim.o.statusline:match('pairup_indicator') ~= nil
       end)
 
       assert.truthy(vim.o.statusline:match('pairup_indicator'))
