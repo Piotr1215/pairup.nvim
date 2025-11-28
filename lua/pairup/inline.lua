@@ -89,8 +89,13 @@ These indicate what the instruction applies to:
 - `<selection>` - the captured text follows the hint
 - `<block>` or `<function>` - apply to the code block/function below
 
-PROGRESS: ALWAYS run before starting: echo "30:task description" > /tmp/claude_progress
-ALWAYS run when finished: echo "done" > /tmp/claude_progress
+PROGRESS INDICATOR (MANDATORY):
+Update /tmp/claude_progress for EVERY task you perform:
+- Format: echo "SECONDS:description" > /tmp/claude_progress
+- SECONDS = estimated time remaining for current task
+- Update BEFORE each tool call with what you're doing
+- When ALL work is complete: echo "done" > /tmp/claude_progress
+Example: echo "5:editing function" > /tmp/claude_progress
 ]],
     filepath,
     cc_marker,
