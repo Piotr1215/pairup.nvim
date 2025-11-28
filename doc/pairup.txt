@@ -1,49 +1,133 @@
-*pairup.txt*	Inline AI pair programming for Neovim
-
-Author: Piotr1215
-License: MIT
+*pairup.txt*                             Inline AI pair programming for Neovim
 
 ==============================================================================
-CONTENTS                                                    *pairup-contents*
+Table of Contents                                   *pairup-table-of-contents*
 
-1. Introduction........................|pairup-introduction|
-2. Requirements........................|pairup-requirements|
-3. Installation........................|pairup-installation|
-4. Configuration.......................|pairup-configuration|
-5. Commands............................|pairup-commands|
-6. Operator............................|pairup-operator|
-7. Signs...............................|pairup-signs|
-8. Statusline..........................|pairup-statusline|
-9. Plug Mappings.......................|pairup-plug-mappings|
+1. pairup.nvim                                            |pairup-pairup.nvim|
+  - How It Works                             |pairup-pairup.nvim-how-it-works|
+  - Neovim-Native Operator         |pairup-pairup.nvim-neovim-native-operator|
+  - Signs                                           |pairup-pairup.nvim-signs|
+  - Questions                                   |pairup-pairup.nvim-questions|
+  - Installation                             |pairup-pairup.nvim-installation|
+  - Commands                                     |pairup-pairup.nvim-commands|
+  - Status Indicator                     |pairup-pairup.nvim-status-indicator|
+  - Configuration                           |pairup-pairup.nvim-configuration|
+  - Requirements                             |pairup-pairup.nvim-requirements|
+  - License                                       |pairup-pairup.nvim-license|
 
 ==============================================================================
-1. INTRODUCTION                                         *pairup-introduction*
+1. pairup.nvim                                            *pairup-pairup.nvim*
 
-Pairup.nvim is a Neovim plugin for inline AI pair programming. Write `cc:`
-markers anywhere in your code, save, and Claude edits the file directly.
+Inline AI pair programming for Neovim.
 
-Example: >
+
+  **Breaking Changes in v4.0**
+  Thisversion removes the overlay system, sessions, RPC, and marker-based
+  suggestions to focus on one thing: simple inline editing with `cc:`/`uu:`
+  markers. See v4-architecture.md <./v4-architecture.md> for details.
+  **Why?** Less complexity, more reliability. Claude edits files directly — no
+  parsing, no overlays, no state management. Just write `cc:`, save, and Claude
+  handles it.
+  **Need the old features?** Use `git checkout legacy-v3` or `git checkout
+  v3.0.0`.
+
+HOW IT WORKS                                 *pairup-pairup.nvim-how-it-works*
+
+Write `cc:` markers anywhere in your code, save, and Claude edits the file
+directly.
+
+>lua
     -- cc: add error handling here
     -- uu: Should I use pcall or assert?
     function process(data)
       return data.value
     end
+<
 
-Save -> Claude reads the file -> executes the instruction -> removes the marker.
+Save → Claude reads the file → executes the instruction → removes the
+marker.
 
-When Claude needs more information, it adds `uu:` markers and you can continue
-the discussion by appending `cc:` in response.
+See `prompt.md` <prompt.md> for the full prompt.
 
-==============================================================================
-2. REQUIREMENTS                                         *pairup-requirements*
 
-- Neovim 0.11+
-- Claude Code CLI (https://docs.anthropic.com/en/docs/claude-code)
+NEOVIM-NATIVE OPERATOR             *pairup-pairup.nvim-neovim-native-operator*
 
-==============================================================================
-3. INSTALLATION                                         *pairup-installation*
+Use `gC` to insert cc: markers with proper comment syntax for any filetype:
 
-Using lazy.nvim: >
+  -------------------------------------------------------------------------
+  Keybinding         Action       Scope Hint         Captures Text
+  ------------------ ------------ ------------------ ----------------------
+  gCC                Insert       <line>             No
+                     marker above                    
+                     current line                    
+
+  gCip/gCap          Insert       <paragraph>        No
+                     marker for                      
+                     paragraph                       
+
+  gCiw/gCaw          Insert       <word>             Yes
+                     marker for                      
+                     word                            
+
+  gCis/gCas          Insert       <sentence>         Yes
+                     marker for                      
+                     sentence                        
+
+  gCi}/gCa}          Insert       <block>            No
+                     marker for                      
+                     block                           
+
+  gCif/gCaf          Insert       <function>         No
+                     marker for                      
+                     function                        
+
+  gC (visual)        Insert       <selection>        Yes
+                     marker with                     
+                     selected                        
+                     text                            
+  -------------------------------------------------------------------------
+**Scope hints** tell Claude what the instruction applies to:
+
+>lua
+    -- cc: <paragraph> refactor this section
+    -- cc: <line> add error handling
+    -- cc: <selection> some_variable <- rename to camelCase
+<
+
+**Example:** Select "controller configuration" and press `gC`:
+
+>go
+    // cc: <selection> controller configuration <-
+    // Config holds the controller configuration
+<
+
+
+SIGNS                                               *pairup-pairup.nvim-signs*
+
+Markers show in the gutter: - 󰭻 (yellow) — `cc:` command marker - 󰞋
+(blue) — `uu:` question marker
+
+
+QUESTIONS                                       *pairup-pairup.nvim-questions*
+
+When Claude needs more information, it adds `uu:` and you can continue
+discussion by appending `cc:` in response.
+
+>lua
+    -- cc: add error handling here
+    -- uu: Should I use pcall or assert?
+    function process(data)
+      return data.value
+    end
+<
+
+
+INSTALLATION                                 *pairup-pairup.nvim-installation*
+
+Key bindings are optional — the plugin works with `:Pairup` commands alone.
+
+>lua
+    -- lazy.nvim
     {
       "Piotr1215/pairup.nvim",
       cmd = { "Pairup" },
@@ -54,18 +138,65 @@ Using lazy.nvim: >
         { "<leader>cx", "<cmd>Pairup stop<cr>", desc = "Stop Claude" },
       },
       config = function()
-        require("pairup").setup({
-          -- Default config works out of the box
-        })
+        require("pairup").setup()
+        -- Default works out of the box. Override only if needed:
+        -- require("pairup").setup({
+        --   providers = {
+        --     claude = { cmd = "claude --permission-mode plan" },
+        --   },
+        -- })
       end,
     }
+<
 
-==============================================================================
-4. CONFIGURATION                                       *pairup-configuration*
 
-The `--permission-mode acceptEdits` flag is included by default.
+COMMANDS                                         *pairup-pairup.nvim-commands*
 
-All settings below are defaults: >
+`:Pairup <subcommand>`
+
+  Command     Description
+  ----------- --------------------------------
+  start       Start Claude (hidden terminal)
+  stop        Stop Claude
+  toggle      Show/hide terminal
+  say <msg>   Send message to Claude
+  questions   Show uu: in quickfix
+  inline      Manual cc: trigger
+  diff        Send git diff to Claude
+  lsp         Send LSP diagnostics to Claude
+
+STATUS INDICATOR                         *pairup-pairup.nvim-status-indicator*
+
+Automatically injected into lualine (or native statusline if no lualine). No
+config needed.
+
+- `[C]` — Claude running
+- `[C:pending]` — Waiting for Claude
+- `[C:██░░░░░░░░]` — Progress bar
+- `[C:ready]` — Task complete
+
+**Manual setup** (only if you disable auto-inject or use a custom statusline
+plugin):
+
+>lua
+    -- Disable auto-inject
+    require("pairup").setup({ statusline = { auto_inject = false } })
+    
+    -- Add to native statusline manually
+    vim.o.statusline = '%f %m%=%{g:pairup_indicator} %l:%c'
+<
+
+
+CONFIGURATION                               *pairup-pairup.nvim-configuration*
+
+**Default:** The `--permission-mode acceptEdits` flag is included by default.
+This allows Claude to edit files without prompting for confirmation on each
+change, which is required for the inline editing workflow to function smoothly.
+
+All settings below are defaults. You only need to include values you want to
+change:
+
+>lua
     require("pairup").setup({
       provider = "claude",
       providers = {
@@ -77,7 +208,7 @@ All settings below are defaults: >
       terminal = {
         split_position = "left",
         split_width = 0.4,
-        auto_insert = false,
+        auto_insert = false, -- Enter insert mode when opening terminal
       },
       auto_refresh = {
         enabled = true,
@@ -91,111 +222,60 @@ All settings below are defaults: >
         quickfix = true,
       },
       statusline = {
-        auto_inject = true,
+        auto_inject = true, -- auto-inject into lualine/native statusline
       },
       -- Progress bar (optional, disabled by default)
-      -- When enabled, add --add-dir /tmp to your command
+      -- NOTE: When enabled, YOU must grant Claude write access to the progress file directory.
+      -- Add to your claude command: --add-dir /tmp (or your custom path)
       progress = {
         enabled = false,
-        file = "/tmp/claude_progress",
+        file = "/tmp/claude_progress", -- Default path, change if needed
       },
       operator = {
-        key = "gC",
+        key = "gC", -- change to override default
       },
     })
+<
 
-                                                    *pairup-highlight-groups*
-Highlight Groups ~
 
-Customizable highlight groups: >
-    vim.api.nvim_set_hl(0, 'PairupMarkerCC', { bg = '#your_color' })
-    vim.api.nvim_set_hl(0, 'PairupMarkerUU', { bg = '#your_color' })
-    vim.api.nvim_set_hl(0, 'PairupFlash', { bg = '#your_color' })
+HIGHLIGHT GROUPS ~
 
-==============================================================================
-5. COMMANDS                                                 *pairup-commands*
+Customizable highlight groups (respects light/dark background by default):
 
-:Pairup start                                                  *:Pairup-start*
-    Start Claude (hidden terminal).
+>lua
+    -- In your colorscheme or after/plugin/colors.lua:
+    vim.api.nvim_set_hl(0, 'PairupMarkerCC', { bg = '#your_color' }) -- cc: marker line
+    vim.api.nvim_set_hl(0, 'PairupMarkerUU', { bg = '#your_color' }) -- uu: marker line
+    vim.api.nvim_set_hl(0, 'PairupFlash', { bg = '#your_color' })    -- changed lines flash
+<
 
-:Pairup stop                                                    *:Pairup-stop*
-    Stop Claude.
 
-:Pairup toggle                                                *:Pairup-toggle*
-    Show/hide terminal.
+PLUG MAPPINGS ~
 
-:Pairup say {msg}                                                *:Pairup-say*
-    Send message to Claude.
+Available `<Plug>` mappings for custom keybindings:
 
-:Pairup questions                                          *:Pairup-questions*
-    Show `uu:` markers in quickfix.
+>lua
+    vim.keymap.set('n', '<leader>cc', '<Plug>(pairup-toggle-session)')  -- start/stop
+    vim.keymap.set('n', '<leader>ct', '<Plug>(pairup-toggle)')          -- show/hide terminal
+    vim.keymap.set('n', '<leader>cl', '<Plug>(pairup-lsp)')             -- send LSP diagnostics
+    vim.keymap.set('n', '<leader>cd', '<Plug>(pairup-diff)')            -- send git diff
+    vim.keymap.set('n', '<leader>cq', '<Plug>(pairup-questions)')       -- show uu: in quickfix
+    vim.keymap.set('n', '<leader>ci', '<Plug>(pairup-inline)')          -- process cc: markers
+    vim.keymap.set('n', ']C', '<Plug>(pairup-next-marker)')             -- next marker
+    vim.keymap.set('n', '[C', '<Plug>(pairup-prev-marker)')             -- prev marker
+<
 
-:Pairup inline                                                *:Pairup-inline*
-    Manual cc: trigger.
 
-:Pairup diff                                                    *:Pairup-diff*
-    Send git diff to Claude.
+REQUIREMENTS                                 *pairup-pairup.nvim-requirements*
 
-:Pairup lsp                                                      *:Pairup-lsp*
-    Send LSP diagnostics to Claude.
+- Neovim 0.11+
+- Claude Code CLI <https://docs.anthropic.com/en/docs/claude-code>
 
-==============================================================================
-6. OPERATOR                                                 *pairup-operator*
 
-Use `gC` to insert cc: markers with proper comment syntax for any filetype.
+LICENSE                                           *pairup-pairup.nvim-license*
 
-gCC                     Insert marker above current line (scope: <line>)
-gCip / gCap             Insert marker for paragraph (scope: <paragraph>)
-gCiw / gCaw             Insert marker for word (scope: <word>, captures text)
-gCis / gCas             Insert marker for sentence (scope: <sentence>)
-gCi} / gCa}             Insert marker for block (scope: <block>)
-gCif / gCaf             Insert marker for function (scope: <function>)
-gC (visual)             Insert marker with selected text (scope: <selection>)
+MIT
 
-Scope hints tell Claude what the instruction applies to: >
-    -- cc: <paragraph> refactor this section
-    -- cc: <line> add error handling
-    -- cc: <selection> some_variable <- rename to camelCase
+Generated by panvimdoc <https://github.com/kdheepak/panvimdoc>
 
-==============================================================================
-7. SIGNS                                                       *pairup-signs*
-
-Markers show in the gutter:
-- 󰭻 (yellow) - `cc:` command marker
-- 󰞋 (blue) - `uu:` question marker
-
-Navigation:
-]C                      Jump to next cc:/uu: marker
-[C                      Jump to previous cc:/uu: marker
-
-==============================================================================
-8. STATUSLINE                                             *pairup-statusline*
-
-Automatically injected into lualine (or native statusline if no lualine).
-
-- [C]           Claude running
-- [C:pending]   Waiting for Claude
-- [C:██░░░░░░░░] Progress bar
-- [C:ready]     Task complete
-
-To disable auto-inject: >
-    require("pairup").setup({ statusline = { auto_inject = false } })
-
-    -- Add to native statusline manually
-    vim.o.statusline = '%f %m%=%{g:pairup_indicator} %l:%c'
-
-==============================================================================
-9. PLUG MAPPINGS                                       *pairup-plug-mappings*
-
-Available <Plug> mappings for custom keybindings: >
-    vim.keymap.set('n', '<leader>cc', '<Plug>(pairup-toggle-session)')
-    vim.keymap.set('n', '<leader>ct', '<Plug>(pairup-toggle)')
-    vim.keymap.set('n', '<leader>cl', '<Plug>(pairup-lsp)')
-    vim.keymap.set('n', '<leader>cd', '<Plug>(pairup-diff)')
-    vim.keymap.set('n', '<leader>cq', '<Plug>(pairup-questions)')
-    vim.keymap.set('n', '<leader>ci', '<Plug>(pairup-inline)')
-    vim.keymap.set('n', ']C', '<Plug>(pairup-next-marker)')
-    vim.keymap.set('n', '[C', '<Plug>(pairup-prev-marker)')
-
-==============================================================================
-vim:tw=78:ts=8:ft=help:norl:
+vim:tw=78:ts=8:noet:ft=help:norl:
