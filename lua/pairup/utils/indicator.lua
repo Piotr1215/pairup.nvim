@@ -231,4 +231,19 @@ function M.setup()
   )
 end
 
+--- Cleanup timers on plugin unload
+function M.cleanup()
+  -- Stop file watcher
+  if file_watcher then
+    if not file_watcher:is_closing() then
+      file_watcher:stop()
+      file_watcher:close()
+    end
+    file_watcher = nil
+  end
+  -- Stop active progress timer
+  M.stop_progress()
+  last_file_mtime = nil
+end
+
 return M

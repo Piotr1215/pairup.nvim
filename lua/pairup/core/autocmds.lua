@@ -4,6 +4,9 @@ local M = {}
 local config = require('pairup.config')
 local providers = require('pairup.providers')
 
+-- Timer reference for cleanup
+local refresh_timer = nil
+
 function M.setup()
   vim.api.nvim_create_augroup('Pairup', { clear = true })
 
@@ -123,8 +126,8 @@ function M.setup()
 
     local interval = config.get('auto_refresh.interval_ms')
     if interval and interval > 0 then
-      local timer = vim.loop.new_timer()
-      timer:start(
+      refresh_timer = vim.loop.new_timer()
+      refresh_timer:start(
         interval,
         interval,
         vim.schedule_wrap(function()
@@ -135,6 +138,17 @@ function M.setup()
         end)
       )
     end
+  end
+end
+
+--- Cleanup timers on plugin unload
+function M.cleanup()
+  if refresh_timer then
+    if not refresh_timer:is_closing() then
+      refresh_timer:stop()
+      refresh_timer:close()
+    end
+    refresh_timer = nil
   end
 end
 

@@ -22,10 +22,11 @@ function M.detect_markers(bufnr)
   local uu_pattern = config.get('inline.markers.question') or 'uu:'
 
   -- Check uu: first (AI questions) since cc: (user commands) should not override
+  -- Use find with plain=true for literal matching (markers may contain magic chars)
   for i, line in ipairs(lines) do
-    if line:match(uu_pattern) then
+    if line:find(uu_pattern, 1, true) then
       table.insert(markers, { line = i, type = 'uu', content = line })
-    elseif line:match(cc_pattern) then
+    elseif line:find(cc_pattern, 1, true) then
       table.insert(markers, { line = i, type = 'cc', content = line })
     end
   end

@@ -8,7 +8,7 @@ local config = require('pairup.config')
 ---Get the cc: marker from config
 ---@return string
 local function get_marker()
-  return config.get('inline.cc_marker') or 'cc:'
+  return config.get('inline.markers.command') or 'cc:'
 end
 
 ---Get text from range
@@ -125,14 +125,6 @@ end
 ---@param prompt string|nil Optional prompt text
 function M.wrap_lines(start_line, end_line, prompt)
   M.insert_marker(start_line, prompt)
-end
-
----Get text under motion using marks
----@return string
-local function get_motion_text()
-  local start_pos = vim.fn.getpos("'[")
-  local end_pos = vim.fn.getpos("']")
-  return get_text(start_pos[2], start_pos[3] - 1, end_pos[2], end_pos[3] - 1)
 end
 
 ---Setup the gC operator

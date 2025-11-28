@@ -9,7 +9,7 @@ describe('pairup.operator', function()
     -- Mock config
     package.loaded['pairup.config'] = {
       get = function(key)
-        if key == 'inline.cc_marker' then
+        if key == 'inline.markers.command' then
           return 'cc:'
         end
         return nil
@@ -46,7 +46,7 @@ describe('pairup.operator', function()
       -- Override config
       package.loaded['pairup.config'] = {
         get = function(key)
-          if key == 'inline.cc_marker' then
+          if key == 'inline.markers.command' then
             return 'CLAUDE:'
           end
           return nil

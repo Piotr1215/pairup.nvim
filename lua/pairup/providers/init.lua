@@ -35,9 +35,14 @@ end
 function M.toggle()
   if M.current then
     return M.current.toggle()
-  else
-    return M.start()
   end
+  -- No current provider - try to start one
+  local success = M.start()
+  if success then
+    -- After successful start, toggle to show the terminal
+    return M.current and M.current.toggle()
+  end
+  return false
 end
 
 function M.stop()

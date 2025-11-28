@@ -1,7 +1,6 @@
 -- Git utilities for pairup.nvim
 
 local M = {}
-local config = require('pairup.config')
 
 -- Get git root directory
 function M.get_root()
@@ -10,21 +9,6 @@ function M.get_root()
     return git_root
   end
   return nil
-end
-
--- Check if file is in git repo
-function M.is_in_repo(filepath)
-  local result = vim.fn.system(
-    string.format('git ls-files --error-unmatch %s 2>/dev/null', vim.fn.shellescape(filepath or vim.fn.expand('%:p')))
-  )
-  return vim.v.shell_error == 0
-end
-
--- Get unstaged diff for file
-function M.get_file_diff(filepath)
-  local context = config.get('git.diff_context_lines') or 10
-  local diff_cmd = string.format('git diff --unified=%d -- %s', context, vim.fn.shellescape(filepath))
-  return vim.fn.system(diff_cmd)
 end
 
 -- Get git status
@@ -153,7 +137,11 @@ function M.send_git_status()
   -- Stash status
   local stash = vim.fn.system('git stash list 2>/dev/null')
   if stash ~= '' then
-    local stash_count = select(2, stash:gsub('\n', '\n'))
+    -- Count lines (each stash entry is one line)
+    local stash_count = 0
+    for _ in stash:gmatch('[^\n]+') do
+      stash_count = stash_count + 1
+    end
     message = message .. '\nSTASHES: ' .. stash_count .. ' stashed changes\n'
   end
 
@@ -161,89 +149,6 @@ function M.send_git_status()
   message = message .. 'This is for your information only. No action required.\n\n'
 
   providers.send_to_provider(message)
-end
-
--- Send unstaged files list
-function M.send_unstaged_files()
-  local providers = require('pairup.providers')
-  local timestamp = os.date('%H:%M:%S')
-  local files = M.parse_status()
-
-  if #files.untracked == 0 and #files.unstaged == 0 then
-    vim.notify('No untracked or modified unstaged files', vim.log.levels.INFO)
-    return
-  end
-
-  local message = string.format('\n=== File Reading Request [%s] ===\n', timestamp)
-
-  if #files.untracked > 0 then
-    message = message .. 'Please read these NEW untracked files:\n'
-    for _, file in ipairs(files.untracked) do
-      message = message .. '• ' .. file .. '\n'
-    end
-  end
-
-  if #files.unstaged > 0 then
-    if #files.untracked > 0 then
-      message = message .. '\n'
-    end
-    message = message .. 'These tracked files have unstaged changes (use git diff to see changes):\n'
-    for _, file in ipairs(files.unstaged) do
-      message = message .. '• ' .. file .. '\n'
-    end
-  end
-
-  message = message .. '\nYou can read these files with your tools if I ask you to.\n'
-  message = message .. '=== End Request ===\n\n'
-
-  providers.send_to_provider(message)
-end
-
--- Get file info
-function M.get_file_info(filepath)
-  local info = {}
-
-  -- Last commit for file
-  info.last_commit = vim.fn
-    .system(string.format("git log -1 --pretty='%%h %%s (%%ar by %%an)' -- %s 2>/dev/null", vim.fn.shellescape(filepath)))
-    :gsub('\n', '')
-
-  -- Check if tracked
-  info.is_tracked = M.is_in_repo(filepath)
-
-  if info.is_tracked then
-    -- Check for changes
-    local has_changes = vim.fn
-      .system(string.format('git diff --name-only -- %s 2>/dev/null', vim.fn.shellescape(filepath)))
-      :gsub('\n', '')
-
-    local has_staged = vim.fn
-      .system(string.format('git diff --cached --name-only -- %s 2>/dev/null', vim.fn.shellescape(filepath)))
-      :gsub('\n', '')
-
-    if has_staged ~= '' then
-      info.status = 'Has staged changes'
-    elseif has_changes ~= '' then
-      info.status = 'Has unstaged changes'
-    else
-      info.status = 'Clean (no changes)'
-    end
-
-    -- Count lines changed
-    local diff_stat =
-      vim.fn.system(string.format('git diff --numstat -- %s 2>/dev/null', vim.fn.shellescape(filepath))):gsub('\n', '')
-
-    if diff_stat ~= '' then
-      local added, removed = diff_stat:match('(%d+)%s+(%d+)')
-      if added and removed then
-        info.changes = string.format('+%s -%s lines', added, removed)
-      end
-    end
-  else
-    info.status = 'Untracked file'
-  end
-
-  return info
 end
 
 return M
