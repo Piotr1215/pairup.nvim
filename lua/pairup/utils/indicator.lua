@@ -157,7 +157,7 @@ function M.update()
     if vim.g.pairup_queued then
       set_indicator(string.format('[%s:queued]', prefix))
     elseif vim.g.pairup_pending then
-      set_indicator(string.format('[%s:pending]', prefix))
+      set_indicator(string.format('[%s:processing]', prefix))
     else
       set_indicator(string.format('[%s]', prefix))
     end

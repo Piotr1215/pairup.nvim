@@ -60,6 +60,13 @@ function M.send_to_provider(message)
   return false
 end
 
+-- Fast check if any provider is running (for hot paths)
+function M.is_running()
+  -- Check cache directly - O(1)
+  local cached_buf = vim.g.pairup_terminal_buf
+  return cached_buf and vim.api.nvim_buf_is_valid(cached_buf)
+end
+
 function M.find_terminal()
   if M.current and M.current.find_terminal then
     return M.current.find_terminal()

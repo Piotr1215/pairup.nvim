@@ -24,6 +24,9 @@ describe('pairup.signs', function()
       find_terminal = function()
         return nil -- No terminal in tests, autocmd won't fire
       end,
+      is_running = function()
+        return false -- No terminal in tests
+      end,
     }
 
     signs = require('pairup.signs')

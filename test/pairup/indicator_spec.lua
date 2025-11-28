@@ -60,12 +60,12 @@ describe('pairup.utils.indicator', function()
       assert.are.equal('', vim.g.pairup_indicator)
     end)
 
-    it('should show [C:pending] when file is pending', function()
+    it('should show [C:processing] when file is processing', function()
       vim.g.pairup_pending = '/some/file.lua'
       vim.g.pairup_pending_time = os.time()
 
       indicator.update()
-      assert.are.equal('[C:pending]', vim.g.pairup_indicator)
+      assert.are.equal('[C:processing]', vim.g.pairup_indicator)
     end)
 
     it('should show [C:queued] when queued', function()

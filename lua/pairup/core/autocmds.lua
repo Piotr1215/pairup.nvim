@@ -17,7 +17,7 @@ function M.setup()
         return
       end
 
-      if not providers.find_terminal() then
+      if not providers.is_running() then
         return
       end
 

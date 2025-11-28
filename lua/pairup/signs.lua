@@ -32,7 +32,7 @@ function M.setup()
     pattern = '*',
     callback = function(ev)
       local ok, providers = pcall(require, 'pairup.providers')
-      if not ok or not providers.find_terminal or not providers.find_terminal() then
+      if not ok or not providers.is_running or not providers.is_running() then
         return
       end
 
