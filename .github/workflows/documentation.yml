@@ -1,0 +1,38 @@
+name: Generate Vimdoc
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'README.md'
+
+jobs:
+  vimdoc:
+    name: Generate Vim Documentation
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Generate Vimdoc with panvimdoc
+        uses: kdheepak/panvimdoc@main
+        with:
+          vimdoc: pairup
+          version: "Neovim >= 0.11.0"
+          demojify: true
+          treesitter: true
+          description: "Inline AI pair programming for Neovim"
+          titledatepattern: "%Y %B %d"
+
+      - name: Push changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore(docs): auto-generate vimdoc"
+          commit_user_name: "github-actions[bot]"
+          commit_user_email: "github-actions[bot]@users.noreply.github.com"
+          commit_author: "github-actions[bot] <github-actions[bot]@users.noreply.github.com>"
+          file_pattern: "doc/*.txt doc/tags"
