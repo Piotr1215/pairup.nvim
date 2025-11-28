@@ -95,7 +95,7 @@ function M.start()
   local cwd = git_root or vim.fn.getcwd()
 
   local claude_config = config.get_provider_config('claude')
-  local claude_cmd = claude_config.path
+  local claude_cmd = claude_config.cmd
 
   if vim.g.pairup_test_mode then
     claude_cmd = "echo 'Mock Claude CLI running'"

@@ -106,22 +106,23 @@ describe('pairup.config', function()
   end)
 
   describe('claude provider', function()
-    it('should have default path', function()
+    it('should have default cmd with acceptEdits', function()
       config.setup()
       local claude_config = config.get_provider_config('claude')
-      assert.is_not_nil(claude_config.path)
+      assert.is_not_nil(claude_config.cmd)
+      assert.is_true(claude_config.cmd:match('acceptEdits') ~= nil)
     end)
 
-    it('should allow custom path with flags', function()
+    it('should allow custom cmd with flags', function()
       config.setup({
         providers = {
           claude = {
-            path = 'claude --permission-mode acceptEdits',
+            cmd = 'claude --permission-mode plan',
           },
         },
       })
       local claude_config = config.get_provider_config('claude')
-      assert.are.equal('claude --permission-mode acceptEdits', claude_config.path)
+      assert.are.equal('claude --permission-mode plan', claude_config.cmd)
     end)
   end)
 end)

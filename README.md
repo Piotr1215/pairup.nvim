@@ -90,13 +90,13 @@ Key bindings are optional — the plugin works with `:Pairup` commands alone.
     { "<leader>cx", "<cmd>Pairup stop<cr>", desc = "Stop Claude" },
   },
   config = function()
-    require("pairup").setup({
-      providers = {
-        claude = {
-          path = "claude --permission-mode acceptEdits",
-        },
-      },
-    })
+    require("pairup").setup()
+    -- Default works out of the box. Override only if needed:
+    -- require("pairup").setup({
+    --   providers = {
+    --     claude = { cmd = "claude --permission-mode plan" },
+    --   },
+    -- })
   end,
 }
 ```
@@ -145,8 +145,8 @@ require("pairup").setup({
   provider = "claude",
   providers = {
     claude = {
-      -- Full command with flags
-      path = "claude --permission-mode acceptEdits",
+      -- Full command with flags (default includes acceptEdits)
+      cmd = "claude --permission-mode acceptEdits",
     },
   },
   terminal = {

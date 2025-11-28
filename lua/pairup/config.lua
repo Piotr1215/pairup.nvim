@@ -9,8 +9,8 @@ local defaults = {
   -- Provider configurations
   providers = {
     claude = {
-      -- Full command with flags, e.g.: "claude --permission-mode acceptEdits"
-      path = vim.fn.exepath('claude') or 'claude',
+      -- Full command with flags
+      cmd = (vim.fn.exepath('claude') or 'claude') .. ' --permission-mode acceptEdits',
     },
   },
 

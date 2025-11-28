@@ -37,18 +37,20 @@ local function check_cli()
   local provider = config.get_provider()
   local provider_config = config.get_provider_config()
 
-  if not provider_config or not provider_config.path then
+  if not provider_config or not provider_config.cmd then
     error('No provider configured')
     return
   end
 
-  local cli_path = provider_config.path
+  local full_cmd = provider_config.cmd
+  -- Extract executable from command (first word before space or flags)
+  local cli_path = full_cmd:match('^(%S+)')
 
   -- Check if CLI exists
   if vim.fn.executable(cli_path) ~= 1 then
     error(string.format('%s CLI not found: %s', provider, cli_path), {
       'Install Claude CLI: https://docs.anthropic.com/en/docs/claude-code',
-      'Or specify path: require("pairup").setup({ providers = { claude = { path = "/path/to/claude" } } })',
+      'Or specify cmd: require("pairup").setup({ providers = { claude = { cmd = "/path/to/claude" } } })',
     })
     return
   end
