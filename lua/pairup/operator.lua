@@ -89,31 +89,36 @@ end
 -- Track last motion for scope detection
 M._last_motion = nil
 
+-- Motion to scope mapping
+local motion_scopes = {
+  ip = 'paragraph',
+  ap = 'paragraph',
+  iw = 'word',
+  aw = 'word',
+  iW = 'word',
+  aW = 'word',
+  is = 'sentence',
+  as = 'sentence',
+  ['i}'] = 'block',
+  ['a}'] = 'block',
+  iB = 'block',
+  aB = 'block',
+  ['if'] = 'function',
+  af = 'function',
+}
+
 ---Operatorfunc for gC motion
 ---@param type string 'line', 'char', or 'block'
 function M.operatorfunc(type)
   local start_line = vim.fn.line("'[")
   local end_line = vim.fn.line("']")
 
-  -- Determine scope from motion type and last_motion hint
-  local scope
   local motion = M._last_motion
   M._last_motion = nil
 
-  if motion == 'ip' or motion == 'ap' then
-    scope = 'paragraph'
-  elseif motion == 'iw' or motion == 'aw' or motion == 'iW' or motion == 'aW' then
-    scope = 'word'
-  elseif motion == 'is' or motion == 'as' then
-    scope = 'sentence'
-  elseif motion == 'i}' or motion == 'a}' or motion == 'iB' or motion == 'aB' then
-    scope = 'block'
-  elseif motion == 'if' or motion == 'af' then
-    scope = 'function'
-  elseif type == 'line' and start_line == end_line then
-    scope = 'line'
-  elseif type == 'line' then
-    scope = 'lines'
+  local scope = motion_scopes[motion]
+  if not scope and type == 'line' then
+    scope = start_line == end_line and 'line' or 'lines'
   end
 
   M.insert_marker(start_line, nil, scope)

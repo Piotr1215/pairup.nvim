@@ -49,106 +49,98 @@ function M.parse_status()
   }
 end
 
--- Send comprehensive git status
-function M.send_git_status()
-  local providers = require('pairup.providers')
-  local timestamp = os.date('%H:%M:%S')
-  local message = string.format('\n=== COMPREHENSIVE GIT OVERVIEW [%s] ===\n', timestamp)
+-- Format a diff with truncation
+---@param diff_cmd string Git diff command
+---@param header string Section header
+---@param max_lines integer Maximum lines before truncation
+---@return string
+local function format_diff(diff_cmd, header, max_lines)
+  local stat = vim.fn.system(diff_cmd .. ' --stat 2>/dev/null')
+  if stat == '' then
+    return ''
+  end
 
-  -- Current branch and upstream
+  local result = '\n' .. header .. ':\n```\n' .. stat .. '```\n'
+  local full = vim.fn.system(diff_cmd .. ' --unified=3 2>/dev/null')
+  local lines = vim.split(full, '\n')
+
+  if #lines > max_lines then
+    local truncated = table.concat(vim.list_slice(lines, 1, max_lines), '\n')
+    result = result .. '```diff\n' .. truncated .. '\n... (truncated, ' .. (#lines - max_lines) .. ' more lines)\n```\n'
+  elseif #lines > 1 then
+    result = result .. '```diff\n' .. full .. '```\n'
+  end
+  return result
+end
+
+-- Format file list
+---@param files string[] List of filenames
+---@param prefix string Display prefix (e.g., '+', 'M', '?')
+---@param label string Section label
+---@return string
+local function format_file_list(files, prefix, label)
+  if #files == 0 then
+    return ''
+  end
+  local result = label .. ' (' .. #files .. '):\n'
+  for _, file in ipairs(files) do
+    result = result .. '  ' .. prefix .. ' ' .. file .. '\n'
+  end
+  return result
+end
+
+-- Get branch and upstream info
+---@return string
+local function get_branch_info()
   local branch = vim.fn.system('git branch --show-current 2>/dev/null'):gsub('\n', '')
   local upstream = vim.fn.system('git rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null'):gsub('\n', '')
-  message = message .. 'Branch: ' .. branch
+  local result = 'Branch: ' .. branch
   if upstream ~= '' then
-    message = message .. ' → ' .. upstream
+    result = result .. ' → ' .. upstream
   end
-  message = message .. '\n'
 
-  -- Behind/ahead of upstream
   local rev_list = vim.fn.system('git rev-list --left-right --count HEAD...@{u} 2>/dev/null'):gsub('\n', '')
   if rev_list ~= '' then
     local ahead, behind = rev_list:match('(%d+)%s+(%d+)')
     if ahead and behind then
-      message = message .. string.format('↑ %s ahead, ↓ %s behind upstream\n', ahead, behind)
+      result = result .. string.format('\n↑ %s ahead, ↓ %s behind upstream', ahead, behind)
     end
   end
+  return result .. '\n'
+end
 
-  -- File status
+-- Send comprehensive git status
+function M.send_git_status()
+  local providers = require('pairup.providers')
+  local timestamp = os.date('%H:%M:%S')
+  local parts = { string.format('\n=== COMPREHENSIVE GIT OVERVIEW [%s] ===\n', timestamp) }
+
+  parts[#parts + 1] = get_branch_info()
+
   local files = M.parse_status()
+  parts[#parts + 1] = '\nFILE STATUS:\n'
+  parts[#parts + 1] = format_file_list(files.staged, '+', 'Staged')
+  parts[#parts + 1] = format_file_list(files.unstaged, 'M', 'Unstaged')
+  parts[#parts + 1] = format_file_list(files.untracked, '?', 'Untracked')
 
-  message = message .. '\nFILE STATUS:\n'
-  if #files.staged > 0 then
-    message = message .. 'Staged (' .. #files.staged .. '):\n'
-    for _, file in ipairs(files.staged) do
-      message = message .. '  + ' .. file .. '\n'
-    end
-  end
+  parts[#parts + 1] = format_diff('git diff --cached', 'STAGED CHANGES (will be committed)', 50)
+  parts[#parts + 1] = format_diff('git diff', 'UNSTAGED CHANGES (working directory)', 50)
 
-  if #files.unstaged > 0 then
-    message = message .. 'Unstaged (' .. #files.unstaged .. '):\n'
-    for _, file in ipairs(files.unstaged) do
-      message = message .. '  M ' .. file .. '\n'
-    end
-  end
-
-  if #files.untracked > 0 then
-    message = message .. 'Untracked (' .. #files.untracked .. '):\n'
-    for _, file in ipairs(files.untracked) do
-      message = message .. '  ? ' .. file .. '\n'
-    end
-  end
-
-  -- Staged changes diff
-  local staged_diff = vim.fn.system('git diff --cached --stat 2>/dev/null')
-  if staged_diff ~= '' then
-    message = message .. '\nSTAGED CHANGES (will be committed):\n```\n' .. staged_diff .. '```\n'
-
-    local staged_diff_full = vim.fn.system('git diff --cached --unified=3 2>/dev/null')
-    local lines = vim.split(staged_diff_full, '\n')
-    if #lines > 50 then
-      local truncated = table.concat(vim.list_slice(lines, 1, 50), '\n')
-      message = message .. '```diff\n' .. truncated .. '\n... (truncated, ' .. (#lines - 50) .. ' more lines)\n```\n'
-    elseif #lines > 1 then
-      message = message .. '```diff\n' .. staged_diff_full .. '```\n'
-    end
-  end
-
-  -- Unstaged changes diff
-  local unstaged_diff = vim.fn.system('git diff --stat 2>/dev/null')
-  if unstaged_diff ~= '' then
-    message = message .. '\nUNSTAGED CHANGES (working directory):\n```\n' .. unstaged_diff .. '```\n'
-
-    local unstaged_diff_full = vim.fn.system('git diff --unified=3 2>/dev/null')
-    local lines = vim.split(unstaged_diff_full, '\n')
-    if #lines > 50 then
-      local truncated = table.concat(vim.list_slice(lines, 1, 50), '\n')
-      message = message .. '```diff\n' .. truncated .. '\n... (truncated, ' .. (#lines - 50) .. ' more lines)\n```\n'
-    elseif #lines > 1 then
-      message = message .. '```diff\n' .. unstaged_diff_full .. '```\n'
-    end
-  end
-
-  -- Recent commits
   local commits = vim.fn.system('git log --oneline -10 2>/dev/null')
   if commits ~= '' then
-    message = message .. '\nRECENT COMMITS:\n```\n' .. commits .. '```\n'
+    parts[#parts + 1] = '\nRECENT COMMITS:\n```\n' .. commits .. '```\n'
   end
 
-  -- Stash status
   local stash = vim.fn.system('git stash list 2>/dev/null')
   if stash ~= '' then
-    -- Count lines (each stash entry is one line)
-    local stash_count = 0
-    for _ in stash:gmatch('[^\n]+') do
-      stash_count = stash_count + 1
-    end
-    message = message .. '\nSTASHES: ' .. stash_count .. ' stashed changes\n'
+    local stash_count = select(2, stash:gsub('\n', '\n'))
+    parts[#parts + 1] = '\nSTASHES: ' .. stash_count .. ' stashed changes\n'
   end
 
-  message = message .. '=== End Overview ===\n'
-  message = message .. 'This is for your information only. No action required.\n\n'
+  parts[#parts + 1] = '=== End Overview ===\n'
+  parts[#parts + 1] = 'This is for your information only. No action required.\n\n'
 
-  providers.send_to_provider(message)
+  providers.send_to_provider(table.concat(parts))
 end
 
 return M
