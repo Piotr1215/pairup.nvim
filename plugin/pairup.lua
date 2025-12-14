@@ -53,6 +53,12 @@ local subcommand_tbl = {
       require('pairup.inline').update_quickfix()
     end,
   },
+  suspend = {
+    impl = function()
+      vim.g.pairup_suspended = not vim.g.pairup_suspended
+      vim.cmd('redrawstatus')
+    end,
+  },
 }
 
 ---@param opts table
@@ -145,3 +151,8 @@ vim.keymap.set('n', '<Plug>(pairup-toggle-session)', function()
     require('pairup').start()
   end
 end, { desc = 'Toggle Pairup session (start/stop)' })
+
+vim.keymap.set('n', '<Plug>(pairup-suspend)', function()
+  vim.g.pairup_suspended = not vim.g.pairup_suspended
+  vim.cmd('redrawstatus')
+end, { desc = 'Suspend auto-processing' })

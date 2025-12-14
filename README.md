@@ -115,6 +115,7 @@ Key bindings are optional — the plugin works with `:Pairup` commands alone.
 | `inline` | Manual cc: trigger |
 | `diff` | Send git diff to Claude |
 | `lsp` | Send LSP diagnostics to Claude |
+| `suspend` | Pause auto-processing (indicator turns red) |
 
 ## Status Indicator
 
@@ -199,6 +200,7 @@ Available `<Plug>` mappings for custom keybindings:
 ```lua
 vim.keymap.set('n', '<leader>cc', '<Plug>(pairup-toggle-session)')  -- start/stop
 vim.keymap.set('n', '<leader>ct', '<Plug>(pairup-toggle)')          -- show/hide terminal
+vim.keymap.set('n', '<leader>cs', '<Plug>(pairup-suspend)')         -- pause auto-processing
 vim.keymap.set('n', '<leader>cl', '<Plug>(pairup-lsp)')             -- send LSP diagnostics
 vim.keymap.set('n', '<leader>cd', '<Plug>(pairup-diff)')            -- send git diff
 vim.keymap.set('n', '<leader>cq', '<Plug>(pairup-questions)')       -- show uu: in quickfix

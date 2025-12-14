@@ -24,6 +24,10 @@ function M.setup()
         return
       end
 
+      if vim.g.pairup_suspended then
+        return
+      end
+
       local inline = require('pairup.inline')
 
       -- Update quickfix and process markers when pairup is running

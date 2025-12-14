@@ -89,5 +89,26 @@ describe('lualine.components.pairup', function()
       local instance = setmetatable({}, { __index = component_module })
       assert.equals('[C:██████████] ready', instance:update_status())
     end)
+
+    it('should return red color when suspended', function()
+      vim.g.pairup_suspended = true
+      local default_color = { fg = '#00ff00' }
+      local suspended_color = { fg = '#ff5555' }
+      local color_fn = function()
+        return vim.g.pairup_suspended and suspended_color or default_color
+      end
+      assert.are.same(suspended_color, color_fn())
+      vim.g.pairup_suspended = nil
+    end)
+
+    it('should return green color when not suspended', function()
+      vim.g.pairup_suspended = nil
+      local default_color = { fg = '#00ff00' }
+      local suspended_color = { fg = '#ff5555' }
+      local color_fn = function()
+        return vim.g.pairup_suspended and suspended_color or default_color
+      end
+      assert.are.same(default_color, color_fn())
+    end)
   end)
 end)
