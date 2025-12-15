@@ -105,6 +105,18 @@ describe('pairup.config', function()
     end)
   end)
 
+  describe('flash', function()
+    it('should have scroll_to_changes disabled by default', function()
+      config.setup()
+      assert.are.equal(false, config.get('flash.scroll_to_changes'))
+    end)
+
+    it('should allow enabling scroll_to_changes', function()
+      config.setup({ flash = { scroll_to_changes = true } })
+      assert.are.equal(true, config.get('flash.scroll_to_changes'))
+    end)
+  end)
+
   describe('claude provider', function()
     it('should have default cmd with acceptEdits', function()
       config.setup()

@@ -87,16 +87,20 @@ function M.highlight_changes(bufnr, timeout)
   -- Clear snapshot
   buffer_snapshots[bufnr] = nil
 
-  -- Highlight changed lines using vim.hl.range (Neovim 0.11+)
+  -- Find first changed line and highlight all changed lines
+  local first_changed = nil
   for lnum in pairs(changed_lines) do
     if lnum <= #new_lines then
+      if not first_changed or lnum < first_changed then
+        first_changed = lnum
+      end
       pcall(vim.hl.range, bufnr, ns, 'PairupFlash', { lnum - 1, 0 }, { lnum - 1, #new_lines[lnum] }, {
         timeout = timeout,
       })
     end
   end
 
-  return vim.tbl_count(changed_lines)
+  return vim.tbl_count(changed_lines), first_changed
 end
 
 ---Clear snapshot for buffer

@@ -176,6 +176,9 @@ require("pairup").setup({
     enabled = false,
     file = "/tmp/claude_progress", -- Default path, change if needed
   },
+  flash = {
+    scroll_to_changes = false, -- Auto-scroll to first changed line
+  },
   operator = {
     key = "gC", -- change to override default
   },

@@ -34,6 +34,11 @@ local defaults = {
     interval_ms = 500,
   },
 
+  -- Flash highlight settings
+  flash = {
+    scroll_to_changes = false, -- Auto-scroll to first changed line
+  },
+
   -- Inline editing (cc:/uu: markers)
   inline = {
     markers = {
@@ -79,6 +84,11 @@ function M.setup(opts)
     vim.validate({
       ['progress.enabled'] = { opts.progress.enabled, 'boolean', true },
       ['progress.file'] = { opts.progress.file, 'string', true },
+    })
+  end
+  if opts.flash then
+    vim.validate({
+      ['flash.scroll_to_changes'] = { opts.flash.scroll_to_changes, 'boolean', true },
     })
   end
 

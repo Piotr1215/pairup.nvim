@@ -77,4 +77,87 @@ describe('pairup.utils.flash', function()
       vim.api.nvim_buf_delete(bufnr, { force = true })
     end)
   end)
+
+  describe('highlight_changes', function()
+    it('should return nil first_line when no snapshot exists', function()
+      flash = require('pairup.utils.flash')
+
+      local bufnr = vim.api.nvim_create_buf(true, false)
+      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { 'line 1' })
+
+      local count, first_line = flash.highlight_changes(bufnr)
+
+      assert.is_nil(count)
+      assert.is_nil(first_line)
+
+      vim.api.nvim_buf_delete(bufnr, { force = true })
+    end)
+
+    it('should return 0 count and nil first_line when no changes', function()
+      flash = require('pairup.utils.flash')
+
+      local bufnr = vim.api.nvim_create_buf(true, false)
+      local tmpfile = vim.fn.tempname()
+      vim.fn.writefile({ 'line 1', 'line 2' }, tmpfile)
+      vim.api.nvim_buf_set_name(bufnr, tmpfile)
+      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { 'line 1', 'line 2' })
+
+      flash.snapshot(bufnr)
+
+      -- No changes - same content
+      local count, first_line = flash.highlight_changes(bufnr)
+
+      assert.are.equal(0, count)
+      assert.is_nil(first_line)
+
+      vim.api.nvim_buf_delete(bufnr, { force = true })
+      vim.fn.delete(tmpfile)
+    end)
+
+    it('should return first changed line number', function()
+      flash = require('pairup.utils.flash')
+
+      local bufnr = vim.api.nvim_create_buf(true, false)
+      local tmpfile = vim.fn.tempname()
+      vim.fn.writefile({ 'line 1', 'line 2', 'line 3' }, tmpfile)
+      vim.api.nvim_buf_set_name(bufnr, tmpfile)
+      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { 'line 1', 'line 2', 'line 3' })
+
+      flash.snapshot(bufnr)
+
+      -- Change line 2 and 3
+      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { 'line 1', 'modified 2', 'modified 3' })
+
+      local count, first_line = flash.highlight_changes(bufnr)
+
+      assert.is_true(count >= 1)
+      assert.are.equal(2, first_line) -- First changed line is 2
+
+      vim.api.nvim_buf_delete(bufnr, { force = true })
+      vim.fn.delete(tmpfile)
+    end)
+
+    it('should return first line when change is at beginning', function()
+      flash = require('pairup.utils.flash')
+
+      local bufnr = vim.api.nvim_create_buf(true, false)
+      local tmpfile = vim.fn.tempname()
+      vim.fn.writefile({ 'line 1', 'line 2' }, tmpfile)
+      vim.api.nvim_buf_set_name(bufnr, tmpfile)
+      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { 'line 1', 'line 2' })
+
+      flash.snapshot(bufnr)
+
+      -- Change line 1
+      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { 'modified 1', 'line 2' })
+
+      local count, first_line = flash.highlight_changes(bufnr)
+
+      assert.is_true(count >= 1)
+      assert.are.equal(1, first_line) -- First line changed
+
+      vim.api.nvim_buf_delete(bufnr, { force = true })
+      vim.fn.delete(tmpfile)
+    end)
+  end)
 end)

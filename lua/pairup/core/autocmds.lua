@@ -73,9 +73,14 @@ function M.setup()
     callback = function(args)
       local bufnr = args.buf
 
-      -- Highlight changed lines
+      -- Highlight changed lines and optionally scroll to first change
       local flash = require('pairup.utils.flash')
-      flash.highlight_changes(bufnr)
+      local _, first_line = flash.highlight_changes(bufnr)
+
+      if first_line and config.get('flash.scroll_to_changes') then
+        vim.api.nvim_win_set_cursor(0, { first_line, 0 })
+        vim.cmd('norm! zz')
+      end
 
       local filepath = vim.fn.expand('%:p')
       local indicator = require('pairup.utils.indicator')
