@@ -67,6 +67,7 @@ function M.build(filepath, markers)
     :gsub('{cc_marker}', markers.command)
     :gsub('{uu_marker}', markers.question)
     :gsub('{constitution_marker}', markers.constitution)
+    :gsub('{plan_marker}', markers.plan or 'ccp:')
     :gsub('{progress_file}', progress_file)
 
   return result

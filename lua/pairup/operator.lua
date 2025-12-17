@@ -6,11 +6,16 @@ local M = {}
 local config = require('pairup.config')
 
 ---Get marker from config by type
----@param marker_type? string 'command'|'constitution' (default: 'command')
+---@param marker_type? string 'command'|'constitution'|'plan' (default: 'command')
 ---@return string
 local function get_marker(marker_type)
   marker_type = marker_type or 'command'
-  return config.get('inline.markers.' .. marker_type) or (marker_type == 'constitution' and 'cc!:' or 'cc:')
+  local marker = config.get('inline.markers.' .. marker_type)
+  if marker then
+    return marker
+  end
+  local defaults = { command = 'cc:', constitution = 'cc!:', plan = 'ccp:' }
+  return defaults[marker_type] or 'cc:'
 end
 
 ---Get text from range
@@ -217,6 +222,9 @@ function M.setup(opts)
 
   -- Constitution marker: gC! (line only for now)
   create_keymaps(key .. '!', 'constitution', false)
+
+  -- Plan marker: gC? (line + visual with selection capture)
+  create_keymaps(key .. '?', 'plan', true)
 end
 
 return M

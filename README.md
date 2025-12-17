@@ -37,6 +37,8 @@ Use `gC` to insert cc: markers with proper comment syntax for any filetype:
 |------------|--------|------------|---------------|
 | `gCC` | Insert `cc:` marker above current line | `<line>` | No |
 | `gC!` | Insert `cc!:` constitution marker | `<line>` | No |
+| `gC?` | Insert `ccp:` plan marker | `<line>` | No |
+| `gC?` (visual) | Insert plan marker with selection | `<selection>` | Yes |
 | `gCip`/`gCap` | Insert marker for paragraph | `<paragraph>` | No |
 | `gCiw`/`gCaw` | Insert marker for word | `<word>` | Yes |
 | `gCis`/`gCas` | Insert marker for sentence | `<sentence>` | Yes |
@@ -60,8 +62,60 @@ Use `gC` to insert cc: markers with proper comment syntax for any filetype:
 ## Signs
 
 Markers show in the gutter:
-- 󰭻 (yellow) — `cc:` command marker / `cc!:` constitution marker
+- 󰭻 (yellow) — `cc:` command / `cc!:` constitution / `ccp:` plan
 - 󰞋 (blue) — `uu:` question marker
+
+## Plan Marker (Review Before Apply)
+
+Use `ccp:` when you want to review Claude's changes before applying them:
+
+```lua
+-- ccp: add error handling
+function process(data)
+  return data.value
+end
+```
+
+Claude wraps changes in conflict markers:
+
+```lua
+<<<<<<< CURRENT
+function process(data)
+  return data.value
+end
+=======
+function process(data)
+  if not data then
+    return nil, "missing data"
+  end
+  return data.value
+end
+>>>>>>> PROPOSED
+```
+
+**Accept/Reject:** Position cursor in the section you want to keep, then `:Pairup accept` (or `<Plug>(pairup-accept)`):
+- Cursor in CURRENT → keep original (reject proposal)
+- Cursor in PROPOSED → keep Claude's change (accept proposal)
+
+**Mix and match:** Add `cc:` inside PROPOSED to refine before accepting:
+
+```lua
+<<<<<<< CURRENT
+function process(data)
+  return data.value
+end
+=======
+-- cc: also add logging
+function process(data)
+  if not data then
+    return nil, "missing data"
+  end
+  return data.value
+end
+>>>>>>> PROPOSED
+```
+
+Save → Claude refines the PROPOSED section → review again → accept when satisfied.
 
 ## Constitution Marker
 
@@ -128,6 +182,7 @@ Key bindings are optional — the plugin works with `:Pairup` commands alone.
 | `diff` | Send git diff to Claude |
 | `lsp` | Send LSP diagnostics to Claude |
 | `suspend` | Pause auto-processing (indicator turns red) |
+| `accept` | Accept conflict section at cursor |
 
 ## Status Indicator
 
@@ -176,6 +231,7 @@ require("pairup").setup({
       command = "cc:",
       question = "uu:",
       constitution = "cc!:",
+      plan = "ccp:",
     },
     quickfix = true,
   },
@@ -223,6 +279,7 @@ vim.keymap.set('n', '<leader>cq', '<Plug>(pairup-questions)')       -- show uu: 
 vim.keymap.set('n', '<leader>ci', '<Plug>(pairup-inline)')          -- process cc: markers
 vim.keymap.set('n', ']C', '<Plug>(pairup-next-marker)')             -- next marker
 vim.keymap.set('n', '[C', '<Plug>(pairup-prev-marker)')             -- prev marker
+vim.keymap.set('n', '<leader>co', '<Plug>(pairup-accept)')          -- accept conflict at cursor
 ```
 
 ## Requirements

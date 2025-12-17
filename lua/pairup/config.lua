@@ -45,6 +45,7 @@ local defaults = {
       command = 'cc:', -- User command marker
       question = 'uu:', -- Claude question marker
       constitution = 'cc!:', -- Execute + update CLAUDE.md with rule
+      plan = 'ccp:', -- Plan only - suggest via uu:, don't edit directly
     },
     quickfix = true, -- Show uu: questions in quickfix
   },

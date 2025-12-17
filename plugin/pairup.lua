@@ -59,6 +59,11 @@ local subcommand_tbl = {
       vim.cmd('redrawstatus')
     end,
   },
+  accept = {
+    impl = function()
+      require('pairup.conflict').accept()
+    end,
+  },
 }
 
 ---@param opts table
@@ -156,3 +161,7 @@ vim.keymap.set('n', '<Plug>(pairup-suspend)', function()
   vim.g.pairup_suspended = not vim.g.pairup_suspended
   vim.cmd('redrawstatus')
 end, { desc = 'Suspend auto-processing' })
+
+vim.keymap.set('n', '<Plug>(pairup-accept)', function()
+  require('pairup.conflict').accept()
+end, { desc = 'Accept conflict section at cursor' })

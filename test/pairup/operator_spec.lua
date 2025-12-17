@@ -147,6 +147,33 @@ describe('pairup.operator', function()
 
       vim.api.nvim_buf_delete(bufnr, { force = true })
     end)
+
+    it('should insert plan marker when marker_type is plan', function()
+      -- Override config to include plan marker
+      package.loaded['pairup.config'] = {
+        get = function(key)
+          if key == 'inline.markers.command' then
+            return 'cc:'
+          elseif key == 'inline.markers.plan' then
+            return 'ccp:'
+          end
+          return nil
+        end,
+      }
+      package.loaded['pairup.operator'] = nil
+      operator = require('pairup.operator')
+
+      local bufnr = vim.api.nvim_create_buf(false, true)
+      vim.api.nvim_set_current_buf(bufnr)
+      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { 'test line' })
+
+      operator.insert_marker(1, nil, 'line', 'plan')
+
+      local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+      assert.are.equal('ccp: <line> ', lines[1])
+
+      vim.api.nvim_buf_delete(bufnr, { force = true })
+    end)
   end)
 
   describe('operatorfunc', function()
@@ -295,6 +322,20 @@ describe('pairup.operator', function()
         end
       end
       assert.is_true(found_gC_bang, 'gC! keymap should exist for constitution marker')
+    end)
+
+    it('should create gC? keymap for plan marker', function()
+      operator.setup()
+
+      local nmaps = vim.api.nvim_get_keymap('n')
+      local found_gC_question = false
+      for _, map in ipairs(nmaps) do
+        if map.lhs == 'gC?' then
+          found_gC_question = true
+          break
+        end
+      end
+      assert.is_true(found_gC_question, 'gC? keymap should exist for plan marker')
     end)
   end)
 end)

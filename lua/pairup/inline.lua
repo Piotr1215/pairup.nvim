@@ -8,7 +8,7 @@ local providers = require('pairup.providers')
 --- Get all configured markers sorted by pattern length (longest first)
 ---@return table[] Array of {type, pattern} sorted by pattern length descending
 local function get_sorted_markers()
-  local marker_types = { 'command', 'question', 'constitution' }
+  local marker_types = { 'command', 'question', 'constitution', 'plan' }
   local result = {}
   for _, mtype in ipairs(marker_types) do
     local pattern = config.get('inline.markers.' .. mtype)
@@ -48,13 +48,13 @@ function M.detect_markers(bufnr)
   return markers
 end
 
---- Check if buffer has command markers (command or constitution)
+--- Check if buffer has command markers (command, constitution, or plan)
 ---@param bufnr? number Buffer number (defaults to current)
 ---@return boolean
 function M.has_cc_markers(bufnr)
   local markers = M.detect_markers(bufnr)
   for _, m in ipairs(markers) do
-    if m.type == 'command' or m.type == 'constitution' then
+    if m.type == 'command' or m.type == 'constitution' or m.type == 'plan' then
       return true
     end
   end
@@ -83,6 +83,7 @@ function M.build_prompt(filepath)
     command = config.get('inline.markers.command') or 'cc:',
     question = config.get('inline.markers.question') or 'uu:',
     constitution = config.get('inline.markers.constitution') or 'cc!:',
+    plan = config.get('inline.markers.plan') or 'ccp:',
   }
   return prompt.build(filepath, markers)
 end
@@ -119,17 +120,9 @@ function M.process(bufnr)
 
   local prompt = M.build_prompt(filepath)
 
-  -- Send to terminal (500ms delay for Enter - proven reliable in v2)
-  if job_id then
-    vim.fn.chansend(job_id, prompt)
-    vim.defer_fn(function()
-      vim.fn.chansend(job_id, string.char(13)) -- CR = Enter
-    end, 500)
-    indicator.set_pending(filepath)
-  else
-    providers.send_message(prompt)
-    indicator.set_pending(filepath)
-  end
+  -- Use provider's send function (handles timing reliably)
+  providers.send_to_provider(prompt)
+  indicator.set_pending(filepath)
 
   return true
 end

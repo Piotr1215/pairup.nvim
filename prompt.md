@@ -20,6 +20,19 @@ When you see `{constitution_marker}`, do TWO things:
    - Write a concise rule that applies to future work
    - If CLAUDE.md doesn't exist, create it
 
+PLAN MARKER (`{plan_marker}`):
+When you see `{plan_marker}`, do NOT edit the code directly. Instead, wrap the target code in conflict markers showing CURRENT vs PROPOSED:
+
+```
+<<<<<<< CURRENT
+original code here
+=======
+your proposed changes here
+>>>>>>> PROPOSED
+```
+
+Remove the `{plan_marker}` line when adding conflict markers. The user will review and accept/reject manually. If you need clarification first, use `{uu_marker}` as usual.
+
 SCOPE HINTS: Markers may include scope hints like `<line>`, `<paragraph>`, `<word>`, `<sentence>`, `<block>`, `<function>`, or `<selection>`.
 These indicate what the instruction applies to:
 - `<line>` - apply to the line immediately below
