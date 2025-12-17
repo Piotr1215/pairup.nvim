@@ -7,6 +7,7 @@ Table of Contents                                   *pairup-table-of-contents*
   - How It Works                             |pairup-pairup.nvim-how-it-works|
   - Neovim-Native Operator         |pairup-pairup.nvim-neovim-native-operator|
   - Signs                                           |pairup-pairup.nvim-signs|
+  - Constitution Marker               |pairup-pairup.nvim-constitution-marker|
   - Questions                                   |pairup-pairup.nvim-questions|
   - Installation                             |pairup-pairup.nvim-installation|
   - Commands                                     |pairup-pairup.nvim-commands|
@@ -54,38 +55,36 @@ NEOVIM-NATIVE OPERATOR             *pairup-pairup.nvim-neovim-native-operator*
 
 Use `gC` to insert cc: markers with proper comment syntax for any filetype:
 
-  -------------------------------------------------------------------------
-  Keybinding         Action       Scope Hint         Captures Text
-  ------------------ ------------ ------------------ ----------------------
-  gCC                Insert       <line>             No
-                     marker above                    
-                     current line                    
+  ---------------------------------------------------------------------------
+  Keybinding         Action         Scope Hint         Captures Text
+  ------------------ -------------- ------------------ ----------------------
+  gCC                Insert cc:     <line>             No
+                     marker above                      
+                     current line                      
 
-  gCip/gCap          Insert       <paragraph>        No
-                     marker for                      
-                     paragraph                       
+  gC!                Insert cc!:    <line>             No
+                     constitution                      
+                     marker                            
 
-  gCiw/gCaw          Insert       <word>             Yes
-                     marker for                      
-                     word                            
+  gCip/gCap          Insert marker  <paragraph>        No
+                     for paragraph                     
 
-  gCis/gCas          Insert       <sentence>         Yes
-                     marker for                      
-                     sentence                        
+  gCiw/gCaw          Insert marker  <word>             Yes
+                     for word                          
 
-  gCi}/gCa}          Insert       <block>            No
-                     marker for                      
-                     block                           
+  gCis/gCas          Insert marker  <sentence>         Yes
+                     for sentence                      
 
-  gCif/gCaf          Insert       <function>         No
-                     marker for                      
-                     function                        
+  gCi}/gCa}          Insert marker  <block>            No
+                     for block                         
 
-  gC (visual)        Insert       <selection>        Yes
-                     marker with                     
-                     selected                        
-                     text                            
-  -------------------------------------------------------------------------
+  gCif/gCaf          Insert marker  <function>         No
+                     for function                      
+
+  gC (visual)        Insert marker  <selection>        Yes
+                     with selected                     
+                     text                              
+  ---------------------------------------------------------------------------
 **Scope hints** tell Claude what the instruction applies to:
 
 >lua
@@ -104,8 +103,22 @@ Use `gC` to insert cc: markers with proper comment syntax for any filetype:
 
 SIGNS                                               *pairup-pairup.nvim-signs*
 
-Markers show in the gutter: - 󰭻 (yellow) — `cc:` command marker - 󰞋
-(blue) — `uu:` question marker
+Markers show in the gutter: - 󰭻 (yellow) — `cc:` command marker / `cc!:`
+constitution marker - 󰞋 (blue) — `uu:` question marker
+
+
+CONSTITUTION MARKER                   *pairup-pairup.nvim-constitution-marker*
+
+Use `cc!:` when you want Claude to both execute an instruction AND extract the
+underlying rule into `CLAUDE.md`:
+
+>lua
+    -- cc!: use snake_case for all variable names
+    local myVar = 1
+<
+
+Claude will rename `myVar` to `my_var` and add "use snake_case for variables"
+to your project’s `CLAUDE.md`.
 
 
 QUESTIONS                                       *pairup-pairup.nvim-questions*
@@ -219,6 +232,7 @@ change:
         markers = {
           command = "cc:",
           question = "uu:",
+          constitution = "cc!:",
         },
         quickfix = true,
       },
