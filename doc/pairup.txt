@@ -7,6 +7,7 @@ Table of Contents                                   *pairup-table-of-contents*
   - How It Works                             |pairup-pairup.nvim-how-it-works|
   - Neovim-Native Operator         |pairup-pairup.nvim-neovim-native-operator|
   - Signs                                           |pairup-pairup.nvim-signs|
+  - Plan Marker (Review Before Apply)|pairup-pairup.nvim-plan-marker-(review-before-apply)|
   - Constitution Marker               |pairup-pairup.nvim-constitution-marker|
   - Questions                                   |pairup-pairup.nvim-questions|
   - Installation                             |pairup-pairup.nvim-installation|
@@ -66,6 +67,13 @@ Use `gC` to insert cc: markers with proper comment syntax for any filetype:
                      constitution                      
                      marker                            
 
+  gC?                Insert ccp:    <line>             No
+                     plan marker                       
+
+  gC? (visual)       Insert plan    <selection>        Yes
+                     marker with                       
+                     selection                         
+
   gCip/gCap          Insert marker  <paragraph>        No
                      for paragraph                     
 
@@ -103,8 +111,63 @@ Use `gC` to insert cc: markers with proper comment syntax for any filetype:
 
 SIGNS                                               *pairup-pairup.nvim-signs*
 
-Markers show in the gutter: - 󰭻 (yellow) — `cc:` command marker / `cc!:`
-constitution marker - 󰞋 (blue) — `uu:` question marker
+Markers show in the gutter: - 󰭻 (yellow) — `cc:` command / `cc!:`
+constitution / `ccp:` plan - 󰞋 (blue) — `uu:` question marker
+
+
+PLAN MARKER (REVIEW BEFORE APPLY)*pairup-pairup.nvim-plan-marker-(review-before-apply)*
+
+Use `ccp:` when you want to review Claude’s changes before applying them:
+
+>lua
+    -- ccp: add error handling
+    function process(data)
+      return data.value
+    end
+<
+
+Claude wraps changes in conflict markers:
+
+>lua
+    <<<<<<< CURRENT
+    function process(data)
+      return data.value
+    end
+    =======
+    function process(data)
+      if not data then
+        return nil, "missing data"
+      end
+      return data.value
+    end
+    >>>>>>> PROPOSED
+<
+
+**Accept/Reject:** Position cursor in the section you want to keep, then
+`:Pairup accept` (or `<Plug>(pairup-accept)`): - Cursor in CURRENT → keep
+original (reject proposal) - Cursor in PROPOSED → keep Claude’s change
+(accept proposal)
+
+**Mix and match:** Add `cc:` inside PROPOSED to refine before accepting:
+
+>lua
+    <<<<<<< CURRENT
+    function process(data)
+      return data.value
+    end
+    =======
+    -- cc: also add logging
+    function process(data)
+      if not data then
+        return nil, "missing data"
+      end
+      return data.value
+    end
+    >>>>>>> PROPOSED
+<
+
+Save → Claude refines the PROPOSED section → review again → accept when
+satisfied.
 
 
 CONSTITUTION MARKER                   *pairup-pairup.nvim-constitution-marker*
@@ -178,6 +241,7 @@ COMMANDS                                         *pairup-pairup.nvim-commands*
   diff        Send git diff to Claude
   lsp         Send LSP diagnostics to Claude
   suspend     Pause auto-processing (indicator turns red)
+  accept      Accept conflict section at cursor
 
 STATUS INDICATOR                         *pairup-pairup.nvim-status-indicator*
 
@@ -233,6 +297,7 @@ change:
           command = "cc:",
           question = "uu:",
           constitution = "cc!:",
+          plan = "ccp:",
         },
         quickfix = true,
       },
@@ -282,6 +347,7 @@ Available `<Plug>` mappings for custom keybindings:
     vim.keymap.set('n', '<leader>ci', '<Plug>(pairup-inline)')          -- process cc: markers
     vim.keymap.set('n', ']C', '<Plug>(pairup-next-marker)')             -- next marker
     vim.keymap.set('n', '[C', '<Plug>(pairup-prev-marker)')             -- prev marker
+    vim.keymap.set('n', '<leader>co', '<Plug>(pairup-accept)')          -- accept conflict at cursor
 <
 
 
