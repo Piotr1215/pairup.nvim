@@ -1,5 +1,8 @@
 " Minimal init for testing
 
+" Disable swap files to prevent E300 errors in CI (especially macOS)
+set noswapfile
+
 " Clear all runtimepath and packpath to prevent loading user config
 set rtp=
 set packpath=
