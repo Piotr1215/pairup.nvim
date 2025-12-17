@@ -35,7 +35,8 @@ Use `gC` to insert cc: markers with proper comment syntax for any filetype:
 
 | Keybinding | Action | Scope Hint | Captures Text |
 |------------|--------|------------|---------------|
-| `gCC` | Insert marker above current line | `<line>` | No |
+| `gCC` | Insert `cc:` marker above current line | `<line>` | No |
+| `gC!` | Insert `cc!:` constitution marker | `<line>` | No |
 | `gCip`/`gCap` | Insert marker for paragraph | `<paragraph>` | No |
 | `gCiw`/`gCaw` | Insert marker for word | `<word>` | Yes |
 | `gCis`/`gCas` | Insert marker for sentence | `<sentence>` | Yes |
@@ -59,8 +60,19 @@ Use `gC` to insert cc: markers with proper comment syntax for any filetype:
 ## Signs
 
 Markers show in the gutter:
-- 󰭻 (yellow) — `cc:` command marker
+- 󰭻 (yellow) — `cc:` command marker / `cc!:` constitution marker
 - 󰞋 (blue) — `uu:` question marker
+
+## Constitution Marker
+
+Use `cc!:` when you want Claude to both execute an instruction AND extract the underlying rule into `CLAUDE.md`:
+
+```lua
+-- cc!: use snake_case for all variable names
+local myVar = 1
+```
+
+Claude will rename `myVar` to `my_var` and add "use snake_case for variables" to your project's `CLAUDE.md`.
 
 ## Questions
 
@@ -163,6 +175,7 @@ require("pairup").setup({
     markers = {
       command = "cc:",
       question = "uu:",
+      constitution = "cc!:",
     },
     quickfix = true,
   },

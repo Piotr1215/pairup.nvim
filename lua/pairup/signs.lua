@@ -85,21 +85,30 @@ function M.update(bufnr)
   -- Get markers from config
   local cc_marker = config.get('inline.markers.command') or 'cc:'
   local uu_marker = config.get('inline.markers.question') or 'uu:'
+  local const_marker = config.get('inline.markers.constitution') or 'cc!:'
 
   -- Get buffer lines
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
 
   -- Find markers, place signs, and highlight
-  -- Check uu: first (AI questions) since cc: (user commands) should not override
+  -- Check longer patterns first (constitution before command)
   for lnum, line in ipairs(lines) do
-    local cc_start = line:find(cc_marker, 1, true)
     local uu_start = line:find(uu_marker, 1, true)
+    local const_start = line:find(const_marker, 1, true)
+    local cc_start = line:find(cc_marker, 1, true)
 
     if uu_start then
       vim.fn.sign_place(0, sign_group, 'PairupUU', bufnr, { lnum = lnum, priority = 10 })
       vim.api.nvim_buf_set_extmark(bufnr, hl_ns, lnum - 1, 0, {
         end_col = #line,
         hl_group = 'PairupMarkerUU',
+      })
+    elseif const_start then
+      -- Constitution uses CC sign (it's a command variant)
+      vim.fn.sign_place(0, sign_group, 'PairupCC', bufnr, { lnum = lnum, priority = 10 })
+      vim.api.nvim_buf_set_extmark(bufnr, hl_ns, lnum - 1, 0, {
+        end_col = #line,
+        hl_group = 'PairupMarkerCC',
       })
     elseif cc_start then
       vim.fn.sign_place(0, sign_group, 'PairupCC', bufnr, { lnum = lnum, priority = 10 })
@@ -128,16 +137,17 @@ function M.clear_all()
   end
 end
 
----Get all cc: marker line numbers in buffer
+---Get all command marker line numbers in buffer (command + constitution)
 ---@param bufnr integer|nil Buffer number (defaults to current)
 ---@return integer[] Line numbers (1-indexed)
 function M.get_marker_lines(bufnr)
   bufnr = bufnr or vim.api.nvim_get_current_buf()
   local cc_marker = config.get('inline.markers.command') or 'cc:'
+  local const_marker = config.get('inline.markers.constitution') or 'cc!:'
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   local markers = {}
   for lnum, line in ipairs(lines) do
-    if line:find(cc_marker, 1, true) then
+    if line:find(const_marker, 1, true) or line:find(cc_marker, 1, true) then
       table.insert(markers, lnum)
     end
   end

@@ -29,7 +29,7 @@ describe('pairup.inline', function()
 
       assert.equals(1, #markers)
       assert.equals(2, markers[1].line)
-      assert.equals('cc', markers[1].type)
+      assert.equals('command', markers[1].type)
       assert.is_truthy(markers[1].content:match('cc:'))
 
       vim.api.nvim_buf_delete(buf, { force = true })
@@ -48,7 +48,7 @@ describe('pairup.inline', function()
 
       assert.equals(1, #markers)
       assert.equals(2, markers[1].line)
-      assert.equals('uu', markers[1].type)
+      assert.equals('question', markers[1].type)
 
       vim.api.nvim_buf_delete(buf, { force = true })
     end)
@@ -66,9 +66,9 @@ describe('pairup.inline', function()
       local markers = inline.detect_markers(buf)
 
       assert.equals(3, #markers)
-      assert.equals('cc', markers[1].type)
-      assert.equals('uu', markers[2].type)
-      assert.equals('cc', markers[3].type)
+      assert.equals('command', markers[1].type)
+      assert.equals('question', markers[2].type)
+      assert.equals('command', markers[3].type)
 
       vim.api.nvim_buf_delete(buf, { force = true })
     end)
@@ -91,6 +91,40 @@ describe('pairup.inline', function()
     it('should handle invalid buffer', function()
       local markers = inline.detect_markers(99999)
       assert.equals(0, #markers)
+    end)
+
+    it('should detect cc!: constitution markers in buffer', function()
+      local buf = vim.api.nvim_create_buf(false, true)
+      vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+        'local function test()',
+        '  -- cc!: always use snake_case',
+        '  return result',
+        'end',
+      })
+
+      local markers = inline.detect_markers(buf)
+
+      assert.equals(1, #markers)
+      assert.equals(2, markers[1].line)
+      assert.equals('constitution', markers[1].type)
+      assert.is_truthy(markers[1].content:match('cc!:'))
+
+      vim.api.nvim_buf_delete(buf, { force = true })
+    end)
+
+    it('should match constitution before command when both patterns present', function()
+      local buf = vim.api.nvim_create_buf(false, true)
+      vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+        '-- cc!: remember this rule',
+      })
+
+      local markers = inline.detect_markers(buf)
+
+      -- cc!: should match as constitution, not command (even though cc: is substring)
+      assert.equals(1, #markers)
+      assert.equals('constitution', markers[1].type)
+
+      vim.api.nvim_buf_delete(buf, { force = true })
     end)
   end)
 
@@ -120,6 +154,17 @@ describe('pairup.inline', function()
     it('should return false for empty buffer', function()
       local buf = vim.api.nvim_create_buf(false, true)
       assert.is_false(inline.has_cc_markers(buf))
+      vim.api.nvim_buf_delete(buf, { force = true })
+    end)
+
+    it('should return true when cc!: constitution exists', function()
+      local buf = vim.api.nvim_create_buf(false, true)
+      vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+        '-- cc!: remember this',
+      })
+
+      assert.is_true(inline.has_cc_markers(buf))
+
       vim.api.nvim_buf_delete(buf, { force = true })
     end)
   end)
@@ -184,6 +229,7 @@ describe('pairup.inline', function()
     it('should have default markers', function()
       assert.equals('cc:', config.get('inline.markers.command'))
       assert.equals('uu:', config.get('inline.markers.question'))
+      assert.equals('cc!:', config.get('inline.markers.constitution'))
     end)
 
     it('should have quickfix enabled by default', function()

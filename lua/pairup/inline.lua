@@ -5,7 +5,24 @@ local M = {}
 local config = require('pairup.config')
 local providers = require('pairup.providers')
 
---- Detect cc:/uu: markers in buffer
+--- Get all configured markers sorted by pattern length (longest first)
+---@return table[] Array of {type, pattern} sorted by pattern length descending
+local function get_sorted_markers()
+  local marker_types = { 'command', 'question', 'constitution' }
+  local result = {}
+  for _, mtype in ipairs(marker_types) do
+    local pattern = config.get('inline.markers.' .. mtype)
+    if pattern and pattern ~= '' then
+      table.insert(result, { type = mtype, pattern = pattern })
+    end
+  end
+  table.sort(result, function(a, b)
+    return #a.pattern > #b.pattern
+  end)
+  return result
+end
+
+--- Detect markers in buffer
 ---@param bufnr? number Buffer number (defaults to current)
 ---@return table[] markers List of {line, type, content}
 function M.detect_markers(bufnr)
@@ -17,43 +34,40 @@ function M.detect_markers(bufnr)
 
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   local markers = {}
+  local sorted_markers = get_sorted_markers()
 
-  local cc_pattern = config.get('inline.markers.command') or 'cc:'
-  local uu_pattern = config.get('inline.markers.question') or 'uu:'
-
-  -- Check uu: first (AI questions) since cc: (user commands) should not override
-  -- Use find with plain=true for literal matching (markers may contain magic chars)
   for i, line in ipairs(lines) do
-    if line:find(uu_pattern, 1, true) then
-      table.insert(markers, { line = i, type = 'uu', content = line })
-    elseif line:find(cc_pattern, 1, true) then
-      table.insert(markers, { line = i, type = 'cc', content = line })
+    for _, m in ipairs(sorted_markers) do
+      if line:find(m.pattern, 1, true) then
+        table.insert(markers, { line = i, type = m.type, content = line })
+        break -- First match wins (longest pattern matched first)
+      end
     end
   end
 
   return markers
 end
 
---- Check if buffer has cc: markers
+--- Check if buffer has command markers (command or constitution)
 ---@param bufnr? number Buffer number (defaults to current)
 ---@return boolean
 function M.has_cc_markers(bufnr)
   local markers = M.detect_markers(bufnr)
   for _, m in ipairs(markers) do
-    if m.type == 'cc' then
+    if m.type == 'command' or m.type == 'constitution' then
       return true
     end
   end
   return false
 end
 
---- Check if buffer has uu: markers
+--- Check if buffer has question markers
 ---@param bufnr? number Buffer number (defaults to current)
 ---@return boolean
 function M.has_uu_markers(bufnr)
   local markers = M.detect_markers(bufnr)
   for _, m in ipairs(markers) do
-    if m.type == 'uu' then
+    if m.type == 'question' then
       return true
     end
   end
@@ -65,9 +79,12 @@ end
 ---@return string
 function M.build_prompt(filepath)
   local prompt = require('pairup.prompt')
-  local cc_marker = config.get('inline.markers.command') or 'cc:'
-  local uu_marker = config.get('inline.markers.question') or 'uu:'
-  return prompt.build(filepath, cc_marker, uu_marker)
+  local markers = {
+    command = config.get('inline.markers.command') or 'cc:',
+    question = config.get('inline.markers.question') or 'uu:',
+    constitution = config.get('inline.markers.constitution') or 'cc!:',
+  }
+  return prompt.build(filepath, markers)
 end
 
 --- Process cc: markers in buffer - send to Claude
@@ -137,7 +154,7 @@ function M.update_quickfix()
       local markers = M.detect_markers(bufnr)
 
       for _, m in ipairs(markers) do
-        if m.type == 'uu' then
+        if m.type == 'question' then
           local uu_marker = config.get('inline.markers.question') or 'uu:'
           local text = m.content:match(uu_marker .. '%s*(.+)') or m.content
           table.insert(qf_items, {
@@ -167,7 +184,7 @@ function M.next_question()
   local current_line = cursor[1]
 
   for _, m in ipairs(markers) do
-    if m.type == 'uu' and m.line > current_line then
+    if m.type == 'question' and m.line > current_line then
       vim.api.nvim_win_set_cursor(0, { m.line, 0 })
       return true
     end
@@ -175,7 +192,7 @@ function M.next_question()
 
   -- Wrap around
   for _, m in ipairs(markers) do
-    if m.type == 'uu' then
+    if m.type == 'question' then
       vim.api.nvim_win_set_cursor(0, { m.line, 0 })
       return true
     end

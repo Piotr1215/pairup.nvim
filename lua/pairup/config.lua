@@ -39,11 +39,12 @@ local defaults = {
     scroll_to_changes = false, -- Auto-scroll to first changed line
   },
 
-  -- Inline editing (cc:/uu: markers)
+  -- Inline editing (cc:/uu:/cc!: markers)
   inline = {
     markers = {
       command = 'cc:', -- User command marker
       question = 'uu:', -- Claude question marker
+      constitution = 'cc!:', -- Execute + update CLAUDE.md with rule
     },
     quickfix = true, -- Show uu: questions in quickfix
   },

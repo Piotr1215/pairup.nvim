@@ -53,10 +53,9 @@ end
 
 ---Build the prompt with actual values
 ---@param filepath string
----@param cc_marker string
----@param uu_marker string
+---@param markers table {command, question, constitution}
 ---@return string
-function M.build(filepath, cc_marker, uu_marker)
+function M.build(filepath, markers)
   local template = M.get_template()
 
   -- Get progress file path if enabled
@@ -65,8 +64,9 @@ function M.build(filepath, cc_marker, uu_marker)
   -- Replace placeholders
   local result = template
     :gsub('{filepath}', filepath)
-    :gsub('{cc_marker}', cc_marker)
-    :gsub('{uu_marker}', uu_marker)
+    :gsub('{cc_marker}', markers.command)
+    :gsub('{uu_marker}', markers.question)
+    :gsub('{constitution_marker}', markers.constitution)
     :gsub('{progress_file}', progress_file)
 
   return result
