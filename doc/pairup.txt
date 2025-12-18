@@ -5,7 +5,7 @@ Table of Contents                                   *pairup-table-of-contents*
 
 1. pairup.nvim                                            |pairup-pairup.nvim|
   - How It Works                             |pairup-pairup.nvim-how-it-works|
-  - Neovim-Native Operator         |pairup-pairup.nvim-neovim-native-operator|
+  - Neovim-Native Operators       |pairup-pairup.nvim-neovim-native-operators|
   - Signs                                           |pairup-pairup.nvim-signs|
   - Plan Marker (Review Before Apply)|pairup-pairup.nvim-plan-marker-(review-before-apply)|
   - Constitution Marker               |pairup-pairup.nvim-constitution-marker|
@@ -16,6 +16,7 @@ Table of Contents                                   *pairup-table-of-contents*
   - Configuration                           |pairup-pairup.nvim-configuration|
   - Requirements                             |pairup-pairup.nvim-requirements|
   - License                                       |pairup-pairup.nvim-license|
+2. Links                                                        |pairup-links|
 
 ==============================================================================
 1. pairup.nvim                                            *pairup-pairup.nvim*
@@ -23,26 +24,25 @@ Table of Contents                                   *pairup-table-of-contents*
 Inline AI pair programming for Neovim.
 
 
-  **Breaking Changes in v4.0**
+  Breaking Changes in v4.0
   Thisversion removes the overlay system, sessions, RPC, and marker-based
   suggestions to focus on one thing: simple inline editing with `cc:`/`uu:`
   markers. See v4-architecture.md <./v4-architecture.md> for details.
-  **Why?** Less complexity, more reliability. Claude edits files directly — no
+  Why? Less complexity, more reliability. Claude edits files directly — no
   parsing, no overlays, no state management. Just write `cc:`, save, and Claude
   handles it.
-  **Need the old features?** Use `git checkout legacy-v3` or `git checkout
-  v3.0.0`.
+  Need the old features? Use `git checkout legacy-v3` or `git checkout v3.0.0`.
 
 HOW IT WORKS                                 *pairup-pairup.nvim-how-it-works*
 
-Write `cc:` markers anywhere in your code, save, and Claude edits the file
-directly.
+Write `cc:`, `cc!:`, or `ccp:` markers anywhere in your code, save, and Claude
+edits the file directly.
 
 >lua
-    -- cc: add error handling here
-    -- uu: Should I use pcall or assert?
-    function process(data)
-      return data.value
+    -- cc: add logging
+    -- uu: Use print, vim.notify, or a logging library?
+    function get_user(id)
+      return db.users[id].name
     end
 <
 
@@ -52,56 +52,31 @@ marker.
 See `prompt.md` <prompt.md> for the full prompt.
 
 
-NEOVIM-NATIVE OPERATOR             *pairup-pairup.nvim-neovim-native-operator*
+NEOVIM-NATIVE OPERATORS           *pairup-pairup.nvim-neovim-native-operators*
 
-Use `gC` to insert cc: markers with proper comment syntax for any filetype:
+Three separate operators for each marker type. Each works with any
+motion/text-object:
 
-  ---------------------------------------------------------------------------
-  Keybinding         Action         Scope Hint         Captures Text
-  ------------------ -------------- ------------------ ----------------------
-  gCC                Insert cc:     <line>             No
-                     marker above                      
-                     current line                      
 
-  gC!                Insert cc!:    <line>             No
-                     constitution                      
-                     marker                            
-
-  gC?                Insert ccp:    <line>             No
-                     plan marker                       
-
-  gC? (visual)       Insert plan    <selection>        Yes
-                     marker with                       
-                     selection                         
-
-  gCip/gCap          Insert marker  <paragraph>        No
-                     for paragraph                     
-
-  gCiw/gCaw          Insert marker  <word>             Yes
-                     for word                          
-
-  gCis/gCas          Insert marker  <sentence>         Yes
-                     for sentence                      
-
-  gCi}/gCa}          Insert marker  <block>            No
-                     for block                         
-
-  gCif/gCaf          Insert marker  <function>         No
-                     for function                      
-
-  gC (visual)        Insert marker  <selection>        Yes
-                     with selected                     
-                     text                              
-  ---------------------------------------------------------------------------
-**Scope hints** tell Claude what the instruction applies to:
-
->lua
-    -- cc: <paragraph> refactor this section
-    -- cc: <line> add error handling
-    -- cc: <selection> some_variable <- rename to camelCase
-<
-
-**Example:** Select "controller configuration" and press `gC`:
+  [!NOTE] These keybindings are only active when pairup is loaded. They won’t
+  conflict with other plugins or built-in vim mappings when pairup is not in use.
+  Marker   Operator     Line   Visual
+  -------- ------------ ------ --------
+  cc:      gC{motion}   gCC    gC
+  cc!:     g!{motion}   g!!    g!
+  ccp:     g?{motion}   g??    g?
+  Motion       Scope Hint    Example Output
+  ------------ ------------- -------------------
+  iw/aw        <word>        cc: <word>
+  iW/aW        <WORD>        cc: <WORD>
+  is/as        <sentence>    cc: <sentence>
+  ip/ap        <paragraph>   cc: <paragraph>
+  if/af        <function>    cc: <function>
+  ic/ac        <codeblock>   cc: <codeblock>
+  F            <file>        gCF → cc: <file>
+  double-tap   <line>        g!! → cc!: <line>
+  visual       <selection>   captures text
+Example: Select "controller configuration" and press `gC`:
 
 >go
     // cc: <selection> controller configuration <-
@@ -143,12 +118,15 @@ Claude wraps changes in conflict markers:
     >>>>>>> PROPOSED
 <
 
-**Accept/Reject:** Position cursor in the section you want to keep, then
-`:Pairup accept` (or `<Plug>(pairup-accept)`): - Cursor in CURRENT → keep
-original (reject proposal) - Cursor in PROPOSED → keep Claude’s change
-(accept proposal)
+Accept/Reject: Position cursor in the section you want to keep, then `:Pairup
+accept` (or `<Plug>(pairup-accept)`): - Cursor in CURRENT → keep original
+(reject proposal) - Cursor in PROPOSED → keep Claude’s change (accept
+proposal)
 
-**Mix and match:** Add `cc:` inside PROPOSED to refine before accepting:
+Diff view: Use `<Plug>(pairup-conflict-diff)` to open a side-by-side diff in a
+new tab. Press `ga` to accept the side you’re on, `q` to close.
+
+Mix and match: Add `cc:` inside PROPOSED to refine before accepting:
 
 >lua
     <<<<<<< CURRENT
@@ -250,10 +228,10 @@ config needed.
 
 - `[C]` — Claude running
 - `[C:pending]` — Waiting for Claude
-- `[C:██░░░░░░░░]` — Progress bar
+- `[C:██░░░░░░░░]` — Progress bar (when progress tracking enabled, Claude updates this live)
 - `[C:ready]` — Task complete
 
-**Manual setup** (only if you disable auto-inject or use a custom statusline
+Manual setup (only if you disable auto-inject or use a custom statusline
 plugin):
 
 >lua
@@ -267,9 +245,9 @@ plugin):
 
 CONFIGURATION                               *pairup-pairup.nvim-configuration*
 
-**Default:** The `--permission-mode acceptEdits` flag is included by default.
-This allows Claude to edit files without prompting for confirmation on each
-change, which is required for the inline editing workflow to function smoothly.
+Default: The `--permission-mode acceptEdits` flag is included by default. This
+allows Claude to edit files without prompting for confirmation on each change,
+which is required for the inline editing workflow to function smoothly.
 
 All settings below are defaults. You only need to include values you want to
 change:
@@ -279,14 +257,18 @@ change:
       provider = "claude",
       providers = {
         claude = {
-          -- Full command with flags (default includes acceptEdits)
           cmd = "claude --permission-mode acceptEdits",
         },
+      },
+      git = {
+        enabled = true,
+        diff_context_lines = 10,
       },
       terminal = {
         split_position = "left",
         split_width = 0.4,
-        auto_insert = false, -- Enter insert mode when opening terminal
+        auto_insert = false,
+        auto_scroll = true,
       },
       auto_refresh = {
         enabled = true,
@@ -302,20 +284,19 @@ change:
         quickfix = true,
       },
       statusline = {
-        auto_inject = true, -- auto-inject into lualine/native statusline
+        auto_inject = true,
       },
-      -- Progress bar (optional, disabled by default)
-      -- NOTE: When enabled, YOU must grant Claude write access to the progress file directory.
-      -- Add to your claude command: --add-dir /tmp (or your custom path)
       progress = {
         enabled = false,
-        file = "/tmp/claude_progress", -- Default path, change if needed
+        file = "/tmp/claude_progress",
       },
       flash = {
-        scroll_to_changes = false, -- Auto-scroll to first changed line
+        scroll_to_changes = false,
       },
       operator = {
-        key = "gC", -- change to override default
+        command_key = "gC",
+        constitution_key = "g!",
+        plan_key = "g?",
       },
     })
 <
@@ -342,12 +323,13 @@ Available `<Plug>` mappings for custom keybindings:
     vim.keymap.set('n', '<leader>ct', '<Plug>(pairup-toggle)')          -- show/hide terminal
     vim.keymap.set('n', '<leader>cs', '<Plug>(pairup-suspend)')         -- pause auto-processing
     vim.keymap.set('n', '<leader>cl', '<Plug>(pairup-lsp)')             -- send LSP diagnostics
-    vim.keymap.set('n', '<leader>cd', '<Plug>(pairup-diff)')            -- send git diff
+    vim.keymap.set('n', '<leader>cD', '<Plug>(pairup-diff)')            -- send git diff
     vim.keymap.set('n', '<leader>cq', '<Plug>(pairup-questions)')       -- show uu: in quickfix
     vim.keymap.set('n', '<leader>ci', '<Plug>(pairup-inline)')          -- process cc: markers
     vim.keymap.set('n', ']C', '<Plug>(pairup-next-marker)')             -- next marker
     vim.keymap.set('n', '[C', '<Plug>(pairup-prev-marker)')             -- prev marker
     vim.keymap.set('n', '<leader>co', '<Plug>(pairup-accept)')          -- accept conflict at cursor
+    vim.keymap.set('n', '<leader>cd', '<Plug>(pairup-conflict-diff)')   -- conflict diff view
 <
 
 
@@ -360,6 +342,11 @@ REQUIREMENTS                                 *pairup-pairup.nvim-requirements*
 LICENSE                                           *pairup-pairup.nvim-license*
 
 MIT
+
+==============================================================================
+2. Links                                                        *pairup-links*
+
+1. *Conflict diff view*: diff.png
 
 Generated by panvimdoc <https://github.com/kdheepak/panvimdoc>
 
