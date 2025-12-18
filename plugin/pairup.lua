@@ -165,3 +165,7 @@ end, { desc = 'Suspend auto-processing' })
 vim.keymap.set('n', '<Plug>(pairup-accept)', function()
   require('pairup.conflict').accept()
 end, { desc = 'Accept conflict section at cursor' })
+
+vim.keymap.set('n', '<Plug>(pairup-conflict-diff)', function()
+  require('pairup.conflict').diff()
+end, { desc = 'Conflict diff view' })

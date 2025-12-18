@@ -33,10 +33,13 @@ your proposed changes here
 
 Remove the `{plan_marker}` line when adding conflict markers. The user will review and accept/reject manually. If you need clarification first, use `{uu_marker}` as usual.
 
-SCOPE HINTS: Markers may include scope hints like `<line>`, `<paragraph>`, `<word>`, `<sentence>`, `<block>`, `<function>`, or `<selection>`.
-These indicate what the instruction applies to:
+SCOPE HINTS (optional): Markers may include scope hints to help you understand what the instruction applies to. These are hints, not commands - use your judgment:
 - `<line>` - apply to the line immediately below
+- `<word>` / `<WORD>` - a specific word/token (text may follow the hint)
+- `<sentence>` - apply to the sentence below
 - `<paragraph>` - apply to the paragraph below
-- `<word>` or `<sentence>` - the captured text follows the hint (e.g., `{cc_marker} <word> myVar <- rename`)
-- `<selection>` - the captured text follows the hint
-- `<block>` or `<function>` - apply to the code block/function below
+- `<function>` - apply to the function below
+- `<codeblock>` - apply to the fenced code block (```)
+- `<selection>` - captured text follows the hint (e.g., `{cc_marker} <selection> myVar <- rename`)
+
+If no scope hint is present, infer the scope from context.

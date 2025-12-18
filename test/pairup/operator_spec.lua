@@ -177,165 +177,114 @@ describe('pairup.operator', function()
   end)
 
   describe('operatorfunc', function()
-    it('should be callable with line type', function()
+    it('should insert marker without scope hint (motion type unknown)', function()
       local bufnr = vim.api.nvim_create_buf(false, true)
       vim.api.nvim_set_current_buf(bufnr)
-      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { 'line 1', 'line 2' })
-
-      -- Set marks for operatorfunc
-      vim.api.nvim_buf_set_mark(bufnr, '[', 1, 0, {})
-      vim.api.nvim_buf_set_mark(bufnr, ']', 2, 0, {})
-
-      -- Should not error
-      assert.has_no.errors(function()
-        operator.operatorfunc('line')
-      end)
-
-      vim.api.nvim_buf_delete(bufnr, { force = true })
-    end)
-
-    it('should detect paragraph scope from motion', function()
-      local bufnr = vim.api.nvim_create_buf(false, true)
-      vim.api.nvim_set_current_buf(bufnr)
-      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { 'paragraph text' })
-
+      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { 'test line' })
       vim.api.nvim_buf_set_mark(bufnr, '[', 1, 0, {})
       vim.api.nvim_buf_set_mark(bufnr, ']', 1, 0, {})
 
-      -- Simulate ip motion
-      operator._last_motion = 'ip'
+      operator._marker_type = 'command'
       operator.operatorfunc('line')
 
       local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
-      assert.are.equal('cc: <paragraph> ', lines[1])
-
-      vim.api.nvim_buf_delete(bufnr, { force = true })
-    end)
-
-    it('should detect word scope from motion', function()
-      local bufnr = vim.api.nvim_create_buf(false, true)
-      vim.api.nvim_set_current_buf(bufnr)
-      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { 'word here' })
-
-      vim.api.nvim_buf_set_mark(bufnr, '[', 1, 0, {})
-      vim.api.nvim_buf_set_mark(bufnr, ']', 1, 0, {})
-
-      operator._last_motion = 'iw'
-      operator.operatorfunc('char')
-
-      local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
-      assert.are.equal('cc: <word> ', lines[1])
-
-      vim.api.nvim_buf_delete(bufnr, { force = true })
-    end)
-
-    it('should detect single line scope', function()
-      local bufnr = vim.api.nvim_create_buf(false, true)
-      vim.api.nvim_set_current_buf(bufnr)
-      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { 'single line' })
-
-      vim.api.nvim_buf_set_mark(bufnr, '[', 1, 0, {})
-      vim.api.nvim_buf_set_mark(bufnr, ']', 1, 0, {})
-
-      operator._last_motion = nil
-      operator.operatorfunc('line')
-
-      local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
-      assert.are.equal('cc: <line> ', lines[1])
-
-      vim.api.nvim_buf_delete(bufnr, { force = true })
-    end)
-
-    it('should detect multiple lines scope', function()
-      local bufnr = vim.api.nvim_create_buf(false, true)
-      vim.api.nvim_set_current_buf(bufnr)
-      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { 'line 1', 'line 2', 'line 3' })
-
-      vim.api.nvim_buf_set_mark(bufnr, '[', 1, 0, {})
-      vim.api.nvim_buf_set_mark(bufnr, ']', 3, 0, {})
-
-      operator._last_motion = nil
-      operator.operatorfunc('line')
-
-      local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
-      assert.are.equal('cc: <lines> ', lines[1])
-
-      vim.api.nvim_buf_delete(bufnr, { force = true })
-    end)
-
-    it('should clear last_motion after use', function()
-      local bufnr = vim.api.nvim_create_buf(false, true)
-      vim.api.nvim_set_current_buf(bufnr)
-      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { 'test' })
-
-      vim.api.nvim_buf_set_mark(bufnr, '[', 1, 0, {})
-      vim.api.nvim_buf_set_mark(bufnr, ']', 1, 0, {})
-
-      operator._last_motion = 'ap'
-      operator.operatorfunc('line')
-
-      assert.is_nil(operator._last_motion)
-
+      assert.are.equal('cc: ', lines[1])
       vim.api.nvim_buf_delete(bufnr, { force = true })
     end)
   end)
 
   describe('setup', function()
-    it('should create keymaps with default key', function()
+    it('should create gC operator and gCC line mapping', function()
       operator.setup()
 
-      -- Check that keymaps exist
       local nmaps = vim.api.nvim_get_keymap('n')
-      local found_gC = false
+      local found_gC, found_gCC = false, false
       for _, map in ipairs(nmaps) do
         if map.lhs == 'gC' then
           found_gC = true
-          break
+        end
+        if map.lhs == 'gCC' then
+          found_gCC = true
         end
       end
-      assert.is_true(found_gC, 'gC keymap should exist in normal mode')
+      assert.is_true(found_gC, 'gC operator should exist')
+      assert.is_true(found_gCC, 'gCC line mapping should exist')
     end)
 
-    it('should allow custom key override', function()
-      operator.setup({ key = 'gP' })
+    it('should create g! operator for constitution marker', function()
+      operator.setup()
 
       local nmaps = vim.api.nvim_get_keymap('n')
-      local found_gP = false
+      local found_g_bang, found_g_bang_bang = false, false
       for _, map in ipairs(nmaps) do
+        if map.lhs == 'g!' then
+          found_g_bang = true
+        end
+        if map.lhs == 'g!!' then
+          found_g_bang_bang = true
+        end
+      end
+      assert.is_true(found_g_bang, 'g! operator should exist')
+      assert.is_true(found_g_bang_bang, 'g!! line mapping should exist')
+    end)
+
+    it('should create g? operator for plan marker', function()
+      operator.setup()
+
+      local nmaps = vim.api.nvim_get_keymap('n')
+      local found_g_question, found_g_question_question = false, false
+      for _, map in ipairs(nmaps) do
+        if map.lhs == 'g?' then
+          found_g_question = true
+        end
+        if map.lhs == 'g??' then
+          found_g_question_question = true
+        end
+      end
+      assert.is_true(found_g_question, 'g? operator should exist')
+      assert.is_true(found_g_question_question, 'g?? line mapping should exist')
+    end)
+
+    it('should create text object mappings with scope hints', function()
+      operator.setup()
+
+      local nmaps = vim.api.nvim_get_keymap('n')
+      local found_gCip, found_g_bang_ip, found_g_question_ip = false, false, false
+      for _, map in ipairs(nmaps) do
+        if map.lhs == 'gCip' then
+          found_gCip = true
+        end
+        if map.lhs == 'g!ip' then
+          found_g_bang_ip = true
+        end
+        if map.lhs == 'g?ip' then
+          found_g_question_ip = true
+        end
+      end
+      assert.is_true(found_gCip, 'gCip mapping should exist')
+      assert.is_true(found_g_bang_ip, 'g!ip mapping should exist')
+      assert.is_true(found_g_question_ip, 'g?ip mapping should exist')
+    end)
+
+    it('should allow custom key overrides', function()
+      operator.setup({ command_key = 'gc', constitution_key = 'gK', plan_key = 'gP' })
+
+      local nmaps = vim.api.nvim_get_keymap('n')
+      local found_gc, found_gK, found_gP = false, false, false
+      for _, map in ipairs(nmaps) do
+        if map.lhs == 'gc' then
+          found_gc = true
+        end
+        if map.lhs == 'gK' then
+          found_gK = true
+        end
         if map.lhs == 'gP' then
           found_gP = true
-          break
         end
       end
-      assert.is_true(found_gP, 'Custom gP keymap should exist')
-    end)
-
-    it('should create gC! keymap for constitution marker', function()
-      operator.setup()
-
-      local nmaps = vim.api.nvim_get_keymap('n')
-      local found_gC_bang = false
-      for _, map in ipairs(nmaps) do
-        if map.lhs == 'gC!' then
-          found_gC_bang = true
-          break
-        end
-      end
-      assert.is_true(found_gC_bang, 'gC! keymap should exist for constitution marker')
-    end)
-
-    it('should create gC? keymap for plan marker', function()
-      operator.setup()
-
-      local nmaps = vim.api.nvim_get_keymap('n')
-      local found_gC_question = false
-      for _, map in ipairs(nmaps) do
-        if map.lhs == 'gC?' then
-          found_gC_question = true
-          break
-        end
-      end
-      assert.is_true(found_gC_question, 'gC? keymap should exist for plan marker')
+      assert.is_true(found_gc, 'Custom gc should exist')
+      assert.is_true(found_gK, 'Custom gK should exist')
+      assert.is_true(found_gP, 'Custom gP should exist')
     end)
   end)
 end)

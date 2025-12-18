@@ -1,12 +1,9 @@
--- Operator for wrapping text in cc: markers
--- Usage: gC{motion} or gC in visual mode
-
 local M = {}
 
 local config = require('pairup.config')
+local text_objects_mod = require('pairup.text_objects')
 
----Get marker from config by type
----@param marker_type? string 'command'|'constitution'|'plan' (default: 'command')
+---@param marker_type? string
 ---@return string
 local function get_marker(marker_type)
   marker_type = marker_type or 'command'
@@ -18,11 +15,10 @@ local function get_marker(marker_type)
   return defaults[marker_type] or 'cc:'
 end
 
----Get text from range
----@param start_line integer 1-indexed
----@param start_col integer 0-indexed
----@param end_line integer 1-indexed
----@param end_col integer 0-indexed
+---@param start_line integer
+---@param start_col integer
+---@param end_line integer
+---@param end_col integer
 ---@return string
 local function get_text(start_line, start_col, end_line, end_col)
   local lines = vim.api.nvim_buf_get_lines(0, start_line - 1, end_line, false)
@@ -37,35 +33,26 @@ local function get_text(start_line, start_col, end_line, end_col)
   return table.concat(lines, '\n')
 end
 
----Get comment prefix for current buffer
 ---@return string prefix, string suffix
 local function get_comment_parts()
   local cs = vim.bo.commentstring
   if not cs or cs == '' then
     return '', ''
   end
-  -- commentstring is like "// %s" or "/* %s */"
   local prefix, suffix = cs:match('^(.-)%%s(.-)$')
   return (prefix or ''):gsub('%s+$', ''), (suffix or ''):gsub('^%s+', '')
 end
 
----Insert cc: marker with context (as a comment)
----@param start_line integer 1-indexed start line
----@param context string|nil Selected text as context
----@param scope string|nil Scope hint: 'line', 'paragraph', 'word', 'selection'
----@param marker_type? string 'command'|'constitution' (default: 'command')
+---@param start_line integer
+---@param context string|nil
+---@param scope string|nil
+---@param marker_type? string
 function M.insert_marker(start_line, context, scope, marker_type)
   local marker = get_marker(marker_type)
   local bufnr = vim.api.nvim_get_current_buf()
   local prefix, suffix = get_comment_parts()
 
-  -- Build scope hint
-  local scope_hint = ''
-  if scope then
-    scope_hint = '<' .. scope .. '> '
-  end
-
-  -- Build marker content: "cc: <scope> context <- " (cursor at end after arrow)
+  local scope_hint = scope and ('<' .. scope .. '> ') or ''
   local marker_content
   if context and context ~= '' then
     local clean_context = context:gsub('\n', ' '):gsub('%s+', ' ')
@@ -74,157 +61,112 @@ function M.insert_marker(start_line, context, scope, marker_type)
     marker_content = marker .. ' ' .. scope_hint
   end
 
-  -- Wrap in comment syntax
   local marker_text
   if prefix ~= '' then
-    if suffix ~= '' then
-      marker_text = prefix .. ' ' .. marker_content .. ' ' .. suffix
-    else
-      marker_text = prefix .. ' ' .. marker_content
-    end
+    marker_text = suffix ~= '' and (prefix .. ' ' .. marker_content .. ' ' .. suffix)
+      or (prefix .. ' ' .. marker_content)
   else
     marker_text = marker_content
   end
 
-  -- Insert marker above the range
   vim.api.nvim_buf_set_lines(bufnr, start_line - 1, start_line - 1, false, { marker_text })
-
-  -- Position cursor at end of line for typing instructions
   vim.api.nvim_win_set_cursor(0, { start_line, #marker_text })
   vim.cmd('startinsert!')
 end
 
--- Track last motion for scope detection
-M._last_motion = nil
+-- Store marker type for operatorfunc callback
+M._marker_type = 'command'
 
--- Motion to scope mapping
-local motion_scopes = {
-  ip = 'paragraph',
-  ap = 'paragraph',
-  iw = 'word',
-  aw = 'word',
-  iW = 'word',
-  aW = 'word',
-  is = 'sentence',
-  as = 'sentence',
-  ['i}'] = 'block',
-  ['a}'] = 'block',
-  iB = 'block',
-  aB = 'block',
-  ['if'] = 'function',
-  af = 'function',
-}
-
----Operatorfunc for gC motion
----@param type string 'line', 'char', or 'block'
-function M.operatorfunc(type)
-  local start_line = vim.fn.line("'[")
-  local end_line = vim.fn.line("']")
-
-  local motion = M._last_motion
-  M._last_motion = nil
-
-  local scope = motion_scopes[motion]
-  if not scope and type == 'line' then
-    scope = start_line == end_line and 'line' or 'lines'
-  end
-
-  M.insert_marker(start_line, nil, scope)
+---@param _motion_type string 'line', 'char', or 'block' (unused - can't detect text object type)
+function M.operatorfunc(_motion_type)
+  M.insert_marker(vim.fn.line("'["), nil, nil, M._marker_type)
 end
 
----Wrap lines in cc: marker (legacy, for direct calls)
----@param start_line integer 1-indexed start line
----@param end_line integer 1-indexed end line
----@param prompt string|nil Optional prompt text
-function M.wrap_lines(start_line, end_line, prompt)
-  M.insert_marker(start_line, prompt)
+---@param marker_type string
+---@return string
+local function make_operator(marker_type)
+  M._marker_type = marker_type
+  vim.o.operatorfunc = "v:lua.require'pairup.operator'.operatorfunc"
+  return 'g@'
 end
 
--- Text objects with their scopes
+-- Common text objects with their scope names
 local text_objects = {
-  { motion = 'ip', scope = 'paragraph' },
-  { motion = 'ap', scope = 'paragraph' },
-  { motion = 'iw', scope = 'word', capture = true },
-  { motion = 'aw', scope = 'word', capture = true },
-  { motion = 'iW', scope = 'WORD', capture = true },
-  { motion = 'aW', scope = 'WORD', capture = true },
-  { motion = 'is', scope = 'sentence', capture = true },
-  { motion = 'as', scope = 'sentence', capture = true },
-  { motion = 'i}', scope = 'block' },
-  { motion = 'a}', scope = 'block' },
-  { motion = 'i{', scope = 'block' },
-  { motion = 'a{', scope = 'block' },
-  { motion = 'iB', scope = 'block' },
-  { motion = 'aB', scope = 'block' },
-  { motion = 'if', scope = 'function' },
-  { motion = 'af', scope = 'function' },
+  { obj = 'iw', scope = 'word' },
+  { obj = 'aw', scope = 'word' },
+  { obj = 'iW', scope = 'WORD' },
+  { obj = 'aW', scope = 'WORD' },
+  { obj = 'is', scope = 'sentence' },
+  { obj = 'as', scope = 'sentence' },
+  { obj = 'ip', scope = 'paragraph' },
+  { obj = 'ap', scope = 'paragraph' },
+  { obj = 'if', scope = 'function' },
+  { obj = 'af', scope = 'function' },
+  { obj = 'ic', scope = 'codeblock' },
+  { obj = 'ac', scope = 'codeblock' },
 }
 
----Create keymaps for a marker type
----@param key string Base key (e.g., 'gC')
----@param marker_type string 'command'|'constitution'
----@param motions boolean Whether to create text object mappings
-local function create_keymaps(key, marker_type, motions)
-  local marker_name = get_marker(marker_type):gsub(':', '')
+---@param key string
+---@param marker_type string
+local function create_operator(key, marker_type)
+  local desc = 'Pairup: ' .. get_marker(marker_type):gsub(':', '') .. ' marker'
 
-  -- Line-wise (doubled key like gCC, or suffix like gC!)
+  -- Fallback operator for motions not in text_objects list
   vim.keymap.set('n', key, function()
-    M.insert_marker(vim.fn.line('.'), nil, 'line', marker_type)
-  end, { desc = 'Pairup: ' .. marker_name .. ' marker on line' })
+    return make_operator(marker_type)
+  end, { expr = true, desc = desc })
 
-  if not motions then
-    return
+  -- Explicit text object mappings with scope hints
+  for _, to in ipairs(text_objects) do
+    vim.keymap.set('n', key .. to.obj, function()
+      local start_line = vim.fn.line('.')
+      -- Custom text objects (ic/ac) handled specially - they enter visual mode directly
+      if to.obj == 'ic' or to.obj == 'ac' then
+        -- Get codeblock boundaries to insert marker at opening ``` line
+        local bounds = text_objects_mod.find_codeblock('a')
+        if bounds then
+          M.insert_marker(bounds.start_line, nil, to.scope, marker_type)
+        end
+      elseif to.obj == 'ip' or to.obj == 'ap' then
+        -- Get paragraph start line
+        local save_pos = vim.fn.getpos('.')
+        vim.cmd('normal! {')
+        local para_start = vim.fn.line('.') + 1
+        vim.fn.setpos('.', save_pos)
+        M.insert_marker(para_start, nil, to.scope, marker_type)
+      else
+        -- Built-in text objects: select and escape
+        vim.cmd('normal! v' .. to.obj .. vim.api.nvim_replace_termcodes('<Esc>', true, false, true))
+        M.insert_marker(start_line, nil, to.scope, marker_type)
+      end
+    end, { desc = desc .. ' on ' .. to.scope })
   end
+
+  -- Line-wise: double-tap (e.g., gCC, g!!, g??)
+  vim.keymap.set('n', key .. key:sub(-1), function()
+    M.insert_marker(vim.fn.line('.'), nil, 'line', marker_type)
+  end, { desc = desc .. ' on line' })
 
   -- Visual mode
   vim.keymap.set('x', key, function()
-    local start_pos = vim.fn.getpos('v')
-    local end_pos = vim.fn.getpos('.')
+    local start_pos, end_pos = vim.fn.getpos('v'), vim.fn.getpos('.')
     local start_line, start_col = start_pos[2], start_pos[3] - 1
     local end_line, end_col = end_pos[2], end_pos[3] - 1
     if start_line > end_line or (start_line == end_line and start_col > end_col) then
-      start_line, end_line = end_line, start_line
-      start_col, end_col = end_col, start_col
+      start_line, end_line, start_col, end_col = end_line, start_line, end_col, start_col
     end
     local context = get_text(start_line, start_col, end_line, end_col)
     vim.cmd('normal! ' .. vim.api.nvim_replace_termcodes('<Esc>', true, false, true))
     M.insert_marker(start_line, context, 'selection', marker_type)
-  end, { desc = 'Pairup: ' .. marker_name .. ' marker on selection' })
-
-  -- Text objects
-  for _, obj in ipairs(text_objects) do
-    vim.keymap.set('n', key .. obj.motion, function()
-      local esc = vim.api.nvim_replace_termcodes('<Esc>', true, false, true)
-      vim.cmd('normal! v' .. obj.motion .. esc)
-      local start_line = vim.fn.line("'<")
-      local start_col = vim.fn.col("'<") - 1
-      local end_col = vim.fn.col("'>") - 1
-      local context = obj.capture and get_text(start_line, start_col, vim.fn.line("'>"), end_col) or nil
-      M.insert_marker(start_line, context, obj.scope, marker_type)
-    end, { desc = 'Pairup: ' .. marker_name .. ' marker on ' .. obj.scope })
-  end
+  end, { desc = desc .. ' on selection' })
 end
 
----Setup the gC operator
----@param opts table|nil Options (key: string to override default 'gC')
+---@param opts table|nil
 function M.setup(opts)
   opts = opts or {}
-  local key = opts.key or 'gC'
-
-  -- Generic operator for arbitrary motions (fallback)
-  vim.keymap.set('n', key, function()
-    vim.o.operatorfunc = "v:lua.require'pairup.operator'.operatorfunc"
-    return 'g@'
-  end, { expr = true, desc = 'Pairup: wrap in cc: marker' })
-
-  -- Command marker: gCC (line), gCip, gCiw, etc.
-  create_keymaps(key .. key:sub(-1), 'command', true)
-
-  -- Constitution marker: gC! (line only for now)
-  create_keymaps(key .. '!', 'constitution', false)
-
-  -- Plan marker: gC? (line + visual with selection capture)
-  create_keymaps(key .. '?', 'plan', true)
+  create_operator(opts.command_key or 'gC', 'command')
+  create_operator(opts.constitution_key or 'g!', 'constitution')
+  create_operator(opts.plan_key or 'g?', 'plan')
 end
 
 return M
