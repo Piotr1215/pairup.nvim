@@ -128,10 +128,10 @@ local function create_operator(key, marker_type)
           M.insert_marker(bounds.start_line, nil, to.scope, marker_type)
         end
       elseif to.obj == 'ip' or to.obj == 'ap' then
-        -- Get paragraph start line
+        -- Use vim's actual text object to get paragraph start
         local save_pos = vim.fn.getpos('.')
-        vim.cmd('normal! {')
-        local para_start = vim.fn.line('.') + 1
+        vim.cmd('normal! v' .. to.obj .. vim.api.nvim_replace_termcodes('<Esc>', true, false, true))
+        local para_start = vim.fn.line("'<")
         vim.fn.setpos('.', save_pos)
         M.insert_marker(para_start, nil, to.scope, marker_type)
       else

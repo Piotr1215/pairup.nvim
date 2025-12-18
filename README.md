@@ -99,6 +99,8 @@ end
 
 **Diff view:** Use `<Plug>(pairup-conflict-diff)` to open a side-by-side diff in a new tab. Press `ga` to accept the side you're on, `q` to close.
 
+![Conflict diff view](diff.png)
+
 **Mix and match:** Add `cc:` inside PROPOSED to refine before accepting:
 
 ```lua
@@ -144,10 +146,8 @@ end
 
 ## Installation
 
-Key bindings are optional — the plugin works with `:Pairup` commands alone. 
+Key bindings are optional — the plugin works with `:Pairup` commands alone.
 
-ccp: <codeblock>
-uu: No instruction provided. What should I verify or change about the installation block?
 ```lua
 -- lazy.nvim
 {
