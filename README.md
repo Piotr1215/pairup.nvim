@@ -17,6 +17,31 @@ Inline AI pair programming for Neovim.
 
 Write `cc:`, `cc!:`, or `ccp:` markers anywhere in your code, save, and Claude edits the file directly.
 
+```mermaid
+sequenceDiagram
+    autonumber
+    participant U as User
+    participant P as Plugin (Neovim)
+    participant C as Claude CLI
+    participant H as Hook
+
+    U->>P: gCC (insert cc: marker)
+    P->>U: Signs, colors, statusbar
+    U->>P: :w (save file)
+    P->>C: Send prompt + file path
+
+    C->>H: TodoWrite (in_progress)
+    H->>P: JSON
+    P->>U: [C:0/1] + extmark
+
+    C->>P: Edit file
+    P->>U: Flash changed lines
+
+    C->>H: TodoWrite (completed)
+    H->>P: JSON
+    P->>U: [C:ready], clear extmark
+```
+
 ```lua
 -- cc: add logging
 -- uu: Use print, vim.notify, or a logging library?
@@ -102,6 +127,8 @@ Accept/Reject: Position cursor in the section you want to keep, then `:Pairup ac
 Diff view: Use `<Plug>(pairup-conflict-diff)` to open a side-by-side diff in a new tab. Press `ga` to accept the side you're on, `q` to close.
 
 ![Conflict diff view](diff.png)
+
+Scope view: Use `<Plug>(pairup-scope)` to open a sidebar showing all suggestions in the file. Navigate with `<C-n>`/`<C-p>`, press `<CR>` to jump to a suggestion, `g` to open diff view, `q` to close.
 
 Mix and match: Add `cc:` inside PROPOSED to refine before accepting:
 
@@ -189,6 +216,7 @@ Key bindings are optional — the plugin works with `:Pairup` commands alone.
 | `lsp` | Send LSP diagnostics to Claude |
 | `suspend` | Pause auto-processing (indicator turns red) |
 | `accept` | Accept conflict section at cursor |
+| `scope` | Open suggestions scope sidebar |
 
 ## Status Indicator
 
@@ -324,6 +352,7 @@ vim.keymap.set('n', ']C', '<Plug>(pairup-next-marker)')             -- next mark
 vim.keymap.set('n', '[C', '<Plug>(pairup-prev-marker)')             -- prev marker
 vim.keymap.set('n', '<leader>co', '<Plug>(pairup-accept)')          -- accept conflict at cursor
 vim.keymap.set('n', '<leader>cd', '<Plug>(pairup-conflict-diff)')   -- conflict diff view
+vim.keymap.set('n', '<leader>cS', '<Plug>(pairup-scope)')           -- suggestions scope view
 ```
 
 ## Requirements
