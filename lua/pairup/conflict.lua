@@ -54,7 +54,14 @@ function M.find_block()
   end
 
   local in_current = cursor > start_marker and cursor < separator
-  return { start_marker = start_marker, separator = separator, end_marker = end_marker, in_current = in_current }
+  local reason = lines[end_marker]:match('^>>>>>>> PROPOSED:%s*(.*)$') or ''
+  return {
+    start_marker = start_marker,
+    separator = separator,
+    end_marker = end_marker,
+    in_current = in_current,
+    reason = reason,
+  }
 end
 
 ---Accept section at cursor (CURRENT or PROPOSED based on cursor position)
@@ -180,7 +187,8 @@ function M.find_all(bufnr)
         end
       end
       if separator and end_marker then
-        local preview = lines[start_marker + 1] or ''
+        local reason = lines[end_marker]:match('^>>>>>>> PROPOSED:%s*(.*)$') or ''
+        local preview = reason ~= '' and reason or (lines[start_marker + 1] or '')
         if #preview > 50 then
           preview = preview:sub(1, 47) .. '...'
         end
@@ -188,6 +196,7 @@ function M.find_all(bufnr)
           start_marker = start_marker,
           separator = separator,
           end_marker = end_marker,
+          reason = reason,
           preview = preview,
         })
         i = end_marker

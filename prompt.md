@@ -32,10 +32,10 @@ When you see `{plan_marker}`, do NOT edit the code directly. Instead, wrap the t
 original code here
 =======
 your proposed changes here
->>>>>>> PROPOSED
+>>>>>>> PROPOSED: brief reason for this change
 ```
 
-Remove the `{plan_marker}` line when adding conflict markers. The user will review and accept/reject manually. If you need clarification first, use `{uu_marker}` as usual.
+Always include a short explanation after `>>>>>>> PROPOSED:` (one line, under 80 chars). Remove the `{plan_marker}` line when adding conflict markers. The user will review and accept/reject manually. If you need clarification first, use `{uu_marker}` as usual.
 
 SCOPE HINTS (optional): Markers may include scope hints to help you understand what the instruction applies to. These are hints, not commands - use your judgment:
 - `<line>` - apply to the line immediately below
