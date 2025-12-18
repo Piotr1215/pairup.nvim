@@ -1,22 +1,14 @@
--- Status indicator for pairup.nvim (includes progress bar)
+-- Status indicator for pairup.nvim (hook-based todo progress)
 
 local M = {}
 local config = require('pairup.config')
 
--- Progress state
-local bar_width = 10
-local bar_filled = '█'
-local bar_empty = '░'
-local active_progress = nil -- { start_time, duration, message, timer }
+-- State
 local file_watcher = nil
-local last_file_mtime = nil -- Track file modification time
-
----Generate progress bar string
-local function make_bar(progress)
-  local filled = math.floor(progress * bar_width + 0.5)
-  local empty = bar_width - filled
-  return string.rep(bar_filled, filled) .. string.rep(bar_empty, empty)
-end
+local last_file_mtime = nil
+local virt_ns = vim.api.nvim_create_namespace('pairup_progress')
+local virt_extmark_id = nil
+local virt_extmark_buf = nil
 
 ---Update the indicator variable
 local function set_indicator(value)
@@ -25,144 +17,140 @@ local function set_indicator(value)
   vim.cmd('redrawstatus')
 end
 
----Update progress bar display
-local function update_progress()
-  if not active_progress then
+---Set virtual text showing current task at top of buffer (stable position)
+---@param text string|nil
+function M.set_virtual_text(text)
+  -- Always clear existing first
+  if virt_extmark_id and virt_extmark_buf and vim.api.nvim_buf_is_valid(virt_extmark_buf) then
+    pcall(vim.api.nvim_buf_del_extmark, virt_extmark_buf, virt_ns, virt_extmark_id)
+  end
+  virt_extmark_id = nil
+  virt_extmark_buf = nil
+  if not text or text == '' then
     return
   end
-
-  local elapsed = os.time() - active_progress.start_time
-  local remaining = math.max(0, active_progress.duration - elapsed)
-  local progress = math.min(elapsed / active_progress.duration, 1.0)
-
-  if progress >= 1.0 then
-    -- Done - show ready (green)
-    set_indicator('[C:' .. make_bar(1.0) .. '] ' .. active_progress.message)
-    M.stop_progress()
-  else
-    -- Show progress bar with remaining seconds (green)
-    set_indicator('[C:' .. make_bar(progress) .. '] ' .. remaining .. 's ' .. active_progress.message)
+  local buf = vim.api.nvim_get_current_buf()
+  -- Ensure highlight exists (green like statusline indicator)
+  vim.api.nvim_set_hl(0, 'PairupProgress', { fg = '#a6e3a1', italic = true, default = true })
+  -- Split into lines (wrap at ~80 chars or on newlines)
+  local lines = {}
+  for line in text:gmatch('[^\n]+') do
+    if #line > 80 then
+      while #line > 80 do
+        local wrap_at = line:sub(1, 80):match('.*()%s') or 80
+        table.insert(lines, line:sub(1, wrap_at))
+        line = line:sub(wrap_at + 1)
+      end
+      if #line > 0 then
+        table.insert(lines, line)
+      end
+    else
+      table.insert(lines, line)
+    end
   end
+  -- Build virt_lines with icon on first line
+  local virt_lines = {}
+  for i, line in ipairs(lines) do
+    local prefix = i == 1 and '  󰭻 ' or '    '
+    table.insert(virt_lines, { { prefix .. line, 'PairupProgress' } })
+  end
+  -- Place below cursor (scroll_to_changes keeps view at edit location)
+  local row = vim.api.nvim_win_get_cursor(0)[1] - 1
+  virt_extmark_id = vim.api.nvim_buf_set_extmark(buf, virt_ns, row, 0, {
+    virt_lines = virt_lines,
+  })
+  virt_extmark_buf = buf
 end
 
----Get progress file path from config
+---Get hook-based todo state file path (auto-detects most recent)
 ---@return string|nil
-local function get_progress_file()
+local function get_hook_file()
   if not config.get('progress.enabled') then
     return nil
   end
-  return config.get('progress.file')
+  local session_id = config.get('progress.session_id')
+  if session_id then
+    return '/tmp/pairup-todo-' .. session_id .. '.json'
+  end
+  -- Auto-detect: find most recent pairup-todo-*.json
+  local handle = vim.loop.fs_scandir('/tmp')
+  if not handle then
+    return nil
+  end
+  local latest_file, latest_mtime = nil, 0
+  while true do
+    local name, type = vim.loop.fs_scandir_next(handle)
+    if not name then
+      break
+    end
+    if type == 'file' and name:match('^pairup%-todo%-.*%.json$') then
+      local stat = vim.loop.fs_stat('/tmp/' .. name)
+      if stat and stat.mtime.sec > latest_mtime then
+        latest_mtime = stat.mtime.sec
+        latest_file = '/tmp/' .. name
+      end
+    end
+  end
+  return latest_file
 end
 
----Check for progress file and start timer
-local function check_progress_file()
-  local progress_file = get_progress_file()
-  if not progress_file then
+---Check for hook-based todo state and update indicator
+local function check_hook_state()
+  local hook_file = get_hook_file()
+  if not hook_file then
     return
   end
 
-  -- Check file modification time first
-  local stat = vim.loop.fs_stat(progress_file)
+  local stat = vim.loop.fs_stat(hook_file)
   if not stat then
     return
   end
 
-  -- Skip if file hasn't changed
   local mtime = stat.mtime.sec
   if mtime == last_file_mtime then
     return
   end
+  last_file_mtime = mtime
 
-  local f = io.open(progress_file, 'r')
+  local f = io.open(hook_file, 'r')
   if not f then
     return
   end
-
   local content = f:read('*a')
   f:close()
 
-  content = vim.trim(content)
+  local ok, data = pcall(vim.json.decode, content)
+  if not ok or not data then
+    return
+  end
 
-  -- Check for "done" signal
-  if content == 'done' then
-    last_file_mtime = mtime
-    M.stop_progress()
+  local total = data.total or 0
+  local completed = data.completed or 0
+  local current = data.current or ''
+
+  if total == 0 then
+    set_indicator('[C]')
+    M.set_virtual_text(nil)
+  elseif completed == total then
     set_indicator('[C:ready]')
-    os.remove(progress_file)
-    -- Clear ready after 3 seconds
+    M.set_virtual_text(nil)
     vim.defer_fn(function()
       if vim.g.pairup_indicator == '[C:ready]' then
         M.update()
       end
     end, 3000)
-    return
+  else
+    set_indicator('[C:' .. completed .. '/' .. total .. ']')
+    M.set_virtual_text(current)
   end
-
-  local duration, message = content:match('^(%d+):(.+)')
-  if not duration or not message then
-    return
-  end
-
-  duration = tonumber(duration)
-  message = vim.trim(message)
-
-  -- File changed - update mtime and reset progress
-  last_file_mtime = mtime
-
-  -- Stop previous
-  M.stop_progress()
-
-  -- Start new progress
-  active_progress = {
-    start_time = os.time(),
-    duration = duration,
-    message = message,
-  }
-
-  local interval = duration <= 10 and 200 or 500
-  local timer = vim.loop.new_timer()
-  active_progress.timer = timer
-
-  timer:start(
-    0,
-    interval,
-    vim.schedule_wrap(function()
-      if active_progress and active_progress.timer then
-        update_progress()
-      end
-      -- Timer cleanup handled by stop_progress()
-    end)
-  )
-
-  -- Delete file so we don't re-read
-  os.remove(progress_file)
 end
 
--- Stop progress and return to normal indicator
-function M.stop_progress()
-  if active_progress and active_progress.timer then
-    local timer = active_progress.timer
-    active_progress.timer = nil -- Clear first to prevent double-close
-    if not timer:is_closing() then
-      timer:stop()
-      timer:close()
-    end
-  end
-  active_progress = nil
-  M.update()
-end
-
--- Update status indicator (normal mode, no progress)
+-- Update status indicator
 function M.update()
-  -- Don't override active progress
-  if active_progress then
-    return
-  end
-
   local providers = require('pairup.providers')
   local buf = providers.find_terminal()
   if not buf then
-    set_indicator('') -- AI not running
+    set_indicator('')
   else
     local provider = config.get_provider()
     local prefix = provider:sub(1, 1):upper()
@@ -219,21 +207,14 @@ end
 -- Setup file watcher for progress
 function M.setup()
   if file_watcher then
-    return -- Already setup
+    return
   end
   file_watcher = vim.loop.new_timer()
-  file_watcher:start(
-    500,
-    500,
-    vim.schedule_wrap(function()
-      check_progress_file()
-    end)
-  )
+  file_watcher:start(500, 500, vim.schedule_wrap(check_hook_state))
 end
 
---- Cleanup timers on plugin unload
+-- Cleanup timers on plugin unload
 function M.cleanup()
-  -- Stop file watcher
   if file_watcher then
     if not file_watcher:is_closing() then
       file_watcher:stop()
@@ -241,9 +222,8 @@ function M.cleanup()
     end
     file_watcher = nil
   end
-  -- Stop active progress timer
-  M.stop_progress()
   last_file_mtime = nil
+  M.set_virtual_text(nil)
 end
 
 return M

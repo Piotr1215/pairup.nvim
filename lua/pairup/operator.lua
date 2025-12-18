@@ -134,6 +134,15 @@ local function create_operator(key, marker_type)
         local para_start = vim.fn.line("'<")
         vim.fn.setpos('.', save_pos)
         M.insert_marker(para_start, nil, to.scope, marker_type)
+      elseif to.obj == 'iw' or to.obj == 'aw' or to.obj == 'iW' or to.obj == 'aW' then
+        -- Word objects: capture the word text like visual selection
+        local save_pos = vim.fn.getpos('.')
+        vim.cmd('normal! v' .. to.obj .. vim.api.nvim_replace_termcodes('<Esc>', true, false, true))
+        local word_start = vim.fn.getpos("'<")
+        local word_end = vim.fn.getpos("'>")
+        local context = get_text(word_start[2], word_start[3] - 1, word_end[2], word_end[3] - 1)
+        vim.fn.setpos('.', save_pos)
+        M.insert_marker(start_line, context, to.scope, marker_type)
       else
         -- Built-in text objects: select and escape
         vim.cmd('normal! v' .. to.obj .. vim.api.nvim_replace_termcodes('<Esc>', true, false, true))

@@ -196,8 +196,42 @@ Automatically injected into lualine (or native statusline if no lualine). No con
 
 - `[C]` — Claude running
 - `[C:pending]` — Waiting for Claude
-- `[C:██░░░░░░░░]` — Progress bar (when progress tracking enabled, Claude updates this live)
-- `[C:ready]` — Task complete
+- `[C:2/5]` — Todo progress (2 of 5 tasks done)
+- `[C:ready]` — All tasks complete
+
+### Progress Tracking
+
+Track Claude Code's todo list progress via a [PostToolUse hook](https://docs.anthropic.com/en/docs/claude-code/hooks). When Claude uses TodoWrite to plan multi-step tasks, the statusline shows live progress like `[C:2/5]` and virtual text appears below your cursor showing the current task. Copy the hook script:
+
+```bash
+cp /path/to/pairup.nvim/scripts/__pairup_todo_hook.sh ~/.claude/scripts/
+chmod +x ~/.claude/scripts/__pairup_todo_hook.sh
+```
+
+Add to `~/.claude/settings.json`:
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "TodoWrite",
+        "hooks": [{"type": "command", "command": "$HOME/.claude/scripts/__pairup_todo_hook.sh"}]
+      }
+    ]
+  }
+}
+```
+
+Enable in pairup:
+
+```lua
+require("pairup").setup({
+  progress = {
+    enabled = true,
+  },
+})
+```
 
 Manual setup (only if you disable auto-inject or use a custom statusline plugin):
 ```lua
@@ -250,7 +284,7 @@ require("pairup").setup({
   },
   progress = {
     enabled = false,
-    file = "/tmp/claude_progress",
+    session_id = nil, -- auto-detects from /tmp/pairup-todo-*.json
   },
   flash = {
     scroll_to_changes = false,

@@ -11,6 +11,10 @@ RULES:
 6. Use the Edit tool to modify the file directly
 7. NEVER respond in the terminal - ALL communication goes in the file as `{uu_marker}` comments
 8. Preserve all other code exactly as is
+9. MANDATORY: Use TodoWrite for EVERY task, no matter how small:
+   - BEFORE starting: Create todo with status "in_progress"
+   - AFTER completing: Update todo to "completed"
+   - This enables real-time progress visibility - skipping it breaks the user's workflow
 
 CONSTITUTION MARKER (`{constitution_marker}`):
 When you see `{constitution_marker}`, do TWO things:

@@ -2,7 +2,6 @@
 -- Reads from prompt.md (single source of truth)
 
 local M = {}
-local config = require('pairup.config')
 
 -- Find plugin root directory
 local function get_plugin_root()
@@ -22,9 +21,8 @@ local function read_prompt_file(filename)
   return nil
 end
 
--- Cache templates
+-- Cache template
 local cached_base = nil
-local cached_progress = nil
 
 function M.get_template()
   if not cached_base then
@@ -38,17 +36,7 @@ If you need clarification, add `{uu_marker} <your question>` and STOP.
 ]]
   end
 
-  local template = cached_base
-
-  -- Append progress section if enabled
-  if config.get('progress.enabled') then
-    if not cached_progress then
-      cached_progress = read_prompt_file('prompt_progress.md') or ''
-    end
-    template = template .. '\n' .. cached_progress
-  end
-
-  return template
+  return cached_base
 end
 
 ---Build the prompt with actual values
@@ -58,9 +46,6 @@ end
 function M.build(filepath, markers)
   local template = M.get_template()
 
-  -- Get progress file path if enabled
-  local progress_file = config.get('progress.file') or ''
-
   -- Replace placeholders
   local result = template
     :gsub('{filepath}', filepath)
@@ -68,7 +53,6 @@ function M.build(filepath, markers)
     :gsub('{uu_marker}', markers.question)
     :gsub('{constitution_marker}', markers.constitution)
     :gsub('{plan_marker}', markers.plan or 'ccp:')
-    :gsub('{progress_file}', progress_file)
 
   return result
 end
@@ -76,7 +60,6 @@ end
 -- Clear cache (for testing or config changes)
 function M.clear_cache()
   cached_base = nil
-  cached_progress = nil
 end
 
 return M

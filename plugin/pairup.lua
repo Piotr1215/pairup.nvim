@@ -64,6 +64,11 @@ local subcommand_tbl = {
       require('pairup.conflict').accept()
     end,
   },
+  scope = {
+    impl = function()
+      require('pairup.conflict').scope()
+    end,
+  },
 }
 
 ---@param opts table
@@ -169,3 +174,7 @@ end, { desc = 'Accept conflict section at cursor' })
 vim.keymap.set('n', '<Plug>(pairup-conflict-diff)', function()
   require('pairup.conflict').diff()
 end, { desc = 'Conflict diff view' })
+
+vim.keymap.set('n', '<Plug>(pairup-scope)', function()
+  require('pairup.conflict').scope()
+end, { desc = 'Conflict scope window' })

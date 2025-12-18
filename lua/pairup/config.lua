@@ -56,10 +56,11 @@ local defaults = {
   },
 
   -- Progress indicator (optional, disabled by default)
-  -- When enabled, user must grant Claude write access: --add-dir /tmp
+  -- Uses PostToolUse hook on TodoWrite to track Claude's todo progress
   progress = {
     enabled = false,
-    file = '/tmp/claude_progress',
+    mode = 'hook', -- Only 'hook' mode is currently supported
+    session_id = nil, -- Auto-detects when nil, set for multi-session
   },
 }
 
@@ -85,7 +86,8 @@ function M.setup(opts)
   if opts.progress then
     vim.validate({
       ['progress.enabled'] = { opts.progress.enabled, 'boolean', true },
-      ['progress.file'] = { opts.progress.file, 'string', true },
+      ['progress.mode'] = { opts.progress.mode, 'string', true },
+      ['progress.session_id'] = { opts.progress.session_id, 'string', true },
     })
   end
   if opts.flash then

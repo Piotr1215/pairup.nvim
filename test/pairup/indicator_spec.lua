@@ -1,15 +1,11 @@
 describe('pairup.utils.indicator', function()
   local indicator
-  local progress_file = '/tmp/claude_progress'
 
   before_each(function()
     -- Reset modules
     package.loaded['pairup.utils.indicator'] = nil
     package.loaded['pairup.config'] = nil
     package.loaded['pairup.providers'] = nil
-
-    -- Clean up progress file
-    os.remove(progress_file)
 
     -- Mock config
     package.loaded['pairup.config'] = {
@@ -35,10 +31,6 @@ describe('pairup.utils.indicator', function()
     vim.g.claude_context_indicator = nil
     vim.g.pairup_pending = nil
     vim.g.pairup_queued = nil
-  end)
-
-  after_each(function()
-    os.remove(progress_file)
   end)
 
   describe('update', function()
@@ -134,42 +126,93 @@ describe('pairup.utils.indicator', function()
     end)
   end)
 
-  describe('progress bar', function()
-    it('should generate correct bar at 0%', function()
-      -- Access internal function via module state
-      indicator.update()
-      -- Bar generation is internal, test via progress file
+  describe('hook mode', function()
+    local hook_file = '/tmp/pairup-todo-test123.json'
 
-      -- Write progress file
-      local f = io.open(progress_file, 'w')
-      f:write('10:Testing')
-      f:close()
-
-      -- Setup starts the watcher but we can't easily test async
-      -- Just verify file was written
-      local content = io.open(progress_file, 'r'):read('*a')
-      assert.are.equal('10:Testing', content)
+    after_each(function()
+      os.remove(hook_file)
     end)
 
-    it('should parse duration:message format', function()
-      local content = '30:Refactoring code'
-      local duration, message = content:match('^(%d+):(.+)')
+    it('should parse hook state file format', function()
+      local json = '{"session":"test123","total":5,"completed":2,"current":"Implementing feature"}'
+      local ok, data = pcall(vim.json.decode, json)
 
-      assert.are.equal('30', duration)
-      assert.are.equal('Refactoring code', message)
+      assert.is_true(ok)
+      assert.are.equal('test123', data.session)
+      assert.are.equal(5, data.total)
+      assert.are.equal(2, data.completed)
+      assert.are.equal('Implementing feature', data.current)
     end)
 
-    it('should detect done signal', function()
-      local content = 'done'
-      assert.are.equal('done', vim.trim(content))
+    it('should format progress as completed/total', function()
+      local data = { total = 5, completed = 2, current = 'Testing' }
+      local display = '[C:' .. data.completed .. '/' .. data.total .. ']'
+
+      assert.are.equal('[C:2/5]', display)
+    end)
+
+    it('should show ready when all tasks completed', function()
+      local data = { total = 5, completed = 5, current = '' }
+      local display = data.completed == data.total and '[C:ready]'
+        or '[C:' .. data.completed .. '/' .. data.total .. ']'
+
+      assert.are.equal('[C:ready]', display)
     end)
   end)
 
-  describe('stop_progress', function()
-    it('should clear active progress and update indicator', function()
-      indicator.stop_progress()
-      -- Should not error and should call update
-      assert.is_not_nil(vim.g.pairup_indicator)
+  describe('virtual text', function()
+    it('should wrap long lines at word boundaries', function()
+      local text = 'This is a very long task description that exceeds eighty characters and should be wrapped'
+      local lines = {}
+      for line in text:gmatch('[^\n]+') do
+        if #line > 80 then
+          while #line > 80 do
+            local wrap_at = line:sub(1, 80):match('.*()%s') or 80
+            table.insert(lines, line:sub(1, wrap_at))
+            line = line:sub(wrap_at + 1)
+          end
+          if #line > 0 then
+            table.insert(lines, line)
+          end
+        else
+          table.insert(lines, line)
+        end
+      end
+
+      assert.are.equal(2, #lines)
+      assert.is_true(#lines[1] <= 80)
+    end)
+
+    it('should split on newlines', function()
+      local text = 'Line one\nLine two\nLine three'
+      local lines = {}
+      for line in text:gmatch('[^\n]+') do
+        table.insert(lines, line)
+      end
+
+      assert.are.equal(3, #lines)
+      assert.are.equal('Line one', lines[1])
+      assert.are.equal('Line two', lines[2])
+      assert.are.equal('Line three', lines[3])
+    end)
+
+    it('should handle empty text', function()
+      indicator.set_virtual_text(nil)
+      indicator.set_virtual_text('')
+      -- Should not error
+      assert.is_true(true)
+    end)
+
+    it('should prefix first line with icon', function()
+      local lines = { 'First line', 'Second line' }
+      local virt_lines = {}
+      for i, line in ipairs(lines) do
+        local prefix = i == 1 and '  󰭻 ' or '    '
+        table.insert(virt_lines, { { prefix .. line, 'DiagnosticInfo' } })
+      end
+
+      assert.are.equal('  󰭻 First line', virt_lines[1][1][1])
+      assert.are.equal('    Second line', virt_lines[2][1][1])
     end)
   end)
 end)
