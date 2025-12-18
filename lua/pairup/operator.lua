@@ -147,6 +147,11 @@ local function create_operator(key, marker_type)
     M.insert_marker(vim.fn.line('.'), nil, 'line', marker_type)
   end, { desc = desc .. ' on line' })
 
+  -- File-scope: F suffix (e.g., gCF, g!F, g?F)
+  vim.keymap.set('n', key .. 'F', function()
+    M.insert_marker(vim.fn.line('.'), nil, 'file', marker_type)
+  end, { desc = desc .. ' on file' })
+
   -- Visual mode
   vim.keymap.set('x', key, function()
     local start_pos, end_pos = vim.fn.getpos('v'), vim.fn.getpos('.')

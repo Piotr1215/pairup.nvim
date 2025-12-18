@@ -2,16 +2,16 @@
 
 Inline AI pair programming for Neovim.
 
-> 🔺 **Breaking Changes in v4.0** 🔺
+> 🔺 Breaking Changes in v4.0 🔺
 >
 > This version removes the overlay system, sessions, RPC, and marker-based suggestions
 > to focus on one thing: simple inline editing with `cc:`/`uu:` markers.
 > See [v4-architecture.md](./v4-architecture.md) for details.
 >
-> **Why?** Less complexity, more reliability. Claude edits files directly — no parsing,
+> Why? Less complexity, more reliability. Claude edits files directly — no parsing,
 > no overlays, no state management. Just write `cc:`, save, and Claude handles it.
 >
-> **Need the old features?** Use `git checkout legacy-v3` or `git checkout v3.0.0`.
+> Need the old features? Use `git checkout legacy-v3` or `git checkout v3.0.0`.
 
 ## How It Works
 
@@ -33,7 +33,8 @@ See [`prompt.md`](prompt.md) for the full prompt.
 
 Three separate operators for each marker type. Each works with any motion/text-object:
 
-> **Note:** These keybindings are only active when pairup is loaded. They won't conflict with
+> [!NOTE]
+> These keybindings are only active when pairup is loaded. They won't conflict with
 > other plugins or built-in vim mappings when pairup is not in use.
 
 | Marker | Operator | Line | Visual |
@@ -50,10 +51,11 @@ Three separate operators for each marker type. Each works with any motion/text-o
 | `ip`/`ap` | `<paragraph>` | `cc: <paragraph>` |
 | `if`/`af` | `<function>` | `cc: <function>` |
 | `ic`/`ac` | `<codeblock>` | `cc: <codeblock>` |
+| `F` | `<file>` | `gCF` → `cc: <file>` |
 | double-tap | `<line>` | `g!!` → `cc!: <line>` |
 | visual | `<selection>` | captures text |
 
-**Example:** Select "controller configuration" and press `gC`:
+Example: Select "controller configuration" and press `gC`:
 ```go
 // cc: <selection> controller configuration <-
 // Config holds the controller configuration
@@ -93,15 +95,15 @@ end
 >>>>>>> PROPOSED
 ```
 
-**Accept/Reject:** Position cursor in the section you want to keep, then `:Pairup accept` (or `<Plug>(pairup-accept)`):
+Accept/Reject: Position cursor in the section you want to keep, then `:Pairup accept` (or `<Plug>(pairup-accept)`):
 - Cursor in CURRENT → keep original (reject proposal)
 - Cursor in PROPOSED → keep Claude's change (accept proposal)
 
-**Diff view:** Use `<Plug>(pairup-conflict-diff)` to open a side-by-side diff in a new tab. Press `ga` to accept the side you're on, `q` to close.
+Diff view: Use `<Plug>(pairup-conflict-diff)` to open a side-by-side diff in a new tab. Press `ga` to accept the side you're on, `q` to close.
 
 ![Conflict diff view](diff.png)
 
-**Mix and match:** Add `cc:` inside PROPOSED to refine before accepting:
+Mix and match: Add `cc:` inside PROPOSED to refine before accepting:
 
 ```lua
 <<<<<<< CURRENT
@@ -197,7 +199,7 @@ Automatically injected into lualine (or native statusline if no lualine). No con
 - `[C:██░░░░░░░░]` — Progress bar (when progress tracking enabled, Claude updates this live)
 - `[C:ready]` — Task complete
 
-**Manual setup** (only if you disable auto-inject or use a custom statusline plugin):
+Manual setup (only if you disable auto-inject or use a custom statusline plugin):
 ```lua
 -- Disable auto-inject
 require("pairup").setup({ statusline = { auto_inject = false } })
@@ -208,7 +210,7 @@ vim.o.statusline = '%f %m%=%{g:pairup_indicator} %l:%c'
 
 ## Configuration
 
-**Default:** The `--permission-mode acceptEdits` flag is included by default. This allows Claude to edit files without prompting for confirmation on each change, which is required for the inline editing workflow to function smoothly.
+Default: The `--permission-mode acceptEdits` flag is included by default. This allows Claude to edit files without prompting for confirmation on each change, which is required for the inline editing workflow to function smoothly.
 
 All settings below are defaults. You only need to include values you want to change:
 

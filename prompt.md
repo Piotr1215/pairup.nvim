@@ -40,6 +40,7 @@ SCOPE HINTS (optional): Markers may include scope hints to help you understand w
 - `<paragraph>` - apply to the paragraph below
 - `<function>` - apply to the function below
 - `<codeblock>` - apply to the fenced code block (```)
+- `<file>` - apply to the entire file
 - `<selection>` - captured text follows the hint (e.g., `{cc_marker} <selection> myVar <- rename`)
 
 If no scope hint is present, infer the scope from context.

@@ -121,6 +121,19 @@ describe('pairup.operator', function()
       vim.api.nvim_buf_delete(bufnr, { force = true })
     end)
 
+    it('should handle file scope', function()
+      local bufnr = vim.api.nvim_create_buf(false, true)
+      vim.api.nvim_set_current_buf(bufnr)
+      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { 'test line' })
+
+      operator.insert_marker(1, nil, 'file')
+
+      local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+      assert.are.equal('cc: <file> ', lines[1])
+
+      vim.api.nvim_buf_delete(bufnr, { force = true })
+    end)
+
     it('should insert constitution marker when marker_type is constitution', function()
       -- Override config to include constitution marker
       package.loaded['pairup.config'] = {
@@ -264,6 +277,23 @@ describe('pairup.operator', function()
       assert.is_true(found_gCip, 'gCip mapping should exist')
       assert.is_true(found_g_bang_ip, 'g!ip mapping should exist')
       assert.is_true(found_g_question_ip, 'g?ip mapping should exist')
+    end)
+
+    it('should create file scope mappings', function()
+      operator.setup()
+
+      local nmaps = vim.api.nvim_get_keymap('n')
+      local found_gCF, found_g_bang_F = false, false
+      for _, map in ipairs(nmaps) do
+        if map.lhs == 'gCF' then
+          found_gCF = true
+        end
+        if map.lhs == 'g!F' then
+          found_g_bang_F = true
+        end
+      end
+      assert.is_true(found_gCF, 'gCF mapping should exist')
+      assert.is_true(found_g_bang_F, 'g!F mapping should exist')
     end)
 
     it('should allow custom key overrides', function()
