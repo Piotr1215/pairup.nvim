@@ -15,7 +15,11 @@ Inline AI pair programming for Neovim.
 
 ## How It Works
 
+<<<<<<< CURRENT
 Write `cc:`, `cc!:`, or `ccp:` markers anywhere in your code, save, and Claude edits the file directly.
+=======
+Write inline markers (`cc:`, `cc!:`, or `ccp:`) anywhere in your code. Save the file and Claude will read it, execute the instruction at each marker location, and remove the marker when done. This is a much longer line that should definitely wrap in the edit float because it contains way more text than 90 characters which is roughly the threshold we want to test for proper wrapping behavior in markdown files.
+>>>>>>> PROPOSED: test conflict for wrap/width
 
 ```mermaid
 sequenceDiagram
@@ -42,6 +46,7 @@ sequenceDiagram
     P->>U: [C:ready], clear extmark
 ```
 
+<<<<<<< CURRENT
 ```lua
 -- cc: add logging
 -- uu: Use print, vim.notify, or a logging library?
@@ -49,6 +54,16 @@ function get_user(id)
   return db.users[id].name
 end
 ```
+=======
+```lua
+-- cc: add logging
+-- uu: Use print, vim.notify, or a logging library?
+local function get_user(id)
+  if not id then return nil end
+  return db.users[id] and db.users[id].name
+end
+```
+>>>>>>> PROPOSED: add nil check and local
 
 Save → Claude reads the file → executes the instruction → removes the marker.
 
@@ -62,11 +77,19 @@ Three separate operators for each marker type. Each works with any motion/text-o
 > These keybindings are only active when pairup is loaded. They won't conflict with
 > other plugins or built-in vim mappings when pairup is not in use.
 
+<<<<<<< CURRENT
 | Marker | Operator | Line | Visual |
 |--------|----------|------|--------|
 | `cc:` | `gC{motion}` | `gCC` | `gC` |
 | `cc!:` | `g!{motion}` | `g!!` | `g!` |
 | `ccp:` | `g?{motion}` | `g??` | `g?` |
+=======
+| Marker | Motion | Line | Visual | Description |
+|--------|--------|------|--------|-------------|
+| `cc:` | `gC{motion}` | `gCC` | `gC` | Execute instruction |
+| `cc!:` | `g!{motion}` | `g!!` | `g!` | Constitution (saves rule) |
+| `ccp:` | `g?{motion}` | `g??` | `g?` | Plan (review first) |
+>>>>>>> PROPOSED: add description column
 
 | Motion | Scope Hint | Example Output |
 |--------|------------|----------------|
@@ -88,9 +111,15 @@ Example: Select "controller configuration" and press `gC`:
 
 ## Signs
 
+<<<<<<< CURRENT
 Markers show in the gutter:
 - 󰭻 (yellow) — `cc:` command / `cc!:` constitution / `ccp:` plan
 - 󰞋 (blue) — `uu:` question marker
+=======
+Gutter signs:
+- 󰭻 `cc:` / `cc!:` / `ccp:`
+- 󰞋 `uu:` question
+>>>>>>> PROPOSED: condense list
 
 ## Plan Marker (Review Before Apply)
 
@@ -124,11 +153,20 @@ Accept/Reject: Position cursor in the section you want to keep, then `:Pairup ac
 - Cursor in CURRENT → keep original (reject proposal)
 - Cursor in PROPOSED → keep Claude's change (accept proposal)
 
-Diff view: Use `<Plug>(pairup-conflict-diff)` to open a side-by-side diff in a new tab. Press `ga` to accept the side you're on, `q` to close.
+**Navigation**: Use `<Plug>(pairup-proposal-next)` and `<Plug>(pairup-proposal-prev)` to jump between proposals.
+
+**Edit view**: Use `<Plug>(pairup-proposal-edit)` to open a floating editor for the proposal at cursor. The editor shows only the PROPOSED content (editable), with CURRENT info and reason as virtual text (non-editable). A subtle backdrop dims the background for focus.
+
+| Key | Action |
+|-----|--------|
+| `:w` | Sync edits to buffer |
+| `q` | Close editor |
+| `ga` | Accept proposal |
+| `gd` | Open diff view |
+
+**Diff view**: Use `<Plug>(pairup-conflict-diff)` to open a side-by-side diff in a new tab. Press `ga` to accept, `ge` to switch to edit view, `q` to close. Note: Opens with `diffopt+=algorithm:patience,indent-heuristic` for cleaner diffs.
 
 ![Conflict diff view](diff.png)
-
-Scope view: Use `<Plug>(pairup-scope)` to open a sidebar showing all suggestions in the file. Navigate with `<C-n>`/`<C-p>`, press `<CR>` to jump to a suggestion, `g` to open diff view, `q` to close.
 
 Mix and match: Add `cc:` inside PROPOSED to refine before accepting:
 
@@ -216,7 +254,9 @@ Key bindings are optional — the plugin works with `:Pairup` commands alone.
 | `lsp` | Send LSP diagnostics to Claude |
 | `suspend` | Pause auto-processing (indicator turns red) |
 | `accept` | Accept conflict section at cursor |
-| `scope` | Open suggestions scope sidebar |
+| `edit` | Open floating editor for proposal |
+| `next` | Jump to next proposal |
+| `prev` | Jump to previous proposal |
 
 ## Status Indicator
 
@@ -306,6 +346,7 @@ require("pairup").setup({
       plan = "ccp:",
     },
     quickfix = true,
+    auto_process = true, -- Auto-send to Claude on save (false = manual :Pairup inline)
   },
   statusline = {
     auto_inject = true,
@@ -334,6 +375,7 @@ Customizable highlight groups (respects light/dark background by default):
 vim.api.nvim_set_hl(0, 'PairupMarkerCC', { bg = '#your_color' }) -- cc: marker line
 vim.api.nvim_set_hl(0, 'PairupMarkerUU', { bg = '#your_color' }) -- uu: marker line
 vim.api.nvim_set_hl(0, 'PairupFlash', { bg = '#your_color' })    -- changed lines flash
+vim.api.nvim_set_hl(0, 'PairupBackdrop', { bg = '#000000' })     -- edit float backdrop
 ```
 
 ### Plug Mappings
@@ -352,7 +394,9 @@ vim.keymap.set('n', ']C', '<Plug>(pairup-next-marker)')             -- next mark
 vim.keymap.set('n', '[C', '<Plug>(pairup-prev-marker)')             -- prev marker
 vim.keymap.set('n', '<leader>co', '<Plug>(pairup-accept)')          -- accept conflict at cursor
 vim.keymap.set('n', '<leader>cd', '<Plug>(pairup-conflict-diff)')   -- conflict diff view
-vim.keymap.set('n', '<leader>cS', '<Plug>(pairup-scope)')           -- suggestions scope view
+vim.keymap.set('n', '<leader>ce', '<Plug>(pairup-proposal-edit)')   -- edit proposal in float
+vim.keymap.set('n', ']p', '<Plug>(pairup-proposal-next)')           -- next proposal
+vim.keymap.set('n', '[p', '<Plug>(pairup-proposal-prev)')           -- prev proposal
 ```
 
 ## Requirements

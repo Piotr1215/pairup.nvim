@@ -48,6 +48,7 @@ local defaults = {
       plan = 'ccp:', -- Plan only - suggest via uu:, don't edit directly
     },
     quickfix = true, -- Show uu: questions in quickfix
+    auto_process = true, -- Auto-send to Claude on save (false = manual :Pairup inline)
   },
 
   -- Statusline integration
@@ -61,6 +62,11 @@ local defaults = {
     enabled = false,
     mode = 'hook', -- Only 'hook' mode is currently supported
     session_id = nil, -- Auto-detects when nil, set for multi-session
+  },
+
+  -- Proposal editing (ccp: markers)
+  proposals = {
+    auto_enter = false, -- Auto-open floating editor when cursor enters proposal
   },
 }
 
@@ -93,6 +99,16 @@ function M.setup(opts)
   if opts.flash then
     vim.validate({
       ['flash.scroll_to_changes'] = { opts.flash.scroll_to_changes, 'boolean', true },
+    })
+  end
+  if opts.proposals then
+    vim.validate({
+      ['proposals.auto_enter'] = { opts.proposals.auto_enter, 'boolean', true },
+    })
+  end
+  if opts.inline then
+    vim.validate({
+      ['inline.auto_process'] = { opts.inline.auto_process, 'boolean', true },
     })
   end
 

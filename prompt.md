@@ -5,8 +5,8 @@ This file contains inline instructions marked with `{cc_marker}` or `{constituti
 RULES:
 1. Read the file and find all `{cc_marker}` and `{constitution_marker}` markers
 2. Execute the instruction at each marker location
-3. Remove the marker line after completing each instruction
-4. If you need clarification, add `{uu_marker} <your question>` on a NEW line right after the marker line, then STOP and wait
+3. Remove the marker line ONLY after completing the instruction
+4. If you need clarification, add `{uu_marker} <your question>` on a NEW line right after the marker line, KEEP the `{cc_marker}`, then STOP and wait
 5. When you see `{uu_marker}` followed by `{cc_marker}` answer, act on it and remove BOTH lines
 6. Use the Edit tool to modify the file directly
 7. NEVER respond in the terminal - ALL communication goes in the file as `{uu_marker}` comments

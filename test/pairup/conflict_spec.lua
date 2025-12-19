@@ -162,22 +162,54 @@ describe('pairup.conflict', function()
     end)
   end)
 
-  describe('scope state', function()
-    it('should reset state on scope_close', function()
-      conflict._scope.buf = vim.api.nvim_create_buf(false, true)
-      conflict._scope.source_buf = vim.api.nvim_create_buf(false, true)
-      conflict._scope.conflicts = { { start_marker = 1 } }
-      conflict._scope.line_to_conflict = { [1] = 1 }
+  describe('navigation', function()
+    it('should jump to next proposal', function()
+      local buf = vim.api.nvim_create_buf(false, true)
+      vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+        'line 1',
+        '<<<<<<< CURRENT',
+        'old',
+        '=======',
+        'new',
+        '>>>>>>> PROPOSED: first',
+        'line 7',
+        '<<<<<<< CURRENT',
+        'old2',
+        '=======',
+        'new2',
+        '>>>>>>> PROPOSED: second',
+      })
+      vim.api.nvim_set_current_buf(buf)
+      vim.api.nvim_win_set_cursor(0, { 1, 0 })
 
-      conflict.scope_close()
+      conflict.next()
 
-      assert.is_nil(conflict._scope.buf)
-      assert.is_nil(conflict._scope.source_buf)
-      assert.same({}, conflict._scope.conflicts)
-      assert.same({}, conflict._scope.line_to_conflict)
+      local cursor = vim.api.nvim_win_get_cursor(0)
+      assert.equals(2, cursor[1])
+      vim.api.nvim_buf_delete(buf, { force = true })
     end)
 
-    it('should build line_to_conflict mapping from find_all', function()
+    it('should wrap to first proposal when at end', function()
+      local buf = vim.api.nvim_create_buf(false, true)
+      vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+        '<<<<<<< CURRENT',
+        'old',
+        '=======',
+        'new',
+        '>>>>>>> PROPOSED: only',
+        'after',
+      })
+      vim.api.nvim_set_current_buf(buf)
+      vim.api.nvim_win_set_cursor(0, { 6, 0 })
+
+      conflict.next()
+
+      local cursor = vim.api.nvim_win_get_cursor(0)
+      assert.equals(1, cursor[1])
+      vim.api.nvim_buf_delete(buf, { force = true })
+    end)
+
+    it('should jump to previous proposal', function()
       local buf = vim.api.nvim_create_buf(false, true)
       vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
         '<<<<<<< CURRENT',
@@ -185,21 +217,41 @@ describe('pairup.conflict', function()
         '=======',
         'new',
         '>>>>>>> PROPOSED: first',
-        '',
+        'line 6',
         '<<<<<<< CURRENT',
         'old2',
         '=======',
         'new2',
         '>>>>>>> PROPOSED: second',
+        'line 12',
       })
+      vim.api.nvim_set_current_buf(buf)
+      vim.api.nvim_win_set_cursor(0, { 12, 0 })
 
-      local conflicts = conflict.find_all(buf)
+      conflict.prev()
 
-      assert.equals(2, #conflicts)
-      assert.equals(1, conflicts[1].start_marker)
-      assert.equals(5, conflicts[1].end_marker)
-      assert.equals(7, conflicts[2].start_marker)
-      assert.equals(11, conflicts[2].end_marker)
+      local cursor = vim.api.nvim_win_get_cursor(0)
+      assert.equals(7, cursor[1])
+      vim.api.nvim_buf_delete(buf, { force = true })
+    end)
+
+    it('should wrap to last proposal when at start', function()
+      local buf = vim.api.nvim_create_buf(false, true)
+      vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+        'before',
+        '<<<<<<< CURRENT',
+        'old',
+        '=======',
+        'new',
+        '>>>>>>> PROPOSED: only',
+      })
+      vim.api.nvim_set_current_buf(buf)
+      vim.api.nvim_win_set_cursor(0, { 1, 0 })
+
+      conflict.prev()
+
+      local cursor = vim.api.nvim_win_get_cursor(0)
+      assert.equals(2, cursor[1])
       vim.api.nvim_buf_delete(buf, { force = true })
     end)
   end)

@@ -10,6 +10,11 @@ local refresh_timer = nil
 function M.setup()
   vim.api.nvim_create_augroup('Pairup', { clear = true })
 
+  -- Initialize suspended state from config (inverted: auto_process=false means suspended=true)
+  if vim.g.pairup_suspended == nil then
+    vim.g.pairup_suspended = not config.get('inline.auto_process')
+  end
+
   -- Process cc: markers on file save
   vim.api.nvim_create_autocmd('BufWritePost', {
     group = 'Pairup',

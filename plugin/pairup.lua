@@ -64,9 +64,19 @@ local subcommand_tbl = {
       require('pairup.conflict').accept()
     end,
   },
-  scope = {
+  edit = {
     impl = function()
-      require('pairup.conflict').scope()
+      require('pairup.edit').enter()
+    end,
+  },
+  next = {
+    impl = function()
+      require('pairup.conflict').next()
+    end,
+  },
+  prev = {
+    impl = function()
+      require('pairup.conflict').prev()
     end,
   },
 }
@@ -175,6 +185,27 @@ vim.keymap.set('n', '<Plug>(pairup-conflict-diff)', function()
   require('pairup.conflict').diff()
 end, { desc = 'Conflict diff view' })
 
-vim.keymap.set('n', '<Plug>(pairup-scope)', function()
-  require('pairup.conflict').scope()
-end, { desc = 'Conflict scope window' })
+vim.keymap.set('n', '<Plug>(pairup-proposal-edit)', function()
+  require('pairup.edit').enter()
+end, { desc = 'Edit proposal in floating window' })
+
+vim.keymap.set('n', '<Plug>(pairup-proposal-next)', function()
+  require('pairup.conflict').next()
+end, { desc = 'Jump to next proposal' })
+
+vim.keymap.set('n', '<Plug>(pairup-proposal-prev)', function()
+  require('pairup.conflict').prev()
+end, { desc = 'Jump to previous proposal' })
+
+-- Auto-enter for proposals (when enabled in config)
+local augroup = vim.api.nvim_create_augroup('PairupProposals', { clear = true })
+vim.api.nvim_create_autocmd('CursorMoved', {
+  group = augroup,
+  callback = function()
+    -- Only check if proposals.auto_enter is enabled
+    local ok, config = pcall(require, 'pairup.config')
+    if ok and config.get('proposals.auto_enter') then
+      require('pairup.edit').maybe_auto_enter()
+    end
+  end,
+})
