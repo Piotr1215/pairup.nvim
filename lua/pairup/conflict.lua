@@ -97,7 +97,8 @@ function M.accept_from_diff(use_current)
     return
   end
 
-  local new_lines = use_current and ctx.current_lines or ctx.proposed_lines
+  local src_buf = use_current and ctx.current_buf or ctx.proposed_buf
+  local new_lines = vim.api.nvim_buf_get_lines(src_buf, 0, -1, false)
   vim.api.nvim_buf_set_lines(ctx.bufnr, ctx.block.start_marker - 1, ctx.block.end_marker, false, new_lines)
 
   vim.cmd('tabclose')
@@ -126,17 +127,17 @@ function M.diff()
     table.insert(proposed_lines, lines[i])
   end
 
-  M._diff_ctx = { bufnr = bufnr, block = block, current_lines = current_lines, proposed_lines = proposed_lines }
-
   local current_buf = vim.api.nvim_create_buf(false, true)
   local proposed_buf = vim.api.nvim_create_buf(false, true)
 
   vim.api.nvim_buf_set_lines(current_buf, 0, -1, false, current_lines)
   vim.api.nvim_buf_set_lines(proposed_buf, 0, -1, false, proposed_lines)
-  pcall(vim.api.nvim_buf_set_name, current_buf, 'CURRENT (ga=accept, ge=edit)')
-  pcall(vim.api.nvim_buf_set_name, proposed_buf, 'PROPOSED (ga=accept, ge=edit)')
+  pcall(vim.api.nvim_buf_set_name, current_buf, 'CURRENT (editable, ga=accept)')
+  pcall(vim.api.nvim_buf_set_name, proposed_buf, 'PROPOSED (editable, ga=accept)')
   vim.bo[current_buf].filetype = ft
   vim.bo[proposed_buf].filetype = ft
+
+  M._diff_ctx = { bufnr = bufnr, block = block, current_buf = current_buf, proposed_buf = proposed_buf }
 
   local function set_keymaps(buf, is_current)
     vim.keymap.set('n', 'ga', function()

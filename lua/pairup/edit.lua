@@ -37,7 +37,7 @@ local function create_backdrop()
     focusable = false,
     zindex = 40, -- Below edit float (50)
   })
-  vim.wo[win].winblend = 60 -- 60% transparent
+  vim.wo[win].winblend = 30 -- 30% transparent (stronger dim)
   vim.wo[win].winhighlight = 'Normal:PairupBackdrop'
 
   return buf, win
