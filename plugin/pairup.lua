@@ -48,9 +48,25 @@ local subcommand_tbl = {
       require('pairup.inline').process()
     end,
   },
-  questions = {
-    impl = function(args, opts)
-      require('pairup.inline').update_quickfix()
+  markers = {
+    impl = function(args)
+      local filter = args[1] or 'user'
+      if filter ~= 'claude' and filter ~= 'user' then
+        vim.notify('Pairup markers: expected "claude" or "user"', vim.log.levels.ERROR)
+        return
+      end
+      for _, win in ipairs(vim.fn.getwininfo()) do
+        if win.quickfix == 1 then
+          vim.cmd('cclose')
+          return
+        end
+      end
+      require('pairup.inline').update_quickfix(filter)
+      vim.cmd('copen')
+      vim.keymap.set('n', 'q', '<cmd>cclose<cr>', { buffer = true })
+    end,
+    complete = function()
+      return { 'claude', 'user' }
     end,
   },
   suspend = {
@@ -132,16 +148,12 @@ vim.keymap.set('n', '<Plug>(pairup-toggle)', function()
 end, { desc = 'Toggle Pairup' })
 
 vim.keymap.set('n', '<Plug>(pairup-questions)', function()
-  -- Toggle quickfix: close if open, update and open if closed
-  for _, win in ipairs(vim.fn.getwininfo()) do
-    if win.quickfix == 1 then
-      vim.cmd('cclose')
-      return
-    end
-  end
-  require('pairup.inline').update_quickfix()
-  vim.cmd('copen')
+  vim.cmd('Pairup markers user')
 end, { desc = 'Toggle uu: questions quickfix' })
+
+vim.keymap.set('n', '<Plug>(pairup-markers)', function()
+  vim.cmd('Pairup markers claude')
+end, { desc = 'Toggle cc: markers quickfix' })
 
 vim.keymap.set('n', '<Plug>(pairup-inline)', function()
   require('pairup.inline').process()

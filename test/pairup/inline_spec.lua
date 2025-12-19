@@ -362,4 +362,50 @@ describe('pairup.inline', function()
       vim.api.nvim_buf_delete(buf, { force = true })
     end)
   end)
+
+  describe('update_quickfix', function()
+    local buf
+
+    before_each(function()
+      buf = vim.api.nvim_create_buf(true, false)
+      vim.api.nvim_buf_set_name(buf, '/tmp/test_markers.lua')
+      vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+        '-- cc: command here',
+        '-- uu: question here',
+        '-- cc!: constitution here',
+        '-- ccp: plan here',
+      })
+    end)
+
+    after_each(function()
+      vim.api.nvim_buf_delete(buf, { force = true })
+      vim.fn.setqflist({}, 'r')
+    end)
+
+    it('should filter user markers only', function()
+      inline.update_quickfix('user')
+      local qf = vim.fn.getqflist()
+      assert.equals(1, #qf)
+      assert.is_truthy(qf[1].text:match('question'))
+    end)
+
+    it('should filter claude markers only', function()
+      inline.update_quickfix('claude')
+      local qf = vim.fn.getqflist()
+      assert.equals(3, #qf)
+    end)
+
+    it('should default to user filter', function()
+      inline.update_quickfix()
+      local qf = vim.fn.getqflist()
+      assert.equals(1, #qf)
+    end)
+
+    it('should skip special buffer types', function()
+      vim.bo[buf].buftype = 'nofile'
+      inline.update_quickfix('user')
+      local qf = vim.fn.getqflist()
+      assert.equals(0, #qf)
+    end)
+  end)
 end)

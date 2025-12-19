@@ -30,6 +30,9 @@ function M.set_virtual_text(text)
     return
   end
   local buf = vim.api.nvim_get_current_buf()
+  if vim.bo[buf].buftype ~= '' then
+    return
+  end
   -- Ensure highlight exists (green like statusline indicator)
   vim.api.nvim_set_hl(0, 'PairupProgress', { fg = '#a6e3a1', italic = true, default = true })
   -- Split into lines (wrap at ~80 chars or on newlines)

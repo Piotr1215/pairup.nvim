@@ -127,46 +127,41 @@ function M.process(bufnr)
   return true
 end
 
---- Populate quickfix with uu: markers from all loaded buffers
-function M.update_quickfix()
+--- Populate quickfix with markers from all loaded buffers
+---@param filter? string 'claude' for cc:/cc!:/ccp:, 'user' for uu: (default: 'user')
+function M.update_quickfix(filter)
   if not config.get('inline.quickfix') then
     return
   end
 
+  filter = filter or 'user'
+  local claude_types = { command = true, constitution = true, plan = true }
   local qf_items = {}
 
   for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
     if vim.api.nvim_buf_is_loaded(bufnr) and vim.api.nvim_buf_is_valid(bufnr) then
       local filepath = vim.api.nvim_buf_get_name(bufnr)
-
-      -- Skip terminal buffers and empty paths
-      if filepath == '' or filepath:match('^term://') then
+      local buftype = vim.bo[bufnr].buftype
+      if filepath == '' or filepath:match('^term://') or buftype ~= '' then
         goto continue
       end
 
-      local markers = M.detect_markers(bufnr)
-
-      for _, m in ipairs(markers) do
-        if m.type == 'question' then
-          local uu_marker = config.get('inline.markers.question') or 'uu:'
-          local text = m.content:match(uu_marker .. '%s*(.+)') or m.content
-          table.insert(qf_items, {
-            bufnr = bufnr,
-            filename = filepath,
-            lnum = m.line,
-            text = text,
-            type = 'W',
-          })
+      for _, m in ipairs(M.detect_markers(bufnr)) do
+        local matches = (filter == 'claude' and claude_types[m.type]) or (filter == 'user' and m.type == 'question')
+        if matches then
+          local marker_key = m.type == 'question' and 'question' or m.type
+          local pattern = config.get('inline.markers.' .. marker_key) or ''
+          local text = m.content:match(vim.pesc(pattern) .. '%s*(.+)') or m.content
+          table.insert(qf_items, { bufnr = bufnr, filename = filepath, lnum = m.line, text = text, type = 'W' })
         end
       end
-
       ::continue::
     end
   end
 
+  local title = filter == 'claude' and 'Claude Commands (cc:)' or 'User Questions (uu:)'
   vim.fn.setqflist(qf_items, 'r')
-  vim.fn.setqflist({}, 'a', { title = 'Claude Questions (uu:)' })
-  -- Don't auto-open quickfix - user opens with :copen when ready
+  vim.fn.setqflist({}, 'a', { title = title })
 end
 
 --- Jump to next uu: marker in current buffer
