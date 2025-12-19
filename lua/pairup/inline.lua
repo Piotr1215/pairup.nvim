@@ -127,6 +127,52 @@ function M.process(bufnr)
   return true
 end
 
+---Check if buffer is a valid file buffer for quickfix
+---@param bufnr number
+---@return boolean, string|nil filepath
+local function is_file_buffer(bufnr)
+  if not vim.api.nvim_buf_is_loaded(bufnr) or not vim.api.nvim_buf_is_valid(bufnr) then
+    return false, nil
+  end
+  local filepath = vim.api.nvim_buf_get_name(bufnr)
+  if filepath == '' or filepath:match('^term://') or vim.bo[bufnr].buftype ~= '' then
+    return false, nil
+  end
+  return true, filepath
+end
+
+---Get quickfix items for marker filter
+---@param bufnr number
+---@param filepath string
+---@param filter string 'claude' or 'user'
+---@return table[]
+local function get_marker_qf_items(bufnr, filepath, filter)
+  local claude_types = { command = true, constitution = true, plan = true }
+  local items = {}
+  for _, m in ipairs(M.detect_markers(bufnr)) do
+    local matches = (filter == 'claude' and claude_types[m.type]) or (filter == 'user' and m.type == 'question')
+    if matches then
+      local pattern = config.get('inline.markers.' .. m.type) or ''
+      local text = m.content:match(vim.pesc(pattern) .. '%s*(.+)') or m.content
+      table.insert(items, { bufnr = bufnr, filename = filepath, lnum = m.line, text = text, type = 'W' })
+    end
+  end
+  return items
+end
+
+---Get quickfix items for proposals
+---@param bufnr number
+---@param filepath string
+---@return table[]
+local function get_proposal_qf_items(bufnr, filepath)
+  local conflict = require('pairup.conflict')
+  local items = {}
+  for _, c in ipairs(conflict.find_all(bufnr)) do
+    table.insert(items, { bufnr = bufnr, filename = filepath, lnum = c.separator + 1, text = c.preview, type = 'W' })
+  end
+  return items
+end
+
 --- Populate quickfix with markers from all loaded buffers
 ---@param filter? string 'claude' for cc:/cc!:/ccp:, 'user' for uu:, 'proposals' for conflicts (default: 'user')
 function M.update_quickfix(filter)
@@ -135,68 +181,20 @@ function M.update_quickfix(filter)
   end
 
   filter = filter or 'user'
-  local claude_types = { command = true, constitution = true, plan = true }
   local qf_items = {}
 
   for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
-    if vim.api.nvim_buf_is_loaded(bufnr) and vim.api.nvim_buf_is_valid(bufnr) then
-      local filepath = vim.api.nvim_buf_get_name(bufnr)
-      local buftype = vim.bo[bufnr].buftype
-      if filepath == '' or filepath:match('^term://') or buftype ~= '' then
-        goto continue
-      end
-
-      if filter == 'proposals' then
-        local conflict = require('pairup.conflict')
-        for _, c in ipairs(conflict.find_all(bufnr)) do
-          table.insert(
-            qf_items,
-            { bufnr = bufnr, filename = filepath, lnum = c.separator + 1, text = c.preview, type = 'W' }
-          )
-        end
-      else
-        for _, m in ipairs(M.detect_markers(bufnr)) do
-          local matches = (filter == 'claude' and claude_types[m.type]) or (filter == 'user' and m.type == 'question')
-          if matches then
-            local marker_key = m.type == 'question' and 'question' or m.type
-            local pattern = config.get('inline.markers.' .. marker_key) or ''
-            local text = m.content:match(vim.pesc(pattern) .. '%s*(.+)') or m.content
-            table.insert(qf_items, { bufnr = bufnr, filename = filepath, lnum = m.line, text = text, type = 'W' })
-          end
-        end
-      end
-      ::continue::
+    local ok, filepath = is_file_buffer(bufnr)
+    if ok then
+      local items = filter == 'proposals' and get_proposal_qf_items(bufnr, filepath)
+        or get_marker_qf_items(bufnr, filepath, filter)
+      vim.list_extend(qf_items, items)
     end
   end
 
   local titles = { claude = 'Claude Commands (cc:)', user = 'User Questions (uu:)', proposals = 'Proposals (PROPOSED)' }
   vim.fn.setqflist(qf_items, 'r')
   vim.fn.setqflist({}, 'a', { title = titles[filter] or titles.user })
-end
-
---- Jump to next uu: marker in current buffer
-function M.next_question()
-  local bufnr = vim.api.nvim_get_current_buf()
-  local markers = M.detect_markers(bufnr)
-  local cursor = vim.api.nvim_win_get_cursor(0)
-  local current_line = cursor[1]
-
-  for _, m in ipairs(markers) do
-    if m.type == 'question' and m.line > current_line then
-      vim.api.nvim_win_set_cursor(0, { m.line, 0 })
-      return true
-    end
-  end
-
-  -- Wrap around
-  for _, m in ipairs(markers) do
-    if m.type == 'question' then
-      vim.api.nvim_win_set_cursor(0, { m.line, 0 })
-      return true
-    end
-  end
-
-  return false
 end
 
 return M

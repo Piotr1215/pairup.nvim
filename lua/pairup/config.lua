@@ -141,9 +141,6 @@ function M.validate_values()
   end
 end
 
--- Legacy alias
-M.validate = M.validate_values
-
 -- Get a config value
 function M.get(key)
   local keys = vim.split(key, '.', { plain = true })

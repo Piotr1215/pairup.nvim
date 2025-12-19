@@ -5,15 +5,6 @@ local config = require('pairup.config')
 
 M.name = 'claude'
 
--- Check if Claude process is actually running
-function M.is_process_running(job_id)
-  if not job_id then
-    return false
-  end
-  local result = vim.fn.jobwait({ job_id }, 0)[1]
-  return result == -1
-end
-
 -- Fast check if terminal is running (for hot paths)
 function M.is_running()
   local cached_buf = vim.g.pairup_terminal_buf

@@ -57,9 +57,4 @@ function M.build(filepath, markers)
   return result
 end
 
--- Clear cache (for testing or config changes)
-function M.clear_cache()
-  cached_base = nil
-end
-
 return M

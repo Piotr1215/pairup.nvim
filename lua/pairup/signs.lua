@@ -67,64 +67,43 @@ function M.setup()
   })
 end
 
+---Place sign and highlight for a marker
+---@param bufnr integer
+---@param lnum integer
+---@param line string
+---@param is_question boolean
+local function place_marker(bufnr, lnum, line, is_question)
+  local sign = is_question and 'PairupUU' or 'PairupCC'
+  local hl = is_question and 'PairupMarkerUU' or 'PairupMarkerCC'
+  vim.fn.sign_place(0, sign_group, sign, bufnr, { lnum = lnum, priority = 10 })
+  vim.api.nvim_buf_set_extmark(bufnr, hl_ns, lnum - 1, 0, { end_col = #line, hl_group = hl })
+end
+
 ---Update signs for a buffer
 ---@param bufnr integer|nil Buffer number (defaults to current)
 function M.update(bufnr)
   bufnr = bufnr or vim.api.nvim_get_current_buf()
-
-  -- Skip non-file buffers
-  local buftype = vim.bo[bufnr].buftype
-  if buftype ~= '' then
+  if vim.bo[bufnr].buftype ~= '' then
     return
   end
 
-  -- Clear existing signs and highlights
   vim.fn.sign_unplace(sign_group, { buffer = bufnr })
   vim.api.nvim_buf_clear_namespace(bufnr, hl_ns, 0, -1)
 
-  -- Get markers from config
-  local cc_marker = config.get('inline.markers.command') or 'cc:'
-  local uu_marker = config.get('inline.markers.question') or 'uu:'
-  local const_marker = config.get('inline.markers.constitution') or 'cc!:'
-  local plan_marker = config.get('inline.markers.plan') or 'ccp:'
+  -- Markers sorted by length (longest first to match ccp: before cc:)
+  local markers = {
+    { pattern = config.get('inline.markers.plan') or 'ccp:', is_question = false },
+    { pattern = config.get('inline.markers.constitution') or 'cc!:', is_question = false },
+    { pattern = config.get('inline.markers.command') or 'cc:', is_question = false },
+    { pattern = config.get('inline.markers.question') or 'uu:', is_question = true },
+  }
 
-  -- Get buffer lines
-  local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
-
-  -- Find markers, place signs, and highlight
-  -- Check longer patterns first (plan, constitution before command)
-  for lnum, line in ipairs(lines) do
-    local uu_start = line:find(uu_marker, 1, true)
-    local plan_start = line:find(plan_marker, 1, true)
-    local const_start = line:find(const_marker, 1, true)
-    local cc_start = line:find(cc_marker, 1, true)
-
-    if uu_start then
-      vim.fn.sign_place(0, sign_group, 'PairupUU', bufnr, { lnum = lnum, priority = 10 })
-      vim.api.nvim_buf_set_extmark(bufnr, hl_ns, lnum - 1, 0, {
-        end_col = #line,
-        hl_group = 'PairupMarkerUU',
-      })
-    elseif plan_start then
-      -- Plan uses CC sign (it's a command variant)
-      vim.fn.sign_place(0, sign_group, 'PairupCC', bufnr, { lnum = lnum, priority = 10 })
-      vim.api.nvim_buf_set_extmark(bufnr, hl_ns, lnum - 1, 0, {
-        end_col = #line,
-        hl_group = 'PairupMarkerCC',
-      })
-    elseif const_start then
-      -- Constitution uses CC sign (it's a command variant)
-      vim.fn.sign_place(0, sign_group, 'PairupCC', bufnr, { lnum = lnum, priority = 10 })
-      vim.api.nvim_buf_set_extmark(bufnr, hl_ns, lnum - 1, 0, {
-        end_col = #line,
-        hl_group = 'PairupMarkerCC',
-      })
-    elseif cc_start then
-      vim.fn.sign_place(0, sign_group, 'PairupCC', bufnr, { lnum = lnum, priority = 10 })
-      vim.api.nvim_buf_set_extmark(bufnr, hl_ns, lnum - 1, 0, {
-        end_col = #line,
-        hl_group = 'PairupMarkerCC',
-      })
+  for lnum, line in ipairs(vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)) do
+    for _, m in ipairs(markers) do
+      if line:find(m.pattern, 1, true) then
+        place_marker(bufnr, lnum, line, m.is_question)
+        break
+      end
     end
   end
 end
