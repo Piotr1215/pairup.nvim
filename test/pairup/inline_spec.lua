@@ -407,5 +407,22 @@ describe('pairup.inline', function()
       local qf = vim.fn.getqflist()
       assert.equals(0, #qf)
     end)
+
+    it('should filter proposals', function()
+      local proposal_buf = vim.api.nvim_create_buf(true, false)
+      vim.api.nvim_buf_set_name(proposal_buf, '/tmp/test_proposals.lua')
+      vim.api.nvim_buf_set_lines(proposal_buf, 0, -1, false, {
+        '<<<<<<< CURRENT',
+        'old code',
+        '=======',
+        'new code',
+        '>>>>>>> PROPOSED: test reason',
+      })
+      inline.update_quickfix('proposals')
+      local qf = vim.fn.getqflist()
+      assert.equals(1, #qf)
+      assert.equals(4, qf[1].lnum) -- line after separator
+      vim.api.nvim_buf_delete(proposal_buf, { force = true })
+    end)
   end)
 end)

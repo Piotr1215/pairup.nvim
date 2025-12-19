@@ -251,6 +251,7 @@ Key bindings are optional — the plugin works with `:Pairup` commands alone.
 | `say <msg>` | Send message to Claude |
 | `markers user` | Show `uu:` in quickfix |
 | `markers claude` | Show `cc:`/`cc!:`/`ccp:` in quickfix |
+| `markers proposals` | Show PROPOSED sections in quickfix |
 | `inline` | Manual cc: trigger |
 | `diff` | Send git diff to Claude |
 | `lsp` | Send LSP diagnostics to Claude |
@@ -392,6 +393,7 @@ vim.keymap.set('n', '<leader>cl', '<Plug>(pairup-lsp)')             -- send LSP 
 vim.keymap.set('n', '<leader>cD', '<Plug>(pairup-diff)')            -- send git diff
 vim.keymap.set('n', '<leader>cq', '<Plug>(pairup-questions)')       -- show uu: in quickfix
 vim.keymap.set('n', '<leader>cC', '<Plug>(pairup-markers)')         -- show cc: in quickfix
+vim.keymap.set('n', '<leader>cP', '<Plug>(pairup-proposals)')       -- show proposals in quickfix
 vim.keymap.set('n', '<leader>ci', '<Plug>(pairup-inline)')          -- process cc: markers
 vim.keymap.set('n', ']C', '<Plug>(pairup-next-marker)')             -- next marker
 vim.keymap.set('n', '[C', '<Plug>(pairup-prev-marker)')             -- prev marker

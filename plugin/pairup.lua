@@ -51,8 +51,9 @@ local subcommand_tbl = {
   markers = {
     impl = function(args)
       local filter = args[1] or 'user'
-      if filter ~= 'claude' and filter ~= 'user' then
-        vim.notify('Pairup markers: expected "claude" or "user"', vim.log.levels.ERROR)
+      local valid = { claude = true, user = true, proposals = true }
+      if not valid[filter] then
+        vim.notify('Pairup markers: expected "claude", "user", or "proposals"', vim.log.levels.ERROR)
         return
       end
       for _, win in ipairs(vim.fn.getwininfo()) do
@@ -66,7 +67,7 @@ local subcommand_tbl = {
       vim.keymap.set('n', 'q', '<cmd>cclose<cr>', { buffer = true })
     end,
     complete = function()
-      return { 'claude', 'user' }
+      return { 'claude', 'user', 'proposals' }
     end,
   },
   suspend = {
@@ -154,6 +155,10 @@ end, { desc = 'Toggle uu: questions quickfix' })
 vim.keymap.set('n', '<Plug>(pairup-markers)', function()
   vim.cmd('Pairup markers claude')
 end, { desc = 'Toggle cc: markers quickfix' })
+
+vim.keymap.set('n', '<Plug>(pairup-proposals)', function()
+  vim.cmd('Pairup markers proposals')
+end, { desc = 'Toggle proposals quickfix' })
 
 vim.keymap.set('n', '<Plug>(pairup-inline)', function()
   require('pairup.inline').process()

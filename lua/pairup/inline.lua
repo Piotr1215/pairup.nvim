@@ -128,7 +128,7 @@ function M.process(bufnr)
 end
 
 --- Populate quickfix with markers from all loaded buffers
----@param filter? string 'claude' for cc:/cc!:/ccp:, 'user' for uu: (default: 'user')
+---@param filter? string 'claude' for cc:/cc!:/ccp:, 'user' for uu:, 'proposals' for conflicts (default: 'user')
 function M.update_quickfix(filter)
   if not config.get('inline.quickfix') then
     return
@@ -146,22 +146,32 @@ function M.update_quickfix(filter)
         goto continue
       end
 
-      for _, m in ipairs(M.detect_markers(bufnr)) do
-        local matches = (filter == 'claude' and claude_types[m.type]) or (filter == 'user' and m.type == 'question')
-        if matches then
-          local marker_key = m.type == 'question' and 'question' or m.type
-          local pattern = config.get('inline.markers.' .. marker_key) or ''
-          local text = m.content:match(vim.pesc(pattern) .. '%s*(.+)') or m.content
-          table.insert(qf_items, { bufnr = bufnr, filename = filepath, lnum = m.line, text = text, type = 'W' })
+      if filter == 'proposals' then
+        local conflict = require('pairup.conflict')
+        for _, c in ipairs(conflict.find_all(bufnr)) do
+          table.insert(
+            qf_items,
+            { bufnr = bufnr, filename = filepath, lnum = c.separator + 1, text = c.preview, type = 'W' }
+          )
+        end
+      else
+        for _, m in ipairs(M.detect_markers(bufnr)) do
+          local matches = (filter == 'claude' and claude_types[m.type]) or (filter == 'user' and m.type == 'question')
+          if matches then
+            local marker_key = m.type == 'question' and 'question' or m.type
+            local pattern = config.get('inline.markers.' .. marker_key) or ''
+            local text = m.content:match(vim.pesc(pattern) .. '%s*(.+)') or m.content
+            table.insert(qf_items, { bufnr = bufnr, filename = filepath, lnum = m.line, text = text, type = 'W' })
+          end
         end
       end
       ::continue::
     end
   end
 
-  local title = filter == 'claude' and 'Claude Commands (cc:)' or 'User Questions (uu:)'
+  local titles = { claude = 'Claude Commands (cc:)', user = 'User Questions (uu:)', proposals = 'Proposals (PROPOSED)' }
   vim.fn.setqflist(qf_items, 'r')
-  vim.fn.setqflist({}, 'a', { title = title })
+  vim.fn.setqflist({}, 'a', { title = titles[filter] or titles.user })
 end
 
 --- Jump to next uu: marker in current buffer
