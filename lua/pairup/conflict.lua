@@ -4,6 +4,9 @@ local M = {}
 -- Store diff context for accepting from diff view
 M._diff_ctx = nil
 
+-- Pattern prefix to match optional comment chars (supports --, #, //)
+local COMMENT_PAT = '^[%-#/]*%s*'
+
 ---Find conflict block at cursor and determine which section cursor is in
 ---@return table|nil {start_marker, separator, end_marker, in_current}
 function M.find_block()
@@ -14,11 +17,11 @@ function M.find_block()
   -- Search backwards for <<<<<<<
   local start_marker = nil
   for i = cursor, 1, -1 do
-    if lines[i]:match('^<<<<<<<') then
+    if lines[i]:match(COMMENT_PAT .. '<<<<<<<') then
       start_marker = i
       break
     end
-    if lines[i]:match('^>>>>>>>') then
+    if lines[i]:match(COMMENT_PAT .. '>>>>>>>') then
       break
     end
   end
@@ -30,9 +33,9 @@ function M.find_block()
   -- Find ======= and >>>>>>>
   local separator, end_marker = nil, nil
   for i = start_marker + 1, #lines do
-    if not separator and lines[i]:match('^=======') then
+    if not separator and lines[i]:match(COMMENT_PAT .. '=======') then
       separator = i
-    elseif separator and lines[i]:match('^>>>>>>>') then
+    elseif separator and lines[i]:match(COMMENT_PAT .. '>>>>>>>') then
       end_marker = i
       break
     end
@@ -43,7 +46,7 @@ function M.find_block()
   end
 
   local in_current = cursor > start_marker and cursor < separator
-  local reason = lines[end_marker]:match('^>>>>>>> PROPOSED:%s*(.*)$') or ''
+  local reason = lines[end_marker]:match('>>>>>>> PROPOSED:%s*(.*)$') or ''
   return {
     start_marker = start_marker,
     separator = separator,
@@ -170,19 +173,19 @@ function M.find_all(bufnr)
   local conflicts = {}
   local i = 1
   while i <= #lines do
-    if lines[i]:match('^<<<<<<<') then
+    if lines[i]:match(COMMENT_PAT .. '<<<<<<<') then
       local start_marker = i
       local separator, end_marker = nil, nil
       for j = i + 1, #lines do
-        if not separator and lines[j]:match('^=======') then
+        if not separator and lines[j]:match(COMMENT_PAT .. '=======') then
           separator = j
-        elseif separator and lines[j]:match('^>>>>>>>') then
+        elseif separator and lines[j]:match(COMMENT_PAT .. '>>>>>>>') then
           end_marker = j
           break
         end
       end
       if separator and end_marker then
-        local reason = lines[end_marker]:match('^>>>>>>> PROPOSED:%s*(.*)$') or ''
+        local reason = lines[end_marker]:match('>>>>>>> PROPOSED:%s*(.*)$') or ''
         local preview = reason ~= '' and reason or (lines[start_marker + 1] or '')
         if #preview > 50 then
           preview = preview:sub(1, 47) .. '...'

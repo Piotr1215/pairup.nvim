@@ -55,9 +55,9 @@ local function float_opts(lines, footer_count)
     visual_lines = visual_lines + math.max(1, math.ceil(#line / (width - 4)))
   end
 
-  -- +2 for header virtual lines (CURRENT + empty), +1 for footer empty, +footer_count
-  local height = visual_lines + 3 + footer_count
-  height = math.min(height, vim.o.lines - 6)
+  -- +2 header (CURRENT + empty), +1 footer empty, +footer_count, +2 breathing room
+  local height = visual_lines + 5 + footer_count
+  height = math.min(height, vim.o.lines - 4)
 
   return {
     relative = 'cursor',
@@ -104,7 +104,7 @@ local function build_virtual_text(block, source_lines)
   if block.reason and block.reason ~= '' then
     table.insert(footer, '── Reason: ' .. block.reason)
   end
-  table.insert(footer, '── :w sync  q close  ga accept  gd diff ──')
+  table.insert(footer, '── :w save  q discard  ga accept  gd diff ──')
 
   return header, footer
 end
@@ -202,6 +202,7 @@ function M.enter()
   -- Open float window
   local opts = float_opts(content, #footer)
   local float_win = vim.api.nvim_open_win(float_buf, true, opts)
+  vim.wo[float_win].winhighlight = 'Normal:Normal,NormalFloat:Normal'
   vim.wo[float_win].signcolumn = 'no'
   vim.wo[float_win].number = true
   vim.wo[float_win].relativenumber = false
@@ -218,8 +219,10 @@ function M.enter()
     block = block,
   }
 
-  -- Position cursor on first line
+  -- Position cursor on first line and scroll to show virtual header above
   vim.api.nvim_win_set_cursor(float_win, { 1, 0 })
+  -- Scroll view up to reveal virtual text above line 1 (2 lines: header + separator)
+  vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes('2<C-y>', true, false, true), 'n', false)
 
   -- Keymaps
   local kopts = { buffer = float_buf, nowait = true }
@@ -249,11 +252,10 @@ function M.enter()
     end,
   })
 
-  -- WinClosed: sync and cleanup
+  -- WinClosed: cleanup only (no sync - :q! should discard changes, use :w to save)
   vim.api.nvim_create_autocmd('WinClosed', {
     buffer = float_buf,
     callback = function()
-      sync_to_source()
       -- Close backdrop
       if backdrop_win and vim.api.nvim_win_is_valid(backdrop_win) then
         vim.api.nvim_win_close(backdrop_win, true)

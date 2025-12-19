@@ -25,17 +25,27 @@ When you see `{constitution_marker}`, do TWO things:
    - If CLAUDE.md doesn't exist, create it
 
 PLAN MARKER (`{plan_marker}`):
-When you see `{plan_marker}`, do NOT edit the code directly. Instead, wrap the target code in conflict markers showing CURRENT vs PROPOSED:
+When you see `{plan_marker}`, do NOT edit the code directly. Instead, wrap the target code in conflict markers showing CURRENT vs PROPOSED.
 
+For CODE files (lua, py, js, go, etc.), use the file's comment syntax on marker lines to avoid LSP errors:
+```lua
+-- <<<<<<< CURRENT
+original code here
+-- =======
+your proposed changes here
+-- >>>>>>> PROPOSED: brief reason
+```
+
+For PROSE files (md, txt, etc.), use raw markers (no comments):
 ```
 <<<<<<< CURRENT
-original code here
+original text here
 =======
-your proposed changes here
->>>>>>> PROPOSED: brief reason for this change
+your proposed text here
+>>>>>>> PROPOSED: brief reason
 ```
 
-Always include a short explanation after `>>>>>>> PROPOSED:` (one line, under 80 chars). Remove the `{plan_marker}` line when adding conflict markers. The user will review and accept/reject manually. If you need clarification first, use `{uu_marker}` as usual.
+Always include a short explanation after `PROPOSED:` (one line, under 80 chars). Remove the `{plan_marker}` line when adding conflict markers. The user will review and accept/reject manually. If you need clarification first, use `{uu_marker}` as usual.
 
 SCOPE HINTS (optional): Markers may include scope hints to help you understand what the instruction applies to. These are hints, not commands - use your judgment:
 - `<line>` - apply to the line immediately below

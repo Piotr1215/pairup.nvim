@@ -354,4 +354,62 @@ describe('pairup.conflict', function()
       vim.api.nvim_buf_delete(buf, { force = true })
     end)
   end)
+
+  describe('commented markers', function()
+    it('should detect lua-style commented markers', function()
+      local buf = vim.api.nvim_create_buf(false, true)
+      vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+        '-- <<<<<<< CURRENT',
+        'old code',
+        '-- =======',
+        'new code',
+        '-- >>>>>>> PROPOSED: lua comment style',
+      })
+      vim.api.nvim_set_current_buf(buf)
+      vim.api.nvim_win_set_cursor(0, { 2, 0 })
+
+      local block = conflict.find_block()
+
+      assert.is_not_nil(block)
+      assert.equals('lua comment style', block.reason)
+      assert.equals(1, block.start_marker)
+      assert.equals(3, block.separator)
+      assert.equals(5, block.end_marker)
+      vim.api.nvim_buf_delete(buf, { force = true })
+    end)
+
+    it('should detect python-style commented markers', function()
+      local buf = vim.api.nvim_create_buf(false, true)
+      vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+        '# <<<<<<< CURRENT',
+        'old code',
+        '# =======',
+        'new code',
+        '# >>>>>>> PROPOSED: python style',
+      })
+
+      local conflicts = conflict.find_all(buf)
+
+      assert.equals(1, #conflicts)
+      assert.equals('python style', conflicts[1].reason)
+      vim.api.nvim_buf_delete(buf, { force = true })
+    end)
+
+    it('should detect js-style commented markers', function()
+      local buf = vim.api.nvim_create_buf(false, true)
+      vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+        '// <<<<<<< CURRENT',
+        'old code',
+        '// =======',
+        'new code',
+        '// >>>>>>> PROPOSED: js style',
+      })
+
+      local conflicts = conflict.find_all(buf)
+
+      assert.equals(1, #conflicts)
+      assert.equals('js style', conflicts[1].reason)
+      vim.api.nvim_buf_delete(buf, { force = true })
+    end)
+  end)
 end)
