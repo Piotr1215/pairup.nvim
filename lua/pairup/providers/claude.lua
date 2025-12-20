@@ -57,10 +57,15 @@ function M.send_to_terminal(message)
     return false
   end
 
-  vim.fn.chansend(job_id, message)
+  local ok = pcall(vim.fn.chansend, job_id, message)
+  if not ok then
+    vim.g.pairup_terminal_buf = nil
+    vim.g.pairup_terminal_job = nil
+    return false
+  end
 
   vim.defer_fn(function()
-    vim.fn.chansend(job_id, string.char(13))
+    pcall(vim.fn.chansend, job_id, string.char(13))
 
     if win and config.get('terminal.auto_scroll') then
       vim.api.nvim_win_call(win, function()
