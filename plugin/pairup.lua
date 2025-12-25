@@ -96,6 +96,38 @@ local subcommand_tbl = {
       require('pairup.conflict').prev()
     end,
   },
+  -- Draft commands (async edit queue)
+  drafts = {
+    impl = function(args)
+      local drafts = require('pairup.drafts')
+      local action = args[1] or 'show'
+      if action == 'show' then
+        drafts.preview()
+      elseif action == 'apply' then
+        local applied, failed = drafts.apply_all()
+        vim.notify(string.format('Applied %d drafts (%d failed)', applied, failed), vim.log.levels.INFO)
+      elseif action == 'next' then
+        local ok, msg = drafts.apply_next()
+        vim.notify(msg, ok and vim.log.levels.INFO or vim.log.levels.WARN)
+      elseif action == 'clear' then
+        drafts.clear()
+        vim.notify('Drafts cleared', vim.log.levels.INFO)
+      elseif action == 'count' then
+        vim.notify('Pending drafts: ' .. drafts.count(), vim.log.levels.INFO)
+      elseif action == 'enable' then
+        drafts.enable()
+      elseif action == 'disable' then
+        drafts.disable()
+      elseif action == 'status' then
+        vim.notify('Draft mode: ' .. (drafts.is_enabled() and 'ON' or 'OFF'), vim.log.levels.INFO)
+      else
+        vim.notify('Pairup drafts: expected show|apply|next|clear|count|enable|disable|status', vim.log.levels.ERROR)
+      end
+    end,
+    complete = function()
+      return { 'show', 'apply', 'next', 'clear', 'count', 'enable', 'disable', 'status' }
+    end,
+  },
 }
 
 ---@param opts table

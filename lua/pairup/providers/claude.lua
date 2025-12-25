@@ -102,7 +102,14 @@ function M.start()
   local buf = vim.api.nvim_create_buf(true, false)
   vim.api.nvim_set_current_buf(buf)
 
-  local job_id = vim.fn.termopen(claude_cmd, { cwd = cwd })
+  -- Generate unique session ID for draft mode isolation
+  local session_id = tostring(vim.loop.hrtime())
+  vim.g.pairup_session_id = session_id
+
+  local job_id = vim.fn.termopen(claude_cmd, {
+    cwd = cwd,
+    env = { PAIRUP_SESSION_ID = session_id },
+  })
 
   if job_id <= 0 then
     vim.api.nvim_set_current_buf(orig_buf)

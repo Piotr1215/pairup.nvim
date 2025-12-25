@@ -39,6 +39,14 @@ If you need clarification, add `{uu_marker} <your question>` and STOP.
   return cached_base
 end
 
+local DRAFT_MODE_ADDENDUM = [[
+
+DRAFT MODE ACTIVE:
+Your edits are being captured for user review, not applied immediately.
+If you see "Edit captured as draft" - this is expected. Do NOT retry.
+Continue with other tasks; the user will apply drafts when ready.
+]]
+
 ---Build the prompt with actual values
 ---@param filepath string
 ---@param markers table {command, question, constitution}
@@ -46,13 +54,16 @@ end
 function M.build(filepath, markers)
   local template = M.get_template()
 
-  -- Replace placeholders
   local result = template
     :gsub('{filepath}', filepath)
     :gsub('{cc_marker}', markers.command)
     :gsub('{uu_marker}', markers.question)
     :gsub('{constitution_marker}', markers.constitution)
     :gsub('{plan_marker}', markers.plan or 'ccp:')
+
+  if require('pairup.drafts').is_enabled() then
+    result = result .. DRAFT_MODE_ADDENDUM
+  end
 
   return result
 end
