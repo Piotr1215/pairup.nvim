@@ -101,36 +101,23 @@ local subcommand_tbl = {
     impl = function(args)
       local drafts = require('pairup.drafts')
       local action = args[1] or 'show'
-      if action == 'show' or action == 'preview' then
-        drafts.preview()
-      elseif action == 'apply' then
-        local applied, failed = drafts.apply_all()
-        vim.notify(string.format('Applied %d drafts (%d failed)', applied, failed), vim.log.levels.INFO)
-      elseif action == 'next' then
-        local ok, msg = drafts.apply_next()
-        vim.notify(msg, ok and vim.log.levels.INFO or vim.log.levels.WARN)
-      elseif action == 'clear' then
-        drafts.clear()
-        vim.notify('Drafts cleared', vim.log.levels.INFO)
-      elseif action == 'count' then
-        vim.notify('Pending drafts: ' .. drafts.count(), vim.log.levels.INFO)
-      elseif action == 'enable' then
+      if action == 'enable' then
         drafts.enable()
       elseif action == 'disable' then
         drafts.disable()
-      elseif action == 'status' then
-        vim.notify('Draft mode: ' .. (drafts.is_enabled() and 'ON' or 'OFF'), vim.log.levels.INFO)
+      elseif action == 'clear' then
+        drafts.clear()
+        drafts.clear_overlays()
       elseif action == 'materialize' then
         drafts.materialize()
       else
-        vim.notify(
-          'Pairup drafts: expected show|preview|apply|materialize|next|clear|count|enable|disable|status',
-          vim.log.levels.ERROR
-        )
+        local status = drafts.is_enabled() and 'ON' or 'OFF'
+        local count = drafts.count()
+        vim.notify(string.format('Draft mode: %s (%d pending)', status, count), vim.log.levels.INFO)
       end
     end,
     complete = function()
-      return { 'show', 'preview', 'apply', 'materialize', 'next', 'clear', 'count', 'enable', 'disable', 'status' }
+      return { 'enable', 'disable', 'clear', 'materialize' }
     end,
   },
 }
@@ -260,6 +247,36 @@ vim.api.nvim_create_autocmd('CursorMoved', {
     local ok, config = pcall(require, 'pairup.config')
     if ok and config.get('proposals.auto_enter') then
       require('pairup.edit').maybe_auto_enter()
+    end
+  end,
+})
+
+-- Draft overlay keybindings
+vim.keymap.set('n', 'ga', function()
+  require('pairup.drafts').accept_at_cursor()
+end, { desc = 'Accept draft at cursor' })
+
+vim.keymap.set('n', 'gx', function()
+  require('pairup.drafts').reject_at_cursor()
+end, { desc = 'Reject draft at cursor' })
+
+-- Auto-render + materialize drafts when JSON changes
+local drafts_augroup = vim.api.nvim_create_augroup('PairupDrafts', { clear = true })
+local drafts_file = '/tmp/pairup-drafts.json'
+local last_mtime = 0
+
+vim.api.nvim_create_autocmd({ 'BufEnter', 'CursorHold', 'FocusGained' }, {
+  group = drafts_augroup,
+  callback = function()
+    local stat = vim.loop.fs_stat(drafts_file)
+    if stat and stat.mtime.sec > last_mtime then
+      last_mtime = stat.mtime.sec
+      local ok, drafts = pcall(require, 'pairup.drafts')
+      if ok and drafts.is_enabled() then
+        vim.schedule(function()
+          drafts.render_all()
+        end)
+      end
     end
   end,
 })

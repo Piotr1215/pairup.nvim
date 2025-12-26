@@ -238,6 +238,12 @@ end
 
 -- Check if Claude is busy (has active todos)
 function M.is_busy()
+  -- In draft mode, never busy (edits go to JSON, no tool progression)
+  local drafts = require('pairup.drafts')
+  if drafts.is_enabled() then
+    return false
+  end
+
   local hook_file = get_hook_file()
   if not hook_file then
     return vim.g.pairup_pending ~= nil

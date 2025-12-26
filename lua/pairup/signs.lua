@@ -31,6 +31,16 @@ function M.setup()
     })
   end
 
+  -- Draft overlay highlight groups (adapted from legacy-v3)
+  vim.api.nvim_set_hl(0, 'PairupHeader', { link = 'DiagnosticInfo', default = true })
+  vim.api.nvim_set_hl(0, 'PairupSubHeader', { link = 'Comment', default = true })
+  vim.api.nvim_set_hl(0, 'PairupBorder', { link = 'NonText', default = true })
+  vim.api.nvim_set_hl(0, 'PairupDelete', { link = 'DiffDelete', default = true })
+  vim.api.nvim_set_hl(0, 'PairupAdd', { link = 'DiffAdd', default = true })
+  vim.api.nvim_set_hl(0, 'PairupHint', { link = 'Comment', default = true })
+  vim.api.nvim_set_hl(0, 'PairupAcceptKey', { link = 'String', default = true })
+  vim.api.nvim_set_hl(0, 'PairupRejectKey', { link = 'Error', default = true })
+
   -- Define signs
   vim.fn.sign_define('PairupCC', {
     text = '󰭻',

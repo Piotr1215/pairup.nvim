@@ -117,11 +117,7 @@ local function apply_draft(draft)
 end
 
 ---@return boolean, string
-function M.apply_next()
-  return M.apply_at_index(1)
-end
-
----Apply draft at specific index
+---Apply draft at specific index (used by inline and diff workflows)
 ---@param idx integer Draft index (1-based)
 ---@return boolean, string
 function M.apply_at_index(idx)
@@ -152,25 +148,6 @@ function M.apply_at_index(idx)
   return false, err or 'Failed to apply'
 end
 
----@return number, number, string[] errors
-function M.apply_all()
-  local drafts = M.get_all()
-  local applied, failed = 0, 0
-  local errors = {}
-  for i = #drafts, 1, -1 do
-    local ok, err = apply_draft(drafts[i])
-    if ok then
-      applied = applied + 1
-    else
-      failed = failed + 1
-      table.insert(errors, err or 'Unknown error')
-    end
-  end
-  M.clear()
-  vim.cmd('checktime')
-  return applied, failed, errors
-end
-
 ---Find line number where old_string starts in file
 ---@param file string
 ---@param old_string string
@@ -197,156 +174,7 @@ local function find_line_number(file, old_string)
   return 1
 end
 
--- Store current draft index for navigation
-M._current_idx = 1
-M._diff_ctx = nil
-
----Show draft as diff in split view (does NOT modify source buffer)
-function M.preview()
-  local drafts = M.get_all()
-  if #drafts == 0 then
-    vim.notify('No pending drafts', vim.log.levels.INFO)
-    return
-  end
-
-  M._current_idx = 1
-  M._show_draft(drafts[1], 1, #drafts)
-end
-
----Show a single draft as diff
-function M._show_draft(draft, idx, total)
-  local ft = vim.fn.fnamemodify(draft.file, ':e')
-  local old_lines = vim.split(draft.old_string or '', '\n', { plain = true })
-  local new_lines = vim.split(draft.new_string or '', '\n', { plain = true })
-
-  local old_buf = vim.api.nvim_create_buf(false, true)
-  local new_buf = vim.api.nvim_create_buf(false, true)
-
-  vim.api.nvim_buf_set_lines(old_buf, 0, -1, false, old_lines)
-  vim.api.nvim_buf_set_lines(new_buf, 0, -1, false, new_lines)
-  pcall(vim.api.nvim_buf_set_name, old_buf, string.format('CURRENT [%d/%d]', idx, total))
-  pcall(vim.api.nvim_buf_set_name, new_buf, string.format('PROPOSED [%d/%d]', idx, total))
-  vim.bo[old_buf].filetype = ft
-  vim.bo[new_buf].filetype = ft
-  vim.bo[old_buf].bufhidden = 'wipe'
-  vim.bo[new_buf].bufhidden = 'wipe'
-
-  M._diff_ctx = { draft = draft, idx = idx, total = total, old_buf = old_buf, new_buf = new_buf }
-
-  local function set_keymaps(buf)
-    vim.keymap.set('n', 'ga', M.accept_current, { buffer = buf, desc = 'Accept draft' })
-    vim.keymap.set('n', 'gx', M.reject_current, { buffer = buf, desc = 'Reject draft' })
-    vim.keymap.set('n', ']d', M.next_draft, { buffer = buf, desc = 'Next draft' })
-    vim.keymap.set('n', '[d', M.prev_draft, { buffer = buf, desc = 'Prev draft' })
-    vim.keymap.set('n', 'q', function()
-      M._diff_ctx = nil
-      vim.cmd('tabclose')
-    end, { buffer = buf, desc = 'Close' })
-  end
-
-  set_keymaps(old_buf)
-  set_keymaps(new_buf)
-
-  vim.cmd('tabnew')
-  vim.api.nvim_set_current_buf(old_buf)
-  vim.cmd('diffthis')
-  vim.cmd('vsplit')
-  vim.api.nvim_set_current_buf(new_buf)
-  vim.cmd('diffthis')
-  vim.cmd('set diffopt+=algorithm:patience,indent-heuristic')
-
-  -- Legend in cmdline
-  vim.api.nvim_echo({
-    { 'ga', 'DiagnosticOk' },
-    { '=accept  ', 'Comment' },
-    { 'gx', 'DiagnosticError' },
-    { '=reject  ', 'Comment' },
-    { ']d', 'DiagnosticInfo' },
-    { '/', 'Comment' },
-    { '[d', 'DiagnosticInfo' },
-    { '=nav  ', 'Comment' },
-    { 'q', 'DiagnosticWarn' },
-    { '=close', 'Comment' },
-  }, false, {})
-end
-
-function M.next_draft()
-  local drafts = M.get_all()
-  if M._current_idx < #drafts then
-    M._current_idx = M._current_idx + 1
-    vim.cmd('tabclose')
-    M._show_draft(drafts[M._current_idx], M._current_idx, #drafts)
-  end
-end
-
-function M.prev_draft()
-  local drafts = M.get_all()
-  if M._current_idx > 1 then
-    M._current_idx = M._current_idx - 1
-    vim.cmd('tabclose')
-    M._show_draft(drafts[M._current_idx], M._current_idx, #drafts)
-  end
-end
-
-function M.accept_current()
-  if not M._diff_ctx then
-    return
-  end
-  local draft = M._diff_ctx.draft
-  local idx = M._diff_ctx.idx
-  local ok, msg = M.apply_at_index(idx)
-  vim.cmd('tabclose!')
-  M._diff_ctx = nil
-
-  if ok then
-    vim.notify(msg, vim.log.levels.INFO)
-    local remaining = M.get_all()
-    if #remaining > 0 then
-      M._current_idx = math.min(idx, #remaining)
-      M._show_draft(remaining[M._current_idx], M._current_idx, #remaining)
-    else
-      local bufnr = vim.fn.bufnr(draft.file)
-      if bufnr ~= -1 then
-        vim.cmd('buffer ' .. bufnr)
-      else
-        vim.cmd('edit! ' .. vim.fn.fnameescape(draft.file))
-      end
-      local lnum = find_line_number(draft.file, draft.new_string or '')
-      pcall(vim.api.nvim_win_set_cursor, 0, { lnum, 0 })
-    end
-  end
-end
-
-function M.reject_current()
-  if not M._diff_ctx then
-    return
-  end
-  local idx = M._diff_ctx.idx
-  local drafts = M.get_all()
-  if #drafts > 0 and idx >= 1 and idx <= #drafts then
-    table.remove(drafts, idx)
-    if #drafts == 0 then
-      M.clear()
-    else
-      local f = io.open(DRAFTS_FILE, 'w')
-      if f then
-        f:write(vim.json.encode(drafts))
-        f:close()
-      end
-    end
-  end
-  vim.cmd('tabclose!')
-  M._diff_ctx = nil
-  vim.notify('Draft rejected', vim.log.levels.INFO)
-
-  local remaining = M.get_all()
-  if #remaining > 0 then
-    M._current_idx = math.min(idx, #remaining)
-    M._show_draft(remaining[M._current_idx], M._current_idx, #remaining)
-  end
-end
-
----Materialize drafts as conflict markers in buffer
+---Materialize drafts as conflict markers (background process)
 ---@param filepath string|nil File to materialize (defaults to current buffer)
 function M.materialize(filepath)
   filepath = filepath or vim.api.nvim_buf_get_name(0)
@@ -405,6 +233,194 @@ function M.materialize(filepath)
   else
     vim.notify('Could not materialize drafts (old_string not found)', vim.log.levels.WARN)
   end
+end
+
+-- Virtual text overlay system (adapted from legacy-v3)
+local ns_id = vim.api.nvim_create_namespace('pairup_drafts_overlay')
+local rendered = {} -- Track which buffers have overlays: {[bufnr] = {[marker_line] = draft_id}}
+
+---Build virtual lines for a draft
+---@param draft table
+---@return table[] virt_lines
+local function build_virt_lines(draft)
+  local virt_lines = {}
+  local old_lines = vim.split(draft.old_string or '', '\n', { plain = true })
+  local new_lines = vim.split(draft.new_string or '', '\n', { plain = true })
+
+  -- Header
+  table.insert(virt_lines, {
+    { '╭─ Claude suggests: ', 'PairupHeader' },
+  })
+
+  -- Show old lines (deletion/replacement)
+  if #old_lines > 0 and old_lines[1] ~= '' then
+    table.insert(virt_lines, { { '│ ', 'PairupBorder' }, { '── Original ──', 'PairupSubHeader' } })
+    for _, line in ipairs(old_lines) do
+      table.insert(virt_lines, { { '│ ', 'PairupBorder' }, { line, 'PairupDelete' } })
+    end
+  end
+
+  -- Show new lines (insertion/replacement)
+  if #new_lines > 0 then
+    if #old_lines > 0 and old_lines[1] ~= '' then
+      table.insert(virt_lines, { { '│ ', 'PairupBorder' }, { '── Suggestion ──', 'PairupSubHeader' } })
+    end
+    for _, line in ipairs(new_lines) do
+      table.insert(virt_lines, { { '│ ', 'PairupBorder' }, { line, 'PairupAdd' } })
+    end
+  end
+
+  -- Footer with keybindings
+  table.insert(virt_lines, {
+    { '╰─ ', 'PairupBorder' },
+    { 'ga', 'PairupAcceptKey' },
+    { '=accept  ', 'PairupHint' },
+    { 'gx', 'PairupRejectKey' },
+    { '=reject', 'PairupHint' },
+  })
+
+  return virt_lines
+end
+
+---Render draft as virtual text at marker position
+---@param bufnr number
+---@param draft table
+local function render_draft(bufnr, draft)
+  if not vim.api.nvim_buf_is_valid(bufnr) then
+    return
+  end
+
+  local marker_line = draft.marker_line
+  if not marker_line or marker_line < 1 then
+    return
+  end
+
+  local line_count = vim.api.nvim_buf_line_count(bufnr)
+  if marker_line > line_count then
+    return
+  end
+
+  -- Build and place virtual lines
+  local virt_lines = build_virt_lines(draft)
+  local ok = pcall(vim.api.nvim_buf_set_extmark, bufnr, ns_id, marker_line - 1, 0, {
+    virt_lines = virt_lines,
+    virt_lines_above = false,
+    priority = 100,
+    id = tonumber(draft.id),
+  })
+
+  if ok then
+    if not rendered[bufnr] then
+      rendered[bufnr] = {}
+    end
+    rendered[bufnr][marker_line] = draft.id
+  end
+end
+
+---Clear all draft overlays from buffer
+---@param bufnr number
+function M.clear_overlays(bufnr)
+  if not bufnr then
+    bufnr = vim.api.nvim_get_current_buf()
+  end
+  if vim.api.nvim_buf_is_valid(bufnr) then
+    vim.api.nvim_buf_clear_namespace(bufnr, ns_id, 0, -1)
+  end
+  rendered[bufnr] = nil
+end
+
+---Render all drafts for current buffer as virtual text
+function M.render_all()
+  local bufnr = vim.api.nvim_get_current_buf()
+  local filepath = vim.api.nvim_buf_get_name(bufnr)
+
+  -- Clear existing overlays
+  M.clear_overlays(bufnr)
+
+  -- Get drafts for this file
+  local all = M.get_all()
+  for _, draft in ipairs(all) do
+    if draft.file == filepath and draft.marker_line then
+      render_draft(bufnr, draft)
+    end
+  end
+end
+
+---Find draft at cursor position
+---@return table|nil draft
+---@return number|nil index
+function M.find_at_cursor()
+  local bufnr = vim.api.nvim_get_current_buf()
+  local filepath = vim.api.nvim_buf_get_name(bufnr)
+  local cursor = vim.api.nvim_win_get_cursor(0)
+  local line = cursor[1]
+
+  -- Check for extmarks in range (virtual text appears below extmark position)
+  local start_line = math.max(0, line - 10)
+  local marks = vim.api.nvim_buf_get_extmarks(bufnr, ns_id, { start_line, 0 }, { line, 0 }, {})
+  if #marks == 0 then
+    return nil, nil
+  end
+
+  -- Use closest extmark before cursor
+  local draft_id = tostring(marks[#marks][1])
+
+  -- Find draft in list
+  local all = M.get_all()
+  for idx, draft in ipairs(all) do
+    if draft.id == draft_id and draft.file == filepath then
+      return draft, idx
+    end
+  end
+
+  return nil, nil
+end
+
+---Accept draft at cursor (apply edit, remove marker, clear overlay)
+function M.accept_at_cursor()
+  local draft, idx = M.find_at_cursor()
+  if not draft then
+    vim.notify('No draft at cursor', vim.log.levels.WARN)
+    return
+  end
+
+  local ok, msg = M.apply_at_index(idx)
+  if ok then
+    M.clear_overlays(vim.api.nvim_get_current_buf())
+    -- TODO: Remove marker line
+    vim.notify(msg, vim.log.levels.INFO)
+    -- Re-render remaining drafts
+    vim.defer_fn(M.render_all, 100)
+  else
+    vim.notify(msg, vim.log.levels.ERROR)
+  end
+end
+
+---Reject draft at cursor (remove from queue, clear overlay, keep marker)
+function M.reject_at_cursor()
+  local draft, idx = M.find_at_cursor()
+  if not draft then
+    vim.notify('No draft at cursor', vim.log.levels.WARN)
+    return
+  end
+
+  -- Remove from queue
+  local all = M.get_all()
+  table.remove(all, idx)
+
+  if #all == 0 then
+    M.clear()
+  else
+    local f = io.open(DRAFTS_FILE, 'w')
+    if f then
+      f:write(vim.json.encode(all))
+      f:close()
+    end
+  end
+
+  M.clear_overlays(vim.api.nvim_get_current_buf())
+  vim.notify('Draft rejected', vim.log.levels.INFO)
+  vim.defer_fn(M.render_all, 100)
 end
 
 return M
