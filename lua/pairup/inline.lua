@@ -103,11 +103,10 @@ function M.process(bufnr)
     return false
   end
 
-  -- Check if already pending for this file
+  -- Check if Claude is busy (globally, not just this file)
   local indicator = require('pairup.utils.indicator')
-  if indicator.is_pending(filepath) then
-    -- Mark as queued - user's new markers will be processed after Claude finishes
-    indicator.set_queued()
+  if indicator.is_busy() then
+    indicator.set_queued(filepath)
     return false
   end
 

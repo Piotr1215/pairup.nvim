@@ -6,6 +6,7 @@ local config = require('pairup.config')
 
 local sign_group = 'pairup_markers'
 local hl_ns = vim.api.nvim_create_namespace('pairup_highlight')
+local draft_ns = vim.api.nvim_create_namespace('pairup_drafts')
 
 ---Setup sign definitions
 function M.setup()
@@ -40,6 +41,12 @@ function M.setup()
   vim.fn.sign_define('PairupUU', {
     text = '󰞋',
     texthl = 'DiagnosticInfo',
+    numhl = '',
+  })
+
+  vim.fn.sign_define('PairupDraft', {
+    text = '󰄲',
+    texthl = 'DiagnosticOk',
     numhl = '',
   })
 
@@ -79,6 +86,52 @@ local function place_marker(bufnr, lnum, line, is_question)
   vim.api.nvim_buf_set_extmark(bufnr, hl_ns, lnum - 1, 0, { end_col = #line, hl_group = hl })
 end
 
+---Find where old_string matches in buffer content
+---@param bufnr integer
+---@param old_string string
+---@return integer|nil start_line, integer|nil start_col
+local function find_text_position(bufnr, old_string)
+  local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  local old_lines = vim.split(old_string, '\n', { plain = true })
+
+  -- Try to find exact multi-line match
+  for start_lnum = 1, #lines - #old_lines + 1 do
+    local matches = true
+    for i, old_line in ipairs(old_lines) do
+      if lines[start_lnum + i - 1] ~= old_line then
+        matches = false
+        break
+      end
+    end
+    if matches then
+      return start_lnum, 0
+    end
+  end
+
+  return nil, nil
+end
+
+---Get draft positions for a file (line numbers where drafts start)
+---@param filepath string
+---@param bufnr integer
+---@return table<integer, boolean> Map of line numbers with drafts
+local function get_draft_positions(filepath, bufnr)
+  local drafts = require('pairup.drafts')
+  local all = drafts.get_all()
+  local positions = {}
+
+  for _, draft in ipairs(all) do
+    if draft.file == filepath and draft.old_string then
+      local lnum, col = find_text_position(bufnr, draft.old_string)
+      if lnum then
+        positions[lnum] = true
+      end
+    end
+  end
+
+  return positions
+end
+
 ---Update signs for a buffer
 ---@param bufnr integer|nil Buffer number (defaults to current)
 function M.update(bufnr)
@@ -89,6 +142,10 @@ function M.update(bufnr)
 
   vim.fn.sign_unplace(sign_group, { buffer = bufnr })
   vim.api.nvim_buf_clear_namespace(bufnr, hl_ns, 0, -1)
+  vim.api.nvim_buf_clear_namespace(bufnr, draft_ns, 0, -1)
+
+  local filepath = vim.api.nvim_buf_get_name(bufnr)
+  local draft_positions = get_draft_positions(filepath, bufnr)
 
   -- Markers sorted by length (longest first to match ccp: before cc:)
   local markers = {
@@ -99,6 +156,13 @@ function M.update(bufnr)
   }
 
   for lnum, line in ipairs(vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)) do
+    if draft_positions[lnum] then
+      vim.api.nvim_buf_set_extmark(bufnr, draft_ns, lnum - 1, 0, {
+        sign_text = '󰄲',
+        sign_hl_group = 'DiagnosticOk',
+        priority = 11,
+      })
+    end
     for _, m in ipairs(markers) do
       if line:find(m.pattern, 1, true) then
         place_marker(bufnr, lnum, line, m.is_question)
@@ -114,6 +178,7 @@ function M.clear(bufnr)
   bufnr = bufnr or vim.api.nvim_get_current_buf()
   vim.fn.sign_unplace(sign_group, { buffer = bufnr })
   vim.api.nvim_buf_clear_namespace(bufnr, hl_ns, 0, -1)
+  vim.api.nvim_buf_clear_namespace(bufnr, draft_ns, 0, -1)
 end
 
 ---Clear signs and highlights from all buffers

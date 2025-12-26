@@ -101,7 +101,7 @@ local subcommand_tbl = {
     impl = function(args)
       local drafts = require('pairup.drafts')
       local action = args[1] or 'show'
-      if action == 'show' then
+      if action == 'show' or action == 'preview' then
         drafts.preview()
       elseif action == 'apply' then
         local applied, failed = drafts.apply_all()
@@ -120,12 +120,17 @@ local subcommand_tbl = {
         drafts.disable()
       elseif action == 'status' then
         vim.notify('Draft mode: ' .. (drafts.is_enabled() and 'ON' or 'OFF'), vim.log.levels.INFO)
+      elseif action == 'materialize' then
+        drafts.materialize()
       else
-        vim.notify('Pairup drafts: expected show|apply|next|clear|count|enable|disable|status', vim.log.levels.ERROR)
+        vim.notify(
+          'Pairup drafts: expected show|preview|apply|materialize|next|clear|count|enable|disable|status',
+          vim.log.levels.ERROR
+        )
       end
     end,
     complete = function()
-      return { 'show', 'apply', 'next', 'clear', 'count', 'enable', 'disable', 'status' }
+      return { 'show', 'preview', 'apply', 'materialize', 'next', 'clear', 'count', 'enable', 'disable', 'status' }
     end,
   },
 }

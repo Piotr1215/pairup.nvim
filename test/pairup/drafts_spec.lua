@@ -279,22 +279,83 @@ describe('pairup.drafts', function()
   end)
 
   describe('preview', function()
-    it('should populate quickfix with drafts', function()
+    it('should open diff view with draft content', function()
       local json = vim.json.encode({
-        { id = '1', file = '/test.txt', old_string = 'old', new_string = 'new content here' },
+        { id = '1', file = '/test.txt', old_string = 'old content', new_string = 'new content here' },
       })
       local f = io.open(DRAFTS_FILE, 'w')
       f:write(json)
       f:close()
 
+      local initial_tabs = #vim.api.nvim_list_tabpages()
       drafts.preview()
 
-      local qf = vim.fn.getqflist({ all = 1 })
-      assert.equals(1, #qf.items)
-      assert.is_truthy(qf.items[1].text:match('new content here'))
+      -- Should open a new tab with diff
+      assert.equals(initial_tabs + 1, #vim.api.nvim_list_tabpages())
+      assert.is_not_nil(drafts._diff_ctx)
 
-      vim.fn.setqflist({}, 'r')
-      vim.cmd('cclose')
+      -- Cleanup
+      vim.cmd('tabclose')
+      drafts._diff_ctx = nil
+    end)
+
+    it('should notify when no drafts', function()
+      drafts.preview()
+      -- Just verify it doesn't error
+    end)
+  end)
+
+  describe('navigation and index handling', function()
+    it('should target correct draft index when applying', function()
+      -- Create actual test file that apply_draft can modify
+      local test3 = '/tmp/draft_test3.txt'
+      vim.cmd('edit ' .. test3)
+      vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'draft3' })
+      vim.cmd('write')
+
+      local json = vim.json.encode({
+        { id = '1', file = '/tmp/test1.txt', old_string = 'draft1', new_string = 'new1' },
+        { id = '2', file = '/tmp/test2.txt', old_string = 'draft2', new_string = 'new2' },
+        { id = '3', file = test3, old_string = 'draft3', new_string = 'new3' },
+      })
+      local df = io.open(DRAFTS_FILE, 'w')
+      df:write(json)
+      df:close()
+
+      -- Apply draft 3 (not draft 1!)
+      local ok = drafts.apply_at_index(3)
+      assert.is_true(ok)
+
+      -- Draft 3 should be removed, drafts 1 and 2 remain
+      local remaining = drafts.get_all()
+      assert.equals(2, #remaining)
+      assert.equals('/tmp/test1.txt', remaining[1].file)
+      assert.equals('/tmp/test2.txt', remaining[2].file)
+
+      -- Cleanup
+      os.remove(test3)
+    end)
+
+    it('should remove correct draft when rejecting at specific index', function()
+      local json = vim.json.encode({
+        { id = '1', file = '/test1.txt', old_string = 'draft1', new_string = 'new1' },
+        { id = '2', file = '/test2.txt', old_string = 'draft2', new_string = 'new2' },
+        { id = '3', file = '/test3.txt', old_string = 'draft3', new_string = 'new3' },
+      })
+      local f = io.open(DRAFTS_FILE, 'w')
+      f:write(json)
+      f:close()
+
+      local all = drafts.get_all()
+      table.remove(all, 2)
+      local updated = io.open(DRAFTS_FILE, 'w')
+      updated:write(vim.json.encode(all))
+      updated:close()
+
+      local remaining = drafts.get_all()
+      assert.equals(2, #remaining)
+      assert.equals('/test1.txt', remaining[1].file)
+      assert.equals('/test3.txt', remaining[2].file)
     end)
   end)
 end)

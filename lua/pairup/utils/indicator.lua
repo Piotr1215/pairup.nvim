@@ -97,6 +97,18 @@ local function get_hook_file()
   return latest_file
 end
 
+---Get indicator prefix (C or CD if draft mode enabled)
+---@return string
+local function get_prefix()
+  local provider = config.get_provider()
+  local prefix = provider:sub(1, 1):upper()
+  local drafts = require('pairup.drafts')
+  if drafts.is_enabled() then
+    return prefix .. 'D'
+  end
+  return prefix
+end
+
 ---Check for hook-based todo state and update indicator
 local function check_hook_state()
   local hook_file = get_hook_file()
@@ -131,19 +143,37 @@ local function check_hook_state()
   local completed = data.completed or 0
   local current = data.current or ''
 
+  local prefix = get_prefix()
   if total == 0 then
-    set_indicator('[C]')
+    set_indicator('[' .. prefix .. ']')
     M.set_virtual_text(nil)
   elseif completed == total then
-    set_indicator('[C:ready]')
+    set_indicator('[' .. prefix .. ':ready]')
     M.set_virtual_text(nil)
-    vim.defer_fn(function()
-      if vim.g.pairup_indicator == '[C:ready]' then
-        M.update()
-      end
-    end, 3000)
+    -- Process queued markers if any
+    if vim.g.pairup_queued then
+      local queued_file = vim.g.pairup_queued
+      vim.g.pairup_queued = false
+      vim.defer_fn(function()
+        local inline = require('pairup.inline')
+        if type(queued_file) == 'string' then
+          local bufnr = vim.fn.bufnr(queued_file)
+          if bufnr ~= -1 then
+            inline.process(bufnr)
+          end
+        else
+          inline.process()
+        end
+      end, 300)
+    else
+      vim.defer_fn(function()
+        if vim.g.pairup_indicator == '[' .. prefix .. ':ready]' then
+          M.update()
+        end
+      end, 3000)
+    end
   else
-    set_indicator('[C:' .. completed .. '/' .. total .. ']')
+    set_indicator('[' .. prefix .. ':' .. completed .. '/' .. total .. ']')
     M.set_virtual_text(current)
   end
 end
@@ -155,8 +185,7 @@ function M.update()
   if not buf then
     set_indicator('')
   else
-    local provider = config.get_provider()
-    local prefix = provider:sub(1, 1):upper()
+    local prefix = get_prefix()
 
     if vim.g.pairup_queued then
       set_indicator(string.format('[%s:queued]', prefix))
@@ -184,8 +213,8 @@ function M.clear_pending()
 end
 
 -- Set queued status
-function M.set_queued()
-  vim.g.pairup_queued = true
+function M.set_queued(filepath)
+  vim.g.pairup_queued = filepath or true
   M.update()
 end
 
@@ -205,6 +234,27 @@ end
 -- Get indicator for statusline
 function M.get()
   return vim.g.pairup_indicator or ''
+end
+
+-- Check if Claude is busy (has active todos)
+function M.is_busy()
+  local hook_file = get_hook_file()
+  if not hook_file then
+    return vim.g.pairup_pending ~= nil
+  end
+  local f = io.open(hook_file, 'r')
+  if not f then
+    return vim.g.pairup_pending ~= nil
+  end
+  local content = f:read('*a')
+  f:close()
+  local ok, data = pcall(vim.json.decode, content)
+  if not ok or not data then
+    return vim.g.pairup_pending ~= nil
+  end
+  local total = data.total or 0
+  local completed = data.completed or 0
+  return total > 0 and completed < total
 end
 
 -- Setup file watcher for progress
