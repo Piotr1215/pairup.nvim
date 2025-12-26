@@ -15,11 +15,7 @@ Inline AI pair programming for Neovim.
 
 ## How It Works
 
-<<<<<<< CURRENT
 Write `cc:`, `cc!:`, or `ccp:` markers anywhere in your code, save, and Claude edits the file directly.
-=======
-Write inline markers (`cc:`, `cc!:`, or `ccp:`) anywhere in your code. Save the file and Claude will read it, execute the instruction at each marker location, and remove the marker when done. This is a much longer line that should definitely wrap in the edit float because it contains way more text than 90 characters which is roughly the threshold we want to test for proper wrapping behavior in markdown files.
->>>>>>> PROPOSED: test conflict for wrap/width
 
 ```mermaid
 sequenceDiagram
@@ -46,7 +42,6 @@ sequenceDiagram
     P->>U: [C:ready], clear extmark
 ```
 
-<<<<<<< CURRENT
 ```lua
 -- cc: add logging
 -- uu: Use print, vim.notify, or a logging library?
@@ -54,16 +49,6 @@ function get_user(id)
   return db.users[id].name
 end
 ```
-=======
-```lua
--- cc: add logging
--- uu: Use print, vim.notify, or a logging library?
-local function get_user(id)
-  if not id then return nil end
-  return db.users[id] and db.users[id].name
-end
-```
->>>>>>> PROPOSED: add nil check and local
 
 Save → Claude reads the file → executes the instruction → removes the marker.
 
@@ -77,19 +62,11 @@ Three separate operators for each marker type. Each works with any motion/text-o
 > These keybindings are only active when pairup is loaded. They won't conflict with
 > other plugins or built-in vim mappings when pairup is not in use.
 
-<<<<<<< CURRENT
 | Marker | Operator | Line | Visual |
 |--------|----------|------|--------|
 | `cc:` | `gC{motion}` | `gCC` | `gC` |
 | `cc!:` | `g!{motion}` | `g!!` | `g!` |
 | `ccp:` | `g?{motion}` | `g??` | `g?` |
-=======
-| Marker | Motion | Line | Visual | Description |
-|--------|--------|------|--------|-------------|
-| `cc:` | `gC{motion}` | `gCC` | `gC` | Execute instruction |
-| `cc!:` | `g!{motion}` | `g!!` | `g!` | Constitution (saves rule) |
-| `ccp:` | `g?{motion}` | `g??` | `g?` | Plan (review first) |
->>>>>>> PROPOSED: add description column
 
 | Motion | Scope Hint | Example Output |
 |--------|------------|----------------|
@@ -111,15 +88,9 @@ Example: Select "controller configuration" and press `gC`:
 
 ## Signs
 
-<<<<<<< CURRENT
 Markers show in the gutter:
 - 󰭻 (yellow) — `cc:` command / `cc!:` constitution / `ccp:` plan
 - 󰞋 (blue) — `uu:` question marker
-=======
-Gutter signs:
-- 󰭻 `cc:` / `cc!:` / `ccp:`
-- 󰞋 `uu:` question
->>>>>>> PROPOSED: condense list
 
 ## Plan Marker (Review Before Apply)
 
