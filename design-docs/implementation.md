@@ -181,6 +181,55 @@ lua/pairup/core/autocmds.lua  # Spec file watcher
   - Detects uncommitted changes and merge conflicts
   - Shows peripheral session status and buffer name
 
+### Code Refactoring (Phase 3)
+
+**Problem:** Significant code duplication between LOCAL and PERIPHERAL modes.
+
+**Files with duplication:**
+- `lua/pairup/providers/claude.lua` (LOCAL Claude implementation)
+- `lua/pairup/peripheral.lua` (PERIPHERAL Claude implementation)
+
+**Duplicated patterns:**
+- `toggle()` - show/hide terminal window logic
+- `stop()` - cleanup and termination
+- `find_terminal()`/`find_peripheral()` - locate buffer and job
+- `send_message()` - send text to terminal channel
+- Buffer caching via vim.g globals (pairup_buf, pairup_job, pairup_peripheral_buf, etc.)
+- Terminal management (termopen, buffer creation, restoration)
+- State tracking and indicator updates
+
+**Proposed solution:** Create shared "session" or "instance" abstraction module.
+
+**Tasks:**
+- [ ] **Extract common session module** (`lua/pairup/core/session.lua`)
+  - Instance creation and lifecycle management
+  - Terminal buffer management (create, find, name, delete)
+  - Message sending via channel
+  - State tracking (running, stopped)
+  - Window management (toggle, show, hide)
+- [ ] **Refactor LOCAL mode** to use session module
+  - Update `lua/pairup/providers/claude.lua`
+  - Preserve existing behavior and API
+  - Update tests to verify no regressions
+- [ ] **Refactor PERIPHERAL mode** to use session module
+  - Update `lua/pairup/peripheral.lua`
+  - Maintain peripheral-specific features (worktree, diff sending)
+  - Update tests to verify no regressions
+- [ ] **Consolidate buffer caching** patterns
+  - Replace vim.g.pairup_buf/pairup_job with session-managed state
+  - Replace vim.g.pairup_peripheral_buf/pairup_peripheral_job with session-managed state
+  - Maintain backward compatibility if needed
+- [ ] **Document session API**
+  - Public interface (create, start, stop, toggle, send)
+  - Configuration options
+  - Usage examples for both LOCAL and PERIPHERAL
+
+**Benefits:**
+- Reduced code duplication (~50% reduction estimated)
+- Easier maintenance (fix once, applies to both)
+- Consistent behavior across modes
+- Foundation for future session types (e.g., remote, multiple peripherals)
+
 ### Error Handling
 - [ ] Graceful handling of worktree creation failures
 - [ ] Rebase conflict detection and notification
