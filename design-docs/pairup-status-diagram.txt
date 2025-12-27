@@ -1,0 +1,60 @@
+┌────────────────────────────────────────────────────────────────────┐
+│         PAIRUP STATUS INDICATOR - STATE MACHINE                    │
+└────────────────────────────────────────────────────────────────────┘
+
+States:
+┌────────────────┬─────────────────┬──────────────────────────────────┐
+│ State          │ Display         │ Condition                        │
+├────────────────┼─────────────────┼──────────────────────────────────┤
+│ Not Running    │ ''              │ No terminal buffer               │
+│ Idle           │ [C]             │ Terminal exists, waiting         │
+│ Queued         │ [C:queued]      │ vim.g.pairup_queued = true       │
+│ Processing     │ [C:processing]  │ vim.g.pairup_pending set         │
+│ Progress       │ [C:n/m]         │ Todo: 0 < completed < total      │
+│ Ready          │ [C:ready]       │ Todo: completed == total         │
+└────────────────┴─────────────────┴──────────────────────────────────┘
+
+Transitions:
+  [*] → Not Running
+  
+  Not Running → Idle
+    ├─ trigger: start command (terminal created)
+    
+  Idle → Queued
+    ├─ trigger: vim.g.pairup_queued = true
+    
+  Idle → Processing  
+    ├─ trigger: vim.g.pairup_pending = filepath
+    
+  Idle → Progress
+    ├─ trigger: TodoWrite hook (todos exist)
+    
+  Queued → Processing
+    ├─ trigger: process next file in queue
+    
+  Processing → Idle
+    ├─ trigger: clear_pending() (finished)
+    ├─ timeout: 60s (stale)
+    
+  Processing → Progress/Ready
+    ├─ trigger: TodoWrite hook updates
+    
+  Progress → Ready
+    ├─ trigger: completed == total
+    
+  Ready → Idle
+    ├─ timeout: 3s auto-clear
+    
+  Any → Not Running
+    └─ trigger: stop command
+
+Priority (indicator.lua:152-169):
+  1. No terminal          → ''
+  2. Terminal + queued    → '[C:queued]'
+  3. Terminal + pending   → '[C:processing]'
+  4. Terminal + progress  → '[C:n/m]' or '[C:ready]'
+  5. Terminal only        → '[C]'
+
+Tracking Systems:
+  ┌─ File-based (immediate): pending/queued vars
+  └─ Hook-based (polling):   /tmp/pairup-todo-*.json (500ms)
