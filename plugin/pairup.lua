@@ -142,13 +142,13 @@ vim.api.nvim_create_user_command('Pairup', pairup_cmd, {
     if subcmd_key and subcmd_arg_lead and subcommand_tbl[subcmd_key] and subcommand_tbl[subcmd_key].complete then
       return subcommand_tbl[subcmd_key].complete(subcmd_arg_lead)
     end
-    -- Check if cmdline is a subcommand
-    if cmdline:match("^['<,'>]*Pairup[!]*%s+%w*$") then
+    -- Check if cmdline is a subcommand (allow hyphens in subcommand names)
+    if cmdline:match("^['<,'>]*Pairup[!]*%s+[%w-]*$") then
       local subcommand_keys = vim.tbl_keys(subcommand_tbl)
       return vim
         .iter(subcommand_keys)
         :filter(function(key)
-          return key:find(arg_lead) ~= nil
+          return key:find(arg_lead, 1, true)
         end)
         :totable()
     end
