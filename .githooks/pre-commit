@@ -36,17 +36,6 @@ if [ -n "$STAGED_LUA_FILES" ]; then
     fi
 fi
 
-# Check if README.md is being committed
-if git diff --cached --name-only | grep -q "README.md"; then
-    echo ""
-    echo "⚠️  WARNING: README.md is being committed!"
-    echo "   Don't forget to update doc/pairup.txt if needed."
-    echo "   The documentation should stay in sync with README changes."
-    echo ""
-    echo "   Press Enter to continue or Ctrl-C to abort..."
-    read -r dummy
-fi
-
 # Run tests to ensure nothing broke
 echo "Running tests..."
 if ! make test > /dev/null 2>&1; then
