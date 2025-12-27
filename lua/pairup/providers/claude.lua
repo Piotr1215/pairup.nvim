@@ -110,6 +110,9 @@ function M.start()
     return false
   end
 
+  -- Set buffer name after terminal opens to override automatic term:// naming
+  pcall(vim.api.nvim_buf_set_name, buf, 'claude-local')
+
   vim.b[buf].is_pairup_assistant = true
   vim.b[buf].provider = 'claude'
   vim.b[buf].terminal_job_id = job_id

@@ -145,7 +145,6 @@ function M.spawn()
   local orig_buf = vim.api.nvim_get_current_buf()
 
   local buf = vim.api.nvim_create_buf(true, false)
-  vim.api.nvim_buf_set_name(buf, 'claude-peripheral')
   vim.api.nvim_set_current_buf(buf)
 
   local claude_config = config.get_provider_config('claude')
@@ -173,6 +172,9 @@ function M.spawn()
     vim.notify('[Peripheral] Failed to spawn', vim.log.levels.ERROR)
     return false
   end
+
+  -- Set buffer name after terminal opens to override automatic term:// naming
+  pcall(vim.api.nvim_buf_set_name, buf, 'claude-peripheral')
 
   vim.api.nvim_set_current_buf(orig_buf)
 
