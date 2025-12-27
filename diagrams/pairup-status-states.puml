@@ -1,0 +1,74 @@
+@startuml
+skinparam backgroundColor white
+skinparam shadowing false
+
+skinparam state {
+  BackgroundColor<<active>> LightGreen
+  BackgroundColor<<waiting>> LightYellow
+  BackgroundColor<<working>> LightBlue
+  BorderColor Black
+  FontSize 12
+}
+
+title LOCAL CLAUDE STATUS STATES
+
+state "Not Running" as NotRunning #LightGray
+NotRunning: indicator = ''
+NotRunning: No terminal buffer
+
+[*] --> NotRunning
+
+state "Active Session" as Session {
+  state "Idle" as Idle <<waiting>>
+  Idle: indicator = '[CL]'
+  Idle: Waiting for work
+
+  state "Queued" as Queued <<waiting>>
+  Queued: indicator = '[CL:queued]'
+  Queued: File in queue
+
+  state "Working" as Working {
+    state "Processing" as Processing <<active>>
+    Processing: indicator = '[CL:processing]'
+    Processing: File being edited
+    Processing: 60s timeout
+
+    state "Progress" as Progress <<working>>
+    Progress: indicator = '[CL:n/m]'
+    Progress: Todo tracking active
+    Progress: Polled every 500ms
+
+    state "Ready" as Ready <<active>>
+    Ready: indicator = '[CL:ready]'
+    Ready: All tasks complete
+    Ready: 3s auto-clear
+  }
+
+  Idle --> Queued : vim.g.pairup_queued = true
+  Queued --> Processing : process next file
+  Processing --> Idle : clear_pending()
+  Processing --> Idle : 60s timeout
+  Idle --> Progress : TodoWrite hook
+  Processing --> Progress : TodoWrite hook
+  Progress --> Ready : completed == total
+  Ready --> Idle : 3s timeout
+}
+
+NotRunning --> Session : :PairStart\ncreate terminal
+Session --> NotRunning : :PairStop\nclose terminal
+
+note right of Processing
+  Tracks single file edit
+  via vim.g.pairup_pending
+  Clears on completion or timeout
+end note
+
+note right of Progress
+  Hook-based system:
+  /tmp/pairup-todo-*.json
+
+  Updates every 500ms
+  Shows completed/total
+end note
+
+@enduml

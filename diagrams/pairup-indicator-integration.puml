@@ -1,0 +1,77 @@
+@startuml
+skinparam linetype ortho
+skinparam backgroundColor white
+skinparam shadowing false
+
+title PAIRUP INDICATOR INTEGRATION (LOCAL + PERIPHERAL)
+
+rectangle "Strategy 1:\nSide-by-Side" as SBS #E8F5E9 {
+  rectangle "[CL][CP]" as SBS1
+  rectangle "[CL:3/10][CP]" as SBS2
+  rectangle "[CL][CP:ready]" as SBS3
+  rectangle "[CL:processing][CP:5/8]" as SBS4
+
+  note right of SBS
+    **Always show both**
+    ✓ Clear separation
+    ✓ No state priority needed
+    ✗ More statusline space
+
+    Use when:
+    • Plenty of statusline room
+    • Want full visibility
+  end note
+}
+
+rectangle "Strategy 2:\nCombined" as CMB #E3F2FD {
+  rectangle "[CL+CP]" as CMB1
+  rectangle "[CL:3/10]" as CMB2
+  rectangle "[CP:ready]" as CMB3
+  rectangle "[CL:proc+CP:5/8]" as CMB4
+
+  note right of CMB
+    **Single indicator**
+    ✓ Less statusline space
+    ✓ Compact display
+    ✗ State priority needed
+
+    Priority rules:
+    1. Error > all
+    2. Working/Progress > ready
+    3. Ready > processing
+    4. Processing > idle
+  end note
+}
+
+rectangle "Strategy 3:\nContext-Aware" as CTX #FFF9C4 {
+  rectangle "[CL]" as CTX1
+  rectangle "[CP]" as CTX2
+  rectangle "[CL:3/10]" as CTX3
+  rectangle "[CP:ready]" as CTX4
+
+  note right of CTX
+    **Smart switching**
+    ✓ Minimal clutter
+    ✓ Shows what matters
+    ✓ Auto-detects focus
+
+    Rules:
+    • Main worktree → show [CL]
+    • Periph worktree → show [CP]
+    • Working/Ready → always show
+    • Idle → hide if other active
+  end note
+}
+
+note bottom
+  **RECOMMENDATION: Context-Aware**
+
+  Config option:
+  vim.g.pairup_indicator_mode = 'context'  -- 'side-by-side' | 'combined' | 'context'
+
+  Detection via:
+  • vim.fn.getcwd() - check if in peripheral worktree path
+  • Remote detection - check if connected via RPC
+end note
+
+@enduml

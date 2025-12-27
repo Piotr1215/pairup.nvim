@@ -2,6 +2,13 @@
 /tmp/
 *.log
 
+# Diagram outputs (generated from .puml sources)
+diagrams/*.txt
+diagrams/*.utxt
+diagrams/*.atxt
+diagrams/*.png
+diagrams/*.svg
+
 # Neovim
 .netrwhist
 *~

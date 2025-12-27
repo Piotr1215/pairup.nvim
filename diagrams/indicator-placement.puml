@@ -1,0 +1,69 @@
+@startuml
+skinparam backgroundColor white
+skinparam shadowing false
+skinparam packageStyle rectangle
+
+title INDICATOR PLACEMENT STRATEGY
+
+package "Statusline Display Rules" {
+  rectangle "Only [CL] Active" as CL_ONLY #E8F5E9 {
+    rectangle "[CL:3/5]" as CL_STATE
+    note right
+      Green color
+      Shows LOCAL progress
+    end note
+  }
+
+  rectangle "Only [CP] Active" as CP_ONLY #E3F2FD {
+    rectangle "[CP:ready]" as CP_STATE
+    note right
+      Blue color
+      Shows PERIPHERAL status
+    end note
+  }
+
+  rectangle "Both Active" as BOTH #FFF9C4 {
+    rectangle "[CL:processing] | [CP:3/8]" as BOTH_STATE
+    note right
+      Green [CL] | Gray | Blue [CP]
+      Separator configurable
+    end note
+  }
+
+  rectangle "Neither Active" as NONE #F5F5F5 {
+    rectangle "(hidden)" as NONE_STATE
+    note right
+      No indicator shown
+      Clean statusline
+    end note
+  }
+}
+
+package "Lualine Integration" as LUALINE {
+  rectangle "lualine_c" as SECTION_C {
+    rectangle "'filename'" as FILENAME
+    rectangle "'pairup'" as PAIRUP
+  }
+
+  note right of LUALINE
+    Default placement: lualine_c
+    Component: 'pairup'
+    Auto-injects after filename
+  end note
+}
+
+package "Color Scheme" as COLORS {
+  rectangle "PairLocalIndicator" as COLOR_LOCAL #50fa7b {
+    note bottom: Green (#50fa7b)
+  }
+
+  rectangle "PairPeripheralIndicator" as COLOR_PERIPH #8be9fd {
+    note bottom: Blue (#8be9fd)
+  }
+
+  rectangle "PairSeparator" as COLOR_SEP #6272a4 {
+    note bottom: Gray (#6272a4)
+  }
+}
+
+@enduml
