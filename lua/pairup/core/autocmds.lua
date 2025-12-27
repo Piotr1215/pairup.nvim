@@ -15,10 +15,10 @@ function M.setup()
     vim.g.pairup_suspended = not config.get('inline.auto_process')
   end
 
-  -- Send spec changes to peripheral on save
+  -- Send repo diff to peripheral on any file save
   vim.api.nvim_create_autocmd('BufWritePost', {
     group = 'Pairup',
-    pattern = { 'README.md', 'architecture.md', 'CLAUDE.md', 'docs/*.md' },
+    pattern = '*',
     callback = function()
       local peripheral = require('pairup.peripheral')
       if peripheral.is_running() then
