@@ -15,6 +15,20 @@ function M.setup()
     vim.g.pairup_suspended = not config.get('inline.auto_process')
   end
 
+  -- Send spec changes to peripheral on save
+  vim.api.nvim_create_autocmd('BufWritePost', {
+    group = 'Pairup',
+    pattern = { 'README.md', 'architecture.md', 'CLAUDE.md', 'docs/*.md' },
+    callback = function()
+      local peripheral = require('pairup.peripheral')
+      if peripheral.is_running() then
+        vim.defer_fn(function()
+          peripheral.send_diff()
+        end, 500)
+      end
+    end,
+  })
+
   -- Process cc: markers on file save
   vim.api.nvim_create_autocmd('BufWritePost', {
     group = 'Pairup',

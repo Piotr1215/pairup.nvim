@@ -42,6 +42,27 @@ local subcommand_tbl = {
       require('pairup').send_lsp()
     end,
   },
+  -- Peripheral Claude commands
+  peripheral = {
+    impl = function(args, opts)
+      require('pairup').peripheral_spawn()
+    end,
+  },
+  ['peripheral-stop'] = {
+    impl = function(args, opts)
+      require('pairup').peripheral_stop()
+    end,
+  },
+  ['peripheral-toggle'] = {
+    impl = function(args, opts)
+      require('pairup').peripheral_toggle()
+    end,
+  },
+  ['peripheral-diff'] = {
+    impl = function(args, opts)
+      require('pairup').peripheral_send_diff()
+    end,
+  },
   -- Inline mode commands (cc:/uu: markers)
   inline = {
     impl = function(args, opts)

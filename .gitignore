@@ -14,3 +14,8 @@ Thumbs.db
 .vscode/
 .idea/
 luacov.stats.out
+
+# Local working documents
+architecture.md
+implementation.md
+zinsser.pdf
