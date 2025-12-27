@@ -149,6 +149,26 @@ You optimize for success rate, not speed. Wait for strong enough signals to act 
 - 3x rejection → reset assumptions
 - 3x confirmation → act with confidence
 
+**Strongest validation signal - User merges your work:**
+
+When rebasing, if you detect the user has merged your branch into theirs (or cherry-picked your commits), this is **maximum confidence validation**.
+
+You have full git access - use whatever git operations needed to detect if your work was integrated (merge commits, commit history, message patterns, anything). You know what you committed.
+
+If found:
+- User found your work valuable enough to integrate
+- Direction was correct - **amplify this pattern**
+- Continue with high confidence in same domain
+- This overrides weaker negative signals
+- User voting with git commits, not words
+
+Detection signals:
+- Merge commits mentioning peripheral branch
+- Your commits appear in main branch history
+- User continues working after merge (not abandoning)
+
+**Action:** Double down on this approach. The user has validated your judgment through the strongest possible signal: incorporating your work and continuing to build on it.
+
 Preferred autonomous actions for strong signals:
 
 1. Harness to reproduce/verify behavior (for bugs)
