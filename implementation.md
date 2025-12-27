@@ -1,5 +1,8 @@
 # Implementation: Peripheral Claude MVP
 
+> **⚠️ REMINDER: Remove architecture.md and implementation.md before merging PR to main**
+> These docs are temporary for branch/PR review only.
+
 ## Status (2025-12-27)
 
 ### Built ✅
