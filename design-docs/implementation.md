@@ -160,51 +160,38 @@ lua/pairup/core/autocmds.lua  # Spec file watcher
 ## Next Steps
 
 ### Plugin Integration (Phase 2)
-- [ ] **Config options**
+- [ ] **Config options** (deferred - not critical)
   - `peripheral.auto_spawn` - spawn on plugin load
-  - `peripheral.auto_send_diff` - toggle diff auto-send <- this is already there and working
-  - `peripheral.spec_patterns` - customize spec file patterns <- what does it mean?
-  - `peripheral.rebase_strategy` - prompt vs autocmd vs manual <- no remove this
-- [ ] **Status indicator**
-  - Show peripheral state in statusline: ⚡idle / ⚙️working / ❌error <- this needs much more thought, how where?
-  - Integrate with existing indicator.lua <- yes but how?
-  - Color coding based on state
-- [ ] **Keymaps** <- no plugins should define any keymaps, create <Plug> commands and I will map them
-  - `<leader>pp` - spawn/toggle peripheral
-  - `<leader>ps` - send current file diff
-  - `<leader>pr` - trigger rebase
-  - `<leader>pv` - view peripheral commits
-- [ ] **Health check** <- yes
-  - Add `:checkhealth pairup` checks for peripheral
-  - Verify worktree exists and is valid
-  - Check git config (user.email, pairup.peripheral)
-  - Warn if peripheral has conflicts
+  - `peripheral.auto_send_diff` - toggle diff auto-send (already working via autocmd)
+- [x] **Status indicator**
+  - Dual independent indicators: [CL] | [CP]
+  - State tracking: idle → processing → n/m progress → ready
+  - Color coding: green (LOCAL), blue (PERIPHERAL), red (suspended)
+  - Integrated with existing indicator.lua
+  - Lualine and native statusline support
+- [x] **<Plug> mappings**
+  - `<Plug>(pairup-peripheral-spawn)` - spawn peripheral
+  - `<Plug>(pairup-peripheral-stop)` - stop peripheral
+  - `<Plug>(pairup-peripheral-toggle)` - toggle peripheral window
+  - Note: Buffer-local keymaps (q, ga, etc.) are scoped to plugin-owned buffers
+- [x] **Health check**
+  - `:checkhealth pairup` includes peripheral checks
+  - Verifies worktree exists and path is correct
+  - Checks git config (user.email, user.name, pairup.peripheral marker)
+  - Detects uncommitted changes and merge conflicts
+  - Shows peripheral session status and buffer name
 
-### Terminal UI (Phase 3)
-- [ ] Auto-open terminal on spawn (configurable)
-- [ ] Smart split positioning (bottom 20%, right 40%)
-- [ ] Terminal buffer highlights for peripheral output
-- [ ] Show diff preview before sending
-
-### Error Handling (Phase 4)
+### Error Handling
 - [ ] Graceful handling of worktree creation failures
 - [ ] Rebase conflict detection and notification
 - [ ] Git-crypt handling verification
 - [ ] Cleanup orphaned worktrees on startup
 
-### Context Awareness (Phase 5)
-- [ ] Track which files peripheral modified
+### Context Awareness
 - [ ] Show peripheral changes in quickfix
 - [ ] Diff view: main vs peripheral
-- [ ] Conflict detection before merge
 
-### Merge Workflow (Phase 6)
-- [ ] Command: `:Pairup peripheral-merge` - merge peripheral work
-- [ ] Interactive review of peripheral commits
-- [ ] Cherry-pick specific commits
-- [ ] Squash peripheral work into single commit
-
-### Advanced Features (Future)
+### Advanced Features 
 - [ ] Multiple peripherals (different tasks)
 - [ ] Peripheral sessions (pause/resume)
 - [ ] Peripheral templates (different prompts for different workflows)
