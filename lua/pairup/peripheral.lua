@@ -145,7 +145,7 @@ function M.spawn()
   local orig_buf = vim.api.nvim_get_current_buf()
 
   local buf = vim.api.nvim_create_buf(true, false)
-  vim.api.nvim_buf_set_name(buf, 'Peripheral Claude')
+  vim.api.nvim_buf_set_name(buf, 'claude-peripheral')
   vim.api.nvim_set_current_buf(buf)
 
   local claude_config = config.get_provider_config('claude')
@@ -161,6 +161,8 @@ function M.spawn()
     on_exit = function()
       vim.g.pairup_peripheral_buf = nil
       vim.g.pairup_peripheral_job = nil
+      -- Clear indicator on exit
+      require('pairup.utils.indicator').update_peripheral()
       vim.notify('[Peripheral] Exited', vim.log.levels.INFO)
     end,
   })
@@ -180,6 +182,9 @@ function M.spawn()
 
   vim.g.pairup_peripheral_buf = buf
   vim.g.pairup_peripheral_job = job_id
+
+  -- Update indicator to show [CP]
+  require('pairup.utils.indicator').update_peripheral()
 
   vim.notify('[Peripheral] Spawned in ' .. worktree_path, vim.log.levels.INFO)
   return true
@@ -206,6 +211,9 @@ function M.stop()
 
   vim.g.pairup_peripheral_buf = nil
   vim.g.pairup_peripheral_job = nil
+
+  -- Clear indicator
+  require('pairup.utils.indicator').update_peripheral()
 
   vim.notify('[Peripheral] Stopped', vim.log.levels.INFO)
 end
@@ -281,6 +289,9 @@ Commit your work when complete.
     diff,
     worktree_path
   )
+
+  -- Set pending state before sending
+  require('pairup.utils.indicator').set_peripheral_pending('analyzing')
 
   return M.send_message(message)
 end

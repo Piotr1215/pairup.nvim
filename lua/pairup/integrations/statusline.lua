@@ -53,14 +53,17 @@ end
 local function inject_native()
   local current = vim.o.statusline
 
-  if current:match('pairup_indicator') then
+  if current:match('pairup_indicator') or current:match('luaeval.*pairup') then
     return true
   end
 
+  -- Use Lua function to get colored display
+  local display_func = '%{%v:lua.require("pairup.utils.indicator").get_colored_display()%}'
+
   if current == '' or current == '%f' then
-    vim.o.statusline = '%f %m%r%h%w%=%{g:pairup_indicator} %l,%c %P'
+    vim.o.statusline = '%f %m%r%h%w%=' .. display_func .. ' %l,%c %P'
   else
-    vim.o.statusline = current .. ' %{g:pairup_indicator}'
+    vim.o.statusline = current .. ' ' .. display_func
   end
 
   return true
