@@ -31,7 +31,6 @@ function M.setup_worktree()
     -- Rebase on main to sync
     vim.fn.system(string.format('git -C %s rebase main 2>&1', worktree_path))
     if vim.v.shell_error == 0 then
-      vim.notify('[Peripheral] Synced existing worktree', vim.log.levels.INFO)
       return worktree_path
     else
       vim.notify('[Peripheral] Rebase failed, recreating', vim.log.levels.WARN)
@@ -73,7 +72,6 @@ function M.setup_worktree()
   vim.fn.system(string.format('git -C %s config user.email "piotrzan@gmail.com"', worktree_path))
   vim.fn.system(string.format('git -C %s config user.name "Piotr Zaniewski"', worktree_path))
 
-  vim.notify('[Peripheral] Created worktree: ' .. WORKTREE_BRANCH, vim.log.levels.INFO)
   return worktree_path
 end
 
@@ -162,7 +160,6 @@ function M.spawn()
       vim.g.pairup_peripheral_job = nil
       -- Clear indicator on exit
       require('pairup.utils.indicator').update_peripheral()
-      vim.notify('[Peripheral] Exited', vim.log.levels.INFO)
     end,
   })
 
@@ -188,7 +185,6 @@ function M.spawn()
   -- Update indicator to show [CP]
   require('pairup.utils.indicator').update_peripheral()
 
-  vim.notify('[Peripheral] Spawned in ' .. worktree_path, vim.log.levels.INFO)
   return true
 end
 
@@ -216,8 +212,6 @@ function M.stop()
 
   -- Clear indicator
   require('pairup.utils.indicator').update_peripheral()
-
-  vim.notify('[Peripheral] Stopped', vim.log.levels.INFO)
 end
 
 -- Send message to peripheral (matches providers/claude.lua pattern)
@@ -271,7 +265,6 @@ function M.send_diff()
   local diff = vim.fn.system(diff_cmd)
 
   if diff == '' then
-    vim.notify('[Peripheral] No changes to send', vim.log.levels.INFO)
     return false
   end
 
