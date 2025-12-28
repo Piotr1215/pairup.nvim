@@ -340,20 +340,23 @@ function M.get_colored_display()
 
   -- Check if LOCAL is suspended (use red instead of green)
   local local_hl = vim.g.pairup_suspended and 'PairSuspendedIndicator' or 'PairLocalIndicator'
+  -- Check if PERIPHERAL is suspended (use red instead of blue)
+  local periph_hl = vim.g.pairup_peripheral_suspended and 'PairSuspendedIndicator' or 'PairPeripheralIndicator'
 
   -- Build display with color codes
   if local_ind ~= '' and periph_ind ~= '' then
     return string.format(
-      '%%#%s#%s%%* %%#PairSeparator#%s%%* %%#PairPeripheralIndicator#%s%%*',
+      '%%#%s#%s%%* %%#PairSeparator#%s%%* %%#%s#%s%%*',
       local_hl,
       local_ind,
       sep,
+      periph_hl,
       periph_ind
     )
   elseif local_ind ~= '' then
     return string.format('%%#%s#%s%%*', local_hl, local_ind)
   elseif periph_ind ~= '' then
-    return string.format('%%#PairPeripheralIndicator#%s%%*', periph_ind)
+    return string.format('%%#%s#%s%%*', periph_hl, periph_ind)
   else
     return ''
   end

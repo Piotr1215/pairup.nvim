@@ -235,6 +235,37 @@ vim.keymap.set('n', '<Plug>(pairup-proposal-prev)', function()
   require('pairup.conflict').prev()
 end, { desc = 'Jump to previous proposal' })
 
+-- Peripheral <Plug> mappings
+vim.keymap.set('n', '<Plug>(pairup-peripheral-spawn)', function()
+  require('pairup.peripheral').spawn()
+end, { desc = 'Spawn peripheral Claude' })
+
+vim.keymap.set('n', '<Plug>(pairup-peripheral-stop)', function()
+  require('pairup.peripheral').stop()
+end, { desc = 'Stop peripheral Claude' })
+
+vim.keymap.set('n', '<Plug>(pairup-peripheral-toggle)', function()
+  require('pairup.peripheral').toggle()
+end, { desc = 'Toggle peripheral window' })
+
+vim.keymap.set('n', '<Plug>(pairup-peripheral-toggle-session)', function()
+  local peripheral = require('pairup.peripheral')
+  if peripheral.is_running() then
+    peripheral.stop()
+  else
+    peripheral.spawn()
+  end
+end, { desc = 'Toggle peripheral session (spawn/stop)' })
+
+vim.keymap.set('n', '<Plug>(pairup-peripheral-suspend)', function()
+  vim.g.pairup_peripheral_suspended = not vim.g.pairup_peripheral_suspended
+  vim.cmd('redrawstatus')
+end, { desc = 'Suspend peripheral auto-diff' })
+
+vim.keymap.set('n', '<Plug>(pairup-peripheral-diff)', function()
+  require('pairup.peripheral').send_diff()
+end, { desc = 'Send diff to peripheral' })
+
 -- Auto-enter for proposals (when enabled in config)
 local augroup = vim.api.nvim_create_augroup('PairupProposals', { clear = true })
 vim.api.nvim_create_autocmd('CursorMoved', {

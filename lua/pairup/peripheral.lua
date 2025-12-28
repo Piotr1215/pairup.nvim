@@ -182,6 +182,11 @@ end
 
 -- Send diff to peripheral (peripheral-specific feature)
 function M.send_diff()
+  -- Check if suspended
+  if vim.g.pairup_peripheral_suspended then
+    return false
+  end
+
   local buf, _, _ = M.find_peripheral()
   if not buf then
     vim.notify('[Peripheral] Not running', vim.log.levels.WARN)
@@ -201,6 +206,13 @@ function M.send_diff()
   if diff == '' then
     return false
   end
+
+  -- Deduplicate: skip if diff unchanged since last send
+  local diff_hash = vim.fn.sha256(diff)
+  if vim.g.pairup_peripheral_last_diff_hash == diff_hash then
+    return false
+  end
+  vim.g.pairup_peripheral_last_diff_hash = diff_hash
 
   local message = string.format(
     [[
