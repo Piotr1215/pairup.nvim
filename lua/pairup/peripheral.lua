@@ -35,8 +35,15 @@ function M.setup_worktree()
   local exists = vim.fn.isdirectory(worktree_path) == 1
 
   if exists then
-    -- Rebase on main to sync
-    vim.fn.system(string.format('git -C %s rebase main 2>&1', worktree_path))
+    -- Get user's current branch (what they're actively working on)
+    local current_branch = vim.fn.system('git -C ' .. git_root .. ' branch --show-current 2>/dev/null'):gsub('%s+', '')
+    if current_branch == '' then
+      -- Fallback to default branch
+      current_branch = git.get_default_branch(git_root)
+    end
+
+    -- Rebase on user's current branch to stay synced
+    vim.fn.system(string.format('git -C %s rebase %s 2>&1', worktree_path, current_branch))
     if vim.v.shell_error == 0 then
       return worktree_path
     else
