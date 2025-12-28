@@ -24,6 +24,7 @@ function M.new(config)
     on_start = config.on_start,
     on_stop = config.on_stop,
     should_auto_scroll = config.should_auto_scroll,
+    _stop_called = false, -- Guard against double on_stop calls
   }
 
   -- Cache keys for vim.g
@@ -118,6 +119,9 @@ function M.new(config)
       return false
     end
 
+    -- Reset stop guard for new session
+    self._stop_called = false
+
     local orig_buf = vim.api.nvim_get_current_buf()
 
     -- Create terminal buffer
@@ -132,6 +136,13 @@ function M.new(config)
       cmd,
       vim.tbl_extend('force', opts.termopen_opts or {}, {
         on_exit = function()
+          -- Call on_stop hook (update indicator, etc.) - but only once
+          if self.on_stop and not self._stop_called then
+            self._stop_called = true
+            vim.schedule(function()
+              self.on_stop()
+            end)
+          end
           vim.g[buf_cache_key] = nil
           vim.g[job_cache_key] = nil
         end,
@@ -173,8 +184,9 @@ function M.new(config)
       return
     end
 
-    -- Call on_stop hook before cleanup
-    if self.on_stop then
+    -- Call on_stop hook before cleanup (only once)
+    if self.on_stop and not self._stop_called then
+      self._stop_called = true
       self.on_stop()
     end
 
