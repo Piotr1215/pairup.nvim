@@ -94,4 +94,21 @@ M.send_lsp = function()
   vim.notify(string.format('Sent %d diagnostics to Claude', #diagnostics), vim.log.levels.INFO)
 end
 
+-- Peripheral Claude functions
+M.peripheral_spawn = function()
+  return require('pairup.peripheral').spawn()
+end
+
+M.peripheral_stop = function()
+  return require('pairup.peripheral').stop()
+end
+
+M.peripheral_toggle = function()
+  return require('pairup.peripheral').toggle()
+end
+
+M.peripheral_send_diff = function()
+  return require('pairup.peripheral').send_diff()
+end
+
 return M

@@ -42,6 +42,27 @@ local subcommand_tbl = {
       require('pairup').send_lsp()
     end,
   },
+  -- Peripheral Claude commands
+  peripheral = {
+    impl = function(args, opts)
+      require('pairup').peripheral_spawn()
+    end,
+  },
+  ['peripheral-stop'] = {
+    impl = function(args, opts)
+      require('pairup').peripheral_stop()
+    end,
+  },
+  ['peripheral-toggle'] = {
+    impl = function(args, opts)
+      require('pairup').peripheral_toggle()
+    end,
+  },
+  ['peripheral-diff'] = {
+    impl = function(args, opts)
+      require('pairup').peripheral_send_diff()
+    end,
+  },
   -- Inline mode commands (cc:/uu: markers)
   inline = {
     impl = function(args, opts)
@@ -72,8 +93,7 @@ local subcommand_tbl = {
   },
   suspend = {
     impl = function()
-      vim.g.pairup_suspended = not vim.g.pairup_suspended
-      vim.cmd('redrawstatus')
+      require('pairup.utils.indicator').toggle_suspend()
     end,
   },
   accept = {
@@ -121,13 +141,13 @@ vim.api.nvim_create_user_command('Pairup', pairup_cmd, {
     if subcmd_key and subcmd_arg_lead and subcommand_tbl[subcmd_key] and subcommand_tbl[subcmd_key].complete then
       return subcommand_tbl[subcmd_key].complete(subcmd_arg_lead)
     end
-    -- Check if cmdline is a subcommand
-    if cmdline:match("^['<,'>]*Pairup[!]*%s+%w*$") then
+    -- Check if cmdline is a subcommand (allow hyphens in subcommand names)
+    if cmdline:match("^['<,'>]*Pairup[!]*%s+[%w-]*$") then
       local subcommand_keys = vim.tbl_keys(subcommand_tbl)
       return vim
         .iter(subcommand_keys)
         :filter(function(key)
-          return key:find(arg_lead) ~= nil
+          return key:find(arg_lead, 1, true)
         end)
         :totable()
     end
@@ -190,8 +210,7 @@ vim.keymap.set('n', '<Plug>(pairup-toggle-session)', function()
 end, { desc = 'Toggle Pairup session (start/stop)' })
 
 vim.keymap.set('n', '<Plug>(pairup-suspend)', function()
-  vim.g.pairup_suspended = not vim.g.pairup_suspended
-  vim.cmd('redrawstatus')
+  require('pairup.utils.indicator').toggle_suspend()
 end, { desc = 'Suspend auto-processing' })
 
 vim.keymap.set('n', '<Plug>(pairup-accept)', function()
@@ -213,6 +232,36 @@ end, { desc = 'Jump to next proposal' })
 vim.keymap.set('n', '<Plug>(pairup-proposal-prev)', function()
   require('pairup.conflict').prev()
 end, { desc = 'Jump to previous proposal' })
+
+-- Peripheral <Plug> mappings
+vim.keymap.set('n', '<Plug>(pairup-peripheral-spawn)', function()
+  require('pairup.peripheral').spawn()
+end, { desc = 'Spawn peripheral Claude' })
+
+vim.keymap.set('n', '<Plug>(pairup-peripheral-stop)', function()
+  require('pairup.peripheral').stop()
+end, { desc = 'Stop peripheral Claude' })
+
+vim.keymap.set('n', '<Plug>(pairup-peripheral-toggle)', function()
+  require('pairup.peripheral').toggle()
+end, { desc = 'Toggle peripheral window' })
+
+vim.keymap.set('n', '<Plug>(pairup-peripheral-toggle-session)', function()
+  local peripheral = require('pairup.peripheral')
+  if peripheral.is_running() then
+    peripheral.stop()
+  else
+    peripheral.spawn()
+  end
+end, { desc = 'Toggle peripheral session (spawn/stop)' })
+
+vim.keymap.set('n', '<Plug>(pairup-peripheral-suspend)', function()
+  require('pairup.utils.indicator').toggle_peripheral_suspend()
+end, { desc = 'Suspend peripheral auto-diff' })
+
+vim.keymap.set('n', '<Plug>(pairup-peripheral-diff)', function()
+  require('pairup.peripheral').send_diff()
+end, { desc = 'Send diff to peripheral' })
 
 -- Auto-enter for proposals (when enabled in config)
 local augroup = vim.api.nvim_create_augroup('PairupProposals', { clear = true })

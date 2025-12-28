@@ -32,12 +32,12 @@ describe('pairup.statusline', function()
 
       statusline.setup({})
 
-      -- Need to wait for vim.schedule to inject pairup_indicator
+      -- Need to wait for vim.schedule to inject get_colored_display function
       vim.wait(100, function()
-        return vim.o.statusline:match('pairup_indicator') ~= nil
+        return vim.o.statusline:match('get_colored_display') ~= nil
       end)
 
-      assert.truthy(vim.o.statusline:match('pairup_indicator'))
+      assert.truthy(vim.o.statusline:match('get_colored_display'))
     end)
   end)
 end)
@@ -79,15 +79,52 @@ describe('lualine.components.pairup', function()
     end)
 
     it('should return indicator when set', function()
-      vim.g.pairup_indicator = '[C]'
+      vim.g.pairup_indicator = '[CL]'
+      vim.g.pairup_peripheral_indicator = ''
       local instance = setmetatable({}, { __index = component_module })
-      assert.equals('[C]', instance:update_status())
+      assert.equals('%#PairLocalIndicator#[CL]%*', instance:update_status())
     end)
 
     it('should return indicator with progress', function()
-      vim.g.pairup_indicator = '[C:██████████] ready'
+      vim.g.pairup_indicator = '[CL:3/5]'
+      vim.g.pairup_peripheral_indicator = ''
       local instance = setmetatable({}, { __index = component_module })
-      assert.equals('[C:██████████] ready', instance:update_status())
+      assert.equals('%#PairLocalIndicator#[CL:3/5]%*', instance:update_status())
+    end)
+
+    it('should return both indicators when both active', function()
+      vim.g.pairup_indicator = '[CL:processing]'
+      vim.g.pairup_peripheral_indicator = '[CP:ready]'
+      vim.g.pairup_statusline_separator = '|'
+      local instance = setmetatable({}, { __index = component_module })
+      assert.equals(
+        '%#PairLocalIndicator#[CL:processing]%* %#PairSeparator#|%* %#PairPeripheralIndicator#[CP:ready]%*',
+        instance:update_status()
+      )
+    end)
+
+    it('should return only peripheral indicator when only peripheral active', function()
+      vim.g.pairup_indicator = ''
+      vim.g.pairup_peripheral_indicator = '[CP:3/8]'
+      local instance = setmetatable({}, { __index = component_module })
+      assert.equals('%#PairPeripheralIndicator#[CP:3/8]%*', instance:update_status())
+    end)
+
+    it('should use red highlight when LOCAL is suspended', function()
+      vim.g.pairup_indicator = '[CL]'
+      vim.g.pairup_peripheral_indicator = ''
+      vim.g.pairup_suspended = true
+      local instance = setmetatable({}, { __index = component_module })
+      assert.equals('%#PairSuspendedIndicator#[CL]%*', instance:update_status())
+      vim.g.pairup_suspended = nil
+    end)
+
+    it('should use green highlight when LOCAL is not suspended', function()
+      vim.g.pairup_indicator = '[CL]'
+      vim.g.pairup_peripheral_indicator = ''
+      vim.g.pairup_suspended = false
+      local instance = setmetatable({}, { __index = component_module })
+      assert.equals('%#PairLocalIndicator#[CL]%*', instance:update_status())
     end)
 
     it('should return red color when suspended', function()

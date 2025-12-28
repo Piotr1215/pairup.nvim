@@ -54,6 +54,34 @@ Save → Claude reads the file → executes the instruction → removes the mark
 
 See [`prompt.md`](prompt.md) for the full prompt.
 
+## Peripheral Claude
+
+Run a second autonomous Claude instance in a sibling git worktree for parallel development.
+
+While you work in the main repo, peripheral Claude works independently in `../repo-name-worktrees/peripheral/` on its own branch. When you update spec files (design docs, architecture notes), peripheral Claude automatically receives the diff and implements the changes autonomously.
+
+Key features:
+- Isolated worktree prevents conflicts with your main work
+- Auto-sync: receives git diffs when you save spec files
+- Independent commits on peripheral branch
+- Dual statusline indicators: `[CL]` (local) | `[CP]` (peripheral)
+- Color-coded states: green (active), blue (peripheral), red (suspended)
+
+Example workflow:
+```bash
+:Pairup peripheral              # Spawn peripheral Claude
+# Edit design-docs/feature.md
+:w                              # Peripheral auto-receives diff
+# Watch [CP:processing] → [CP:2/5] → [CP:ready] in statusline
+:Pairup peripheral-toggle       # View peripheral's terminal
+```
+
+The peripheral works from [`peripheral-prompt.md`](peripheral-prompt.md) which instructs it to:
+- Read specification changes from diffs
+- Implement features autonomously
+- Commit work with descriptive messages
+- Rebase periodically to stay synced
+
 ## Neovim-Native Operators
 
 Three separate operators for each marker type. Each works with any motion/text-object:
@@ -231,15 +259,32 @@ Key bindings are optional — the plugin works with `:Pairup` commands alone.
 | `edit` | Open floating editor for proposal |
 | `next` | Jump to next proposal |
 | `prev` | Jump to previous proposal |
+| **Peripheral Claude** | |
+| `peripheral` | Spawn peripheral Claude in sibling worktree |
+| `peripheral-stop` | Stop peripheral Claude |
+| `peripheral-toggle` | Show/hide peripheral terminal |
+| `peripheral-diff` | Send current diff to peripheral |
 
 ## Status Indicator
 
 Automatically injected into lualine (or native statusline if no lualine). No config needed.
 
-- `[C]` — Claude running
-- `[C:pending]` — Waiting for Claude
-- `[C:2/5]` — Todo progress (2 of 5 tasks done)
-- `[C:ready]` — All tasks complete
+**Local Claude:**
+- `[CL]` — Claude running (green)
+- `[CL]` — Claude suspended (red, auto-processing paused)
+- `[CL:pending]` — Waiting for Claude
+- `[CL:2/5]` — Todo progress (2 of 5 tasks done)
+- `[CL:ready]` — All tasks complete
+
+**Peripheral Claude:**
+- `[CP]` — Peripheral running (blue)
+- `[CP:processing]` — Processing spec changes
+- `[CP:2/5]` — Todo progress
+- `[CP:ready]` — All tasks complete
+
+**Dual display:**
+- `[CL] | [CP]` — Both running
+- `[CL:2/5] | [CP:ready]` — With progress
 
 ### Progress Tracking
 

@@ -1,0 +1,104 @@
+@startuml
+skinparam backgroundColor white
+skinparam shadowing false
+
+skinparam state {
+  BackgroundColor<<active>> LightGreen
+  BackgroundColor<<waiting>> LightYellow
+  BackgroundColor<<working>> LightBlue
+  BackgroundColor<<error>> LightCoral
+  BorderColor Black
+  FontSize 12
+}
+
+title PERIPHERAL CLAUDE STATUS STATES
+
+state "Not Running" as NotRunning #LightGray
+NotRunning: indicator = ''
+NotRunning: No worktree exists
+
+[*] --> NotRunning
+
+state "Active Session" as Session {
+  state "Spawning" as Spawning <<waiting>>
+  Spawning: indicator = '[CP:spawn]'
+  Spawning: Creating worktree + terminal
+  Spawning: 30s timeout
+
+  state "Idle" as Idle <<waiting>>
+  Idle: indicator = '[CP]'
+  Idle: Waiting for spec
+
+  state "Autonomous Work" as Autonomous {
+    state "Analyzing" as Analyzing <<active>>
+    Analyzing: indicator = '[CP:analyze]'
+    Analyzing: Reading spec-*.md
+    Analyzing: Exploring codebase
+    Analyzing: Planning tasks
+
+    state "Working" as Working <<working>>
+    Working: indicator = '[CP:n/m]'
+    Working: Active implementation
+    Working: Todo tracking (500ms poll)
+    Working: /tmp/pairup-peripheral-todo-*.json
+
+    state "Ready" as Ready <<active>>
+    Ready: indicator = '[CP:ready]'
+    Ready: All tasks complete
+    Ready: Diff available for review
+    Ready: 5s auto-clear
+  }
+
+  state "Error" as Error <<error>>
+  Error: indicator = '[CP:err]'
+  Error: Worktree creation failed
+  Error: Terminal spawn failed
+  Error: Claude crashed
+  Error: Spec invalid/unparseable
+
+  Spawning --> Idle : worktree created
+  Spawning --> Error : spawn failed
+
+  Idle --> Analyzing : spec file detected
+  Analyzing --> Working : tasks identified
+  Analyzing --> Idle : no work found
+  Analyzing --> Error : spec parse failed
+
+  Working --> Ready : completed == total
+  Working --> Idle : work cleared
+  Working --> Error : fatal error
+
+  Ready --> Idle : 5s timeout
+
+  Error --> Idle : retry successful
+}
+
+NotRunning --> Session : :PairPeripheralSpawn\ncreate sibling worktree
+Session --> NotRunning : :PairPeripheralStop\ncleanup worktree
+
+note right of Analyzing
+  Auto-triggered on:
+  • Spec file save
+  • Manual :PairPeripheralSend
+
+  Uses Explore agent for
+  codebase understanding
+end note
+
+note right of Working
+  Same system as LOCAL:
+  • Hook-based todo tracking
+  • 500ms polling interval
+  • Progress: [CP:3/10]
+
+  Fully autonomous execution
+end note
+
+note left of Ready
+  Review workflow:
+  • :PairPeripheralDiff
+  • Check changes in worktree
+  • Merge or discard
+end note
+
+@enduml
