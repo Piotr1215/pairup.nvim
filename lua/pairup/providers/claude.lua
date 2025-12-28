@@ -2,140 +2,12 @@
 
 local M = {}
 local config = require('pairup.config')
+local session_factory = require('pairup.core.session')
 
 M.name = 'claude'
 
--- Fast check if terminal is running (for hot paths)
-function M.is_running()
-  local cached_buf = vim.g.pairup_terminal_buf
-  return cached_buf and vim.api.nvim_buf_is_valid(cached_buf)
-end
-
--- Find Claude terminal buffer
-function M.find_terminal()
-  -- Fast path: check cache first (Phase 1 optimization)
-  local cached_buf = vim.g.pairup_terminal_buf
-  if cached_buf and vim.api.nvim_buf_is_valid(cached_buf) then
-    -- Find window if visible
-    for _, win in ipairs(vim.api.nvim_list_wins()) do
-      if vim.api.nvim_win_get_buf(win) == cached_buf then
-        return cached_buf, win, vim.g.pairup_terminal_job
-      end
-    end
-    return cached_buf, nil, vim.g.pairup_terminal_job
-  end
-
-  -- Cache miss or invalid - clear and do full search
-  vim.g.pairup_terminal_buf = nil
-  vim.g.pairup_terminal_job = nil
-
-  for _, win in ipairs(vim.api.nvim_list_wins()) do
-    local buf = vim.api.nvim_win_get_buf(win)
-    if vim.b[buf].is_pairup_assistant and vim.b[buf].provider == 'claude' then
-      vim.g.pairup_terminal_buf = buf
-      vim.g.pairup_terminal_job = vim.b[buf].terminal_job_id
-      return buf, win, vim.b[buf].terminal_job_id
-    end
-  end
-
-  for _, buf in ipairs(vim.api.nvim_list_bufs()) do
-    if vim.api.nvim_buf_is_valid(buf) and vim.b[buf].is_pairup_assistant and vim.b[buf].provider == 'claude' then
-      vim.g.pairup_terminal_buf = buf
-      vim.g.pairup_terminal_job = vim.b[buf].terminal_job_id
-      return buf, nil, vim.b[buf].terminal_job_id
-    end
-  end
-
-  return nil, nil, nil
-end
-
--- Send message to Claude terminal
-function M.send_to_terminal(message)
-  local buf, win, job_id = M.find_terminal()
-
-  if not buf or not job_id then
-    return false
-  end
-
-  local ok = pcall(vim.fn.chansend, job_id, message)
-  if not ok then
-    vim.g.pairup_terminal_buf = nil
-    vim.g.pairup_terminal_job = nil
-    return false
-  end
-
-  vim.defer_fn(function()
-    pcall(vim.fn.chansend, job_id, string.char(13))
-
-    if win and config.get('terminal.auto_scroll') then
-      vim.api.nvim_win_call(win, function()
-        if vim.api.nvim_get_mode().mode ~= 't' then
-          vim.cmd('norm G')
-        end
-      end)
-    end
-  end, 500)
-
-  return true
-end
-
--- Start Claude assistant
-function M.start()
-  local existing_buf = M.find_terminal()
-  if existing_buf then
-    return false
-  end
-
-  local git = require('pairup.utils.git')
-  local git_root = git.get_root()
-  local cwd = git_root or vim.fn.getcwd()
-
-  local claude_config = config.get_provider_config('claude')
-  local claude_cmd = claude_config.cmd
-
-  if vim.g.pairup_test_mode then
-    claude_cmd = "echo 'Mock Claude CLI running'"
-  end
-
-  local orig_buf = vim.api.nvim_get_current_buf()
-
-  local buf = vim.api.nvim_create_buf(true, false)
-  vim.api.nvim_set_current_buf(buf)
-
-  local job_id = vim.fn.termopen(claude_cmd, { cwd = cwd })
-
-  if job_id <= 0 then
-    vim.api.nvim_set_current_buf(orig_buf)
-    vim.api.nvim_buf_delete(buf, { force = true })
-    return false
-  end
-
-  -- Set buffer name after terminal opens to override automatic term:// naming
-  pcall(vim.api.nvim_buf_set_name, buf, 'claude-local')
-
-  vim.b[buf].is_pairup_assistant = true
-  vim.b[buf].provider = 'claude'
-  vim.b[buf].terminal_job_id = job_id
-
-  -- Cache for fast lookup (Phase 1 optimization)
-  vim.g.pairup_terminal_buf = buf
-  vim.g.pairup_terminal_job = job_id
-
-  -- Respect auto_insert setting: exit terminal mode if disabled
-  if not config.get('terminal.auto_insert') then
-    vim.cmd('stopinsert')
-  end
-
-  vim.api.nvim_set_current_buf(orig_buf)
-
-  M.setup_terminal_keymaps(buf)
-  require('pairup.utils.indicator').update()
-
-  return true
-end
-
 -- Setup terminal keymaps
-function M.setup_terminal_keymaps(buf)
+local function setup_terminal_keymaps(buf)
   local keymaps = {
     ['<C-l>'] = '<C-\\><C-n><C-w>l',
     ['<C-h>'] = '<C-\\><C-n><C-w>h',
@@ -153,65 +25,109 @@ function M.setup_terminal_keymaps(buf)
   end
 end
 
--- Toggle Claude window
-function M.toggle()
-  local buf, win = M.find_terminal()
+-- Create session instance for local Claude
+local local_session = session_factory.new({
+  type = 'local',
+  buffer_name = 'claude-local',
+  cache_prefix = 'pairup_terminal',
 
-  if win then
-    if #vim.api.nvim_list_wins() > 1 then
-      vim.api.nvim_win_close(win, false)
+  -- Identify local Claude buffers
+  buffer_marker = function(buf)
+    return vim.b[buf].is_pairup_assistant and vim.b[buf].provider == 'claude'
+  end,
+
+  -- Generate terminal command
+  terminal_cmd = function(cwd)
+    local claude_config = config.get_provider_config('claude')
+    local claude_cmd = claude_config.cmd
+
+    if vim.g.pairup_test_mode then
+      return "echo 'Mock Claude CLI running'"
     end
-    require('pairup.utils.indicator').update()
-    return true
-  elseif buf then
-    local width = math.floor(vim.o.columns * config.get('terminal.split_width'))
-    local position = config.get('terminal.split_position') == 'left' and 'leftabove' or 'rightbelow'
-    vim.cmd(string.format('%s %dvsplit', position, width))
-    vim.api.nvim_set_current_buf(buf)
+
+    return claude_cmd
+  end,
+
+  -- Called after terminal is created
+  on_start = function(buf, job_id)
+    -- Mark buffer for identification
+    vim.b[buf].is_pairup_assistant = true
+    vim.b[buf].provider = 'claude'
+
+    -- Setup navigation keymaps
+    setup_terminal_keymaps(buf)
+
     -- Respect auto_insert setting
     if not config.get('terminal.auto_insert') then
       vim.cmd('stopinsert')
     end
-    vim.cmd('wincmd p')
+
+    -- Update indicator
     require('pairup.utils.indicator').update()
-    return false
-  else
-    M.start()
+  end,
+
+  -- Called before cleanup
+  on_stop = function()
+    -- Clear signs and quickfix when pairup stops
+    require('pairup.signs').clear_all()
+    vim.fn.setqflist({}, 'r')
+
+    -- Update indicator
     require('pairup.utils.indicator').update()
-    return false
-  end
+  end,
+
+  -- Whether to auto-scroll after sending
+  should_auto_scroll = function()
+    return config.get('terminal.auto_scroll')
+  end,
+})
+
+-- Public API (delegates to session)
+
+function M.is_running()
+  return local_session:is_running()
 end
 
--- Stop Claude completely
+function M.find_terminal()
+  return local_session:find()
+end
+
+function M.start()
+  local git = require('pairup.utils.git')
+  local git_root = git.get_root()
+  local cwd = git_root or vim.fn.getcwd()
+
+  return local_session:start({ cwd = cwd })
+end
+
 function M.stop()
-  local buf, win, job_id = M.find_terminal()
-
-  if not buf then
-    return
-  end
-
-  if win and #vim.api.nvim_list_wins() > 1 then
-    vim.api.nvim_win_close(win, false)
-  end
-
-  if job_id then
-    vim.fn.jobstop(job_id)
-  end
-
-  vim.api.nvim_buf_delete(buf, { force = true })
-
-  -- Clear cache (Phase 1 optimization)
-  vim.g.pairup_terminal_buf = nil
-  vim.g.pairup_terminal_job = nil
-
-  -- Clear signs and quickfix when pairup stops
-  require('pairup.signs').clear_all()
-  vim.fn.setqflist({}, 'r')
-
-  require('pairup.utils.indicator').update()
+  local_session:stop()
 end
 
--- Send arbitrary message
+function M.toggle()
+  local width = math.floor(vim.o.columns * config.get('terminal.split_width'))
+  local position = config.get('terminal.split_position') == 'left' and 'leftabove' or 'rightbelow'
+
+  local buf, win_before = local_session:find()
+  local result = local_session:toggle({
+    split_width = width,
+    split_position = position,
+  })
+
+  -- If we just showed a hidden buffer, respect auto_insert setting
+  if buf and not win_before and not result then
+    if not config.get('terminal.auto_insert') then
+      vim.cmd('stopinsert')
+    end
+  end
+
+  return result
+end
+
+function M.send_to_terminal(message)
+  return local_session:send_message(message)
+end
+
 function M.send_message(message)
   if message and message ~= '' then
     return M.send_to_terminal('\n>>> ' .. message .. '\n\n')

@@ -181,54 +181,52 @@ lua/pairup/core/autocmds.lua  # Spec file watcher
   - Detects uncommitted changes and merge conflicts
   - Shows peripheral session status and buffer name
 
-### Code Refactoring (Phase 3)
+### Code Refactoring (Phase 3) ✅ COMPLETED
 
 **Problem:** Significant code duplication between LOCAL and PERIPHERAL modes.
 
-**Files with duplication:**
-- `lua/pairup/providers/claude.lua` (LOCAL Claude implementation)
-- `lua/pairup/peripheral.lua` (PERIPHERAL Claude implementation)
+**Solution:** Created shared session module (`lua/pairup/core/session.lua`) using TDD approach.
 
-**Duplicated patterns:**
-- `toggle()` - show/hide terminal window logic
-- `stop()` - cleanup and termination
-- `find_terminal()`/`find_peripheral()` - locate buffer and job
-- `send_message()` - send text to terminal channel
-- Buffer caching via vim.g globals (pairup_buf, pairup_job, pairup_peripheral_buf, etc.)
-- Terminal management (termopen, buffer creation, restoration)
-- State tracking and indicator updates
+**Results:**
+- ✅ **Session module** (`lua/pairup/core/session.lua`): 219 lines
+  - Factory pattern: `session.new(config)` creates instances
+  - Configurable behavior via hooks: `on_start`, `on_stop`, `should_auto_scroll`
+  - Public API: `start()`, `stop()`, `toggle()`, `send_message()`, `is_running()`, `find()`
+  - Cache management via configurable vim.g keys
+  - 12 passing tests covering all core functionality
 
-**Proposed solution:** Create shared "session" or "instance" abstraction module.
+- ✅ **LOCAL mode refactored** (`lua/pairup/providers/claude.lua`):
+  - **Before**: 222 lines with duplicated terminal management
+  - **After**: 128 lines (~42% reduction)
+  - Creates local_session instance with LOCAL-specific config
+  - Preserves all existing behavior (keymaps, auto_insert, split config)
+  - All tests passing (including provider_spec.lua)
 
-**Tasks:**
-- [ ] **Extract common session module** (`lua/pairup/core/session.lua`)
-  - Instance creation and lifecycle management
-  - Terminal buffer management (create, find, name, delete)
-  - Message sending via channel
-  - State tracking (running, stopped)
-  - Window management (toggle, show, hide)
-- [ ] **Refactor LOCAL mode** to use session module
-  - Update `lua/pairup/providers/claude.lua`
-  - Preserve existing behavior and API
-  - Update tests to verify no regressions
-- [ ] **Refactor PERIPHERAL mode** to use session module
-  - Update `lua/pairup/peripheral.lua`
-  - Maintain peripheral-specific features (worktree, diff sending)
-  - Update tests to verify no regressions
-- [ ] **Consolidate buffer caching** patterns
-  - Replace vim.g.pairup_buf/pairup_job with session-managed state
-  - Replace vim.g.pairup_peripheral_buf/pairup_peripheral_job with session-managed state
-  - Maintain backward compatibility if needed
-- [ ] **Document session API**
-  - Public interface (create, start, stop, toggle, send)
-  - Configuration options
-  - Usage examples for both LOCAL and PERIPHERAL
+- ✅ **PERIPHERAL mode refactored** (`lua/pairup/peripheral.lua`):
+  - **Before**: 315 lines with duplicated terminal management
+  - **After**: 228 lines (~28% reduction)
+  - Creates peripheral_session instance with PERIPHERAL-specific config
+  - Maintains worktree setup and prompt injection
+  - Peripheral-specific features preserved (send_diff, worktree management)
+  - All tests passing (including peripheral_spec.lua)
 
-**Benefits:**
-- Reduced code duplication (~50% reduction estimated)
-- Easier maintenance (fix once, applies to both)
-- Consistent behavior across modes
-- Foundation for future session types (e.g., remote, multiple peripherals)
+**Code eliminated:**
+- ~170 lines of duplicated code removed
+- Consolidated: buffer finding, caching, terminal lifecycle, message sending, window management
+- Single source of truth for session behavior
+
+**Benefits achieved:**
+- Easier maintenance: fix once, applies to both modes
+- Consistent behavior: same session semantics everywhere
+- Extensible: easy to add new session types (remote, multiple peripherals)
+- Well-tested: comprehensive test coverage for session module
+- Clear separation: mode-specific logic in providers, common logic in session
+
+**Files modified:**
+- `lua/pairup/core/session.lua` (new)
+- `test/pairup/session_spec.lua` (new)
+- `lua/pairup/providers/claude.lua` (refactored)
+- `lua/pairup/peripheral.lua` (refactored)
 
 ### Error Handling
 - [ ] Graceful handling of worktree creation failures
