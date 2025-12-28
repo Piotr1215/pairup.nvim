@@ -291,6 +291,18 @@ function M.set_peripheral_queued()
   M.update_peripheral()
 end
 
+-- Toggle LOCAL suspend state
+function M.toggle_suspend()
+  vim.g.pairup_suspended = not vim.g.pairup_suspended
+  vim.cmd('redrawstatus')
+end
+
+-- Toggle PERIPHERAL suspend state
+function M.toggle_peripheral_suspend()
+  vim.g.pairup_peripheral_suspended = not vim.g.pairup_peripheral_suspended
+  vim.cmd('redrawstatus')
+end
+
 -- Check if file is pending
 function M.is_pending(filepath)
   if vim.g.pairup_pending ~= filepath then

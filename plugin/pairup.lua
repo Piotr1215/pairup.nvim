@@ -93,8 +93,7 @@ local subcommand_tbl = {
   },
   suspend = {
     impl = function()
-      vim.g.pairup_suspended = not vim.g.pairup_suspended
-      vim.cmd('redrawstatus')
+      require('pairup.utils.indicator').toggle_suspend()
     end,
   },
   accept = {
@@ -211,8 +210,7 @@ vim.keymap.set('n', '<Plug>(pairup-toggle-session)', function()
 end, { desc = 'Toggle Pairup session (start/stop)' })
 
 vim.keymap.set('n', '<Plug>(pairup-suspend)', function()
-  vim.g.pairup_suspended = not vim.g.pairup_suspended
-  vim.cmd('redrawstatus')
+  require('pairup.utils.indicator').toggle_suspend()
 end, { desc = 'Suspend auto-processing' })
 
 vim.keymap.set('n', '<Plug>(pairup-accept)', function()
@@ -258,8 +256,7 @@ vim.keymap.set('n', '<Plug>(pairup-peripheral-toggle-session)', function()
 end, { desc = 'Toggle peripheral session (spawn/stop)' })
 
 vim.keymap.set('n', '<Plug>(pairup-peripheral-suspend)', function()
-  vim.g.pairup_peripheral_suspended = not vim.g.pairup_peripheral_suspended
-  vim.cmd('redrawstatus')
+  require('pairup.utils.indicator').toggle_peripheral_suspend()
 end, { desc = 'Suspend peripheral auto-diff' })
 
 vim.keymap.set('n', '<Plug>(pairup-peripheral-diff)', function()
