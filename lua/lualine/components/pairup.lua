@@ -36,23 +36,25 @@ function M:update_status()
   local sep = vim.g.pairup_statusline_separator or '|'
 
   local local_hl = vim.g.pairup_suspended and 'PairSuspendedIndicator' or 'PairLocalIndicator'
+  local periph_hl = vim.g.pairup_peripheral_suspended and 'PairSuspendedIndicator' or 'PairPeripheralIndicator'
 
   -- Build display with color codes
   if local_ind ~= '' and periph_ind ~= '' then
-    -- Both active: LOCAL (red if suspended, green otherwise) | gray sep | blue PERIPHERAL
+    -- Both active: red if suspended, normal color otherwise
     return string.format(
-      '%%#%s#%s%%* %%#PairSeparator#%s%%* %%#PairPeripheralIndicator#%s%%*',
+      '%%#%s#%s%%* %%#PairSeparator#%s%%* %%#%s#%s%%*',
       local_hl,
       local_ind,
       sep,
+      periph_hl,
       periph_ind
     )
   elseif local_ind ~= '' then
     -- Only LOCAL: red if suspended, green otherwise
     return string.format('%%#%s#%s%%*', local_hl, local_ind)
   elseif periph_ind ~= '' then
-    -- Only PERIPHERAL: blue
-    return string.format('%%#PairPeripheralIndicator#%s%%*', periph_ind)
+    -- Only PERIPHERAL: red if suspended, blue otherwise
+    return string.format('%%#%s#%s%%*', periph_hl, periph_ind)
   else
     return ''
   end
