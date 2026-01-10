@@ -56,9 +56,9 @@ function M.insert_marker(start_line, context, scope, marker_type)
   local marker_content
   if context and context ~= '' then
     local clean_context = context:gsub('\n', ' '):gsub('%s+', ' ')
-    marker_content = marker .. ' ' .. scope_hint .. clean_context .. ' <- '
+    marker_content = marker .. scope_hint .. clean_context .. ' <- '
   else
-    marker_content = marker .. ' ' .. scope_hint
+    marker_content = marker .. scope_hint
   end
 
   local marker_text
@@ -104,6 +104,8 @@ local text_objects = {
   { obj = 'af', scope = 'function' },
   { obj = 'ic', scope = 'codeblock' },
   { obj = 'ac', scope = 'codeblock' },
+  { obj = 'ih', scope = 'header' },
+  { obj = 'ah', scope = 'header' },
 }
 
 ---@param key string
@@ -120,10 +122,16 @@ local function create_operator(key, marker_type)
   for _, to in ipairs(text_objects) do
     vim.keymap.set('n', key .. to.obj, function()
       local start_line = vim.fn.line('.')
-      -- Custom text objects (ic/ac) handled specially - they enter visual mode directly
+      -- Custom text objects handled specially - they enter visual mode directly
       if to.obj == 'ic' or to.obj == 'ac' then
         -- Get codeblock boundaries to insert marker at opening ``` line
         local bounds = text_objects_mod.find_codeblock('a')
+        if bounds then
+          M.insert_marker(bounds.start_line, nil, to.scope, marker_type)
+        end
+      elseif to.obj == 'ih' or to.obj == 'ah' then
+        -- Get header boundaries to insert marker at header line
+        local bounds = text_objects_mod.find_header('a')
         if bounds then
           M.insert_marker(bounds.start_line, nil, to.scope, marker_type)
         end
