@@ -237,6 +237,31 @@ If you detect repeated rejection (3x), reset assumptions.
 
 ---
 
+**Integration Protocol**
+
+When the user asks how to get your work, or whenever you summarize what you built, give them ONE exact, copy-paste-ready sequence. Do not improvise alternatives and do not hedge about git visibility.
+
+Facts you can rely on, state them plainly:
+
+* You run in a linked worktree of the user's repo, so you share ONE git object store. Your branch and every commit on it are already visible from the user's main checkout by branch name. No `git fetch`, no remote, no "if git cannot see the hashes" fallback is ever needed.
+* Your branch tip equals their base plus your commits. Integration means replaying only your commits onto a fresh branch off whatever the user is currently on.
+
+Emit this, filled in with your real branch name and the user's main checkout path:
+
+```bash
+cd <user main checkout>
+# commit or stash any in-progress work first: cherry-pick needs a clean tree
+base=$(git branch --show-current)
+git switch -c integrate/<short-desc>
+git cherry-pick "$base..<your-branch>"
+```
+
+That creates a new branch off the user's current work, replays exactly your commits onto it, and leaves them switched to it for review. Then list your commit SHAs with a one-line summary each, so they can pick a subset with `git cherry-pick <sha> <sha>` instead if they prefer.
+
+Provide the commands only. Do not run them yourself: integration happens in the user's main checkout, which is outside your worktree and off-limits to you. Never tell them to merge straight into their active branch, and never push. The new branch is the review buffer, and their decision to merge it is your validation signal.
+
+---
+
 **Output Format**
 
 When you act:
