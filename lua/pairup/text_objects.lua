@@ -40,6 +40,69 @@ function M.find_codeblock(variant)
   return nil
 end
 
+--- Find the markdown header section around the cursor
+--- A header section extends from its # line to the line before the next same-or-higher-level header
+---@param variant string 'i' for inner (content only), 'a' for around (including header line)
+---@return table|nil { start_line, end_line, level }
+function M.find_header(variant)
+  local buf = vim.api.nvim_get_current_buf()
+  local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+  local cursor_line = vim.fn.line('.')
+
+  -- Find the header that contains the cursor
+  local header_start = nil
+  local header_level = nil
+
+  -- Search backwards from cursor to find the containing header
+  for i = cursor_line, 1, -1 do
+    local level = lines[i]:match('^(#+)%s')
+    if level then
+      header_start = i
+      header_level = #level
+      break
+    end
+  end
+
+  if not header_start then
+    return nil
+  end
+
+  -- Find the end: next header of same or higher level, or end of file
+  local header_end = #lines
+  for i = header_start + 1, #lines do
+    local level = lines[i]:match('^(#+)%s')
+    if level and #level <= header_level then
+      header_end = i - 1
+      break
+    end
+  end
+
+  if variant == 'i' then
+    -- Inner: content only (excluding header line)
+    return { start_line = header_start + 1, end_line = header_end, level = header_level }
+  else
+    -- Around: including header line
+    return { start_line = header_start, end_line = header_end, level = header_level }
+  end
+end
+
+--- Select the header text object
+---@param variant string 'i' for inner, 'a' for around
+function M.select_header(variant)
+  local bounds = M.find_header(variant)
+  if not bounds then
+    return
+  end
+
+  -- Handle empty inner section
+  if variant == 'i' and bounds.start_line > bounds.end_line then
+    return
+  end
+
+  -- Select the range in linewise visual mode
+  vim.cmd('normal! ' .. bounds.start_line .. 'GV' .. bounds.end_line .. 'G')
+end
+
 --- Select the codeblock text object
 ---@param variant string 'i' for inner, 'a' for around
 function M.select_codeblock(variant)
@@ -76,6 +139,24 @@ function M.setup()
   vim.keymap.set('x', 'ac', function()
     M.select_codeblock('a')
   end, { desc = 'around codeblock' })
+
+  -- Inner header
+  vim.keymap.set('o', 'ih', function()
+    M.select_header('i')
+  end, { desc = 'inner header section' })
+
+  vim.keymap.set('x', 'ih', function()
+    M.select_header('i')
+  end, { desc = 'inner header section' })
+
+  -- Around header
+  vim.keymap.set('o', 'ah', function()
+    M.select_header('a')
+  end, { desc = 'around header section' })
+
+  vim.keymap.set('x', 'ah', function()
+    M.select_header('a')
+  end, { desc = 'around header section' })
 end
 
 return M

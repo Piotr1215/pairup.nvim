@@ -143,4 +143,33 @@ function M.send_git_status()
   providers.send_to_provider(table.concat(parts))
 end
 
+-- Get default branch (respects git config, origin/HEAD, or fallback)
+---@param git_root string? Optional git root path
+---@return string
+function M.get_default_branch(git_root)
+  local prefix = git_root and ('git -C ' .. git_root .. ' ') or 'git '
+
+  -- Try origin/HEAD first (most reliable for cloned repos)
+  local origin_head = vim.fn.system(prefix .. 'symbolic-ref refs/remotes/origin/HEAD 2>/dev/null')
+  if vim.v.shell_error == 0 and origin_head ~= '' then
+    return origin_head:gsub('refs/remotes/origin/', ''):gsub('%s+', '')
+  end
+
+  -- Try git config init.defaultBranch
+  local config_default = vim.fn.system(prefix .. 'config init.defaultBranch 2>/dev/null'):gsub('%s+', '')
+  if vim.v.shell_error == 0 and config_default ~= '' then
+    return config_default
+  end
+
+  -- Check which common branch exists
+  for _, branch in ipairs({ 'main', 'master', 'trunk', 'develop' }) do
+    vim.fn.system(prefix .. 'rev-parse --verify ' .. branch .. ' 2>/dev/null')
+    if vim.v.shell_error == 0 then
+      return branch
+    end
+  end
+
+  return 'main' -- Last resort fallback
+end
+
 return M

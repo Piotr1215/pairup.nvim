@@ -36,7 +36,7 @@ describe('pairup.operator', function()
       local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
 
       assert.are.equal(4, #lines)
-      assert.are.equal('cc: refactor this <- ', lines[1])
+      assert.are.equal('cc:refactor this <- ', lines[1])
       assert.are.equal('function hello()', lines[2])
 
       vim.api.nvim_buf_delete(bufnr, { force = true })
@@ -62,7 +62,7 @@ describe('pairup.operator', function()
       operator.insert_marker(1, 'fix this')
 
       local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
-      assert.are.equal('CLAUDE: fix this <- ', lines[1])
+      assert.are.equal('CLAUDE:fix this <- ', lines[1])
 
       vim.api.nvim_buf_delete(bufnr, { force = true })
     end)
@@ -76,7 +76,7 @@ describe('pairup.operator', function()
 
       local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
       assert.are.equal(2, #lines)
-      assert.are.equal('cc: ', lines[1])
+      assert.are.equal('cc:', lines[1])
       assert.are.equal('single line', lines[2])
 
       vim.api.nvim_buf_delete(bufnr, { force = true })
@@ -90,7 +90,7 @@ describe('pairup.operator', function()
       operator.insert_marker(1, nil, 'line')
 
       local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
-      assert.are.equal('cc: <line> ', lines[1])
+      assert.are.equal('cc:<line> ', lines[1])
 
       vim.api.nvim_buf_delete(bufnr, { force = true })
     end)
@@ -103,7 +103,7 @@ describe('pairup.operator', function()
       operator.insert_marker(1, 'some text', 'paragraph')
 
       local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
-      assert.are.equal('cc: <paragraph> some text <- ', lines[1])
+      assert.are.equal('cc:<paragraph> some text <- ', lines[1])
 
       vim.api.nvim_buf_delete(bufnr, { force = true })
     end)
@@ -116,7 +116,7 @@ describe('pairup.operator', function()
       operator.insert_marker(1, 'selected', 'selection')
 
       local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
-      assert.are.equal('cc: <selection> selected <- ', lines[1])
+      assert.are.equal('cc:<selection> selected <- ', lines[1])
 
       vim.api.nvim_buf_delete(bufnr, { force = true })
     end)
@@ -129,7 +129,7 @@ describe('pairup.operator', function()
       operator.insert_marker(1, nil, 'file')
 
       local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
-      assert.are.equal('cc: <file> ', lines[1])
+      assert.are.equal('cc:<file> ', lines[1])
 
       vim.api.nvim_buf_delete(bufnr, { force = true })
     end)
@@ -156,7 +156,7 @@ describe('pairup.operator', function()
       operator.insert_marker(1, nil, 'line', 'constitution')
 
       local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
-      assert.are.equal('cc!: <line> ', lines[1])
+      assert.are.equal('cc!:<line> ', lines[1])
 
       vim.api.nvim_buf_delete(bufnr, { force = true })
     end)
@@ -183,7 +183,7 @@ describe('pairup.operator', function()
       operator.insert_marker(1, nil, 'line', 'plan')
 
       local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
-      assert.are.equal('ccp: <line> ', lines[1])
+      assert.are.equal('ccp:<line> ', lines[1])
 
       vim.api.nvim_buf_delete(bufnr, { force = true })
     end)
@@ -201,7 +201,7 @@ describe('pairup.operator', function()
       operator.operatorfunc('line')
 
       local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
-      assert.are.equal('cc: ', lines[1])
+      assert.are.equal('cc:', lines[1])
       vim.api.nvim_buf_delete(bufnr, { force = true })
     end)
   end)

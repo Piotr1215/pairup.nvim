@@ -17,6 +17,15 @@ Inline AI pair programming for Neovim.
 
 Write `cc:`, `cc!:`, or `ccp:` markers anywhere in your code, save, and Claude edits the file directly.
 
+| Marker | Name | What it tells Claude |
+|--------|------|----------------------|
+| `cc:` | command | Execute the instruction, edit the file in place, then remove the marker. |
+| `cc!:` | constitution | Same as `cc:`, but also extract the underlying rule and add it to `CLAUDE.md` so it applies to future work. |
+| `ccp:` | plan | Do not edit directly. Wrap the target in `CURRENT`/`PROPOSED` conflict markers so you review and accept or reject before anything changes. |
+| `uu:` | question | Claude's reply marker, not yours. When it needs clarification it adds `uu: <question>` and stops; you answer by appending a `cc:` line below it. |
+
+The three `cc` markers are what you write; `uu:` is what Claude writes back. Each has a dedicated section below.
+
 ```mermaid
 sequenceDiagram
     autonumber
@@ -53,6 +62,34 @@ end
 Save → Claude reads the file → executes the instruction → removes the marker.
 
 See [`prompt.md`](prompt.md) for the full prompt.
+
+## Peripheral Claude
+
+Run a second autonomous Claude instance in a sibling git worktree for parallel development.
+
+While you work in the main repo, peripheral Claude works independently in `../repo-name-worktrees/peripheral/` on its own branch. When you update spec files (design docs, architecture notes), peripheral Claude automatically receives the diff and implements the changes autonomously.
+
+Key features:
+- Isolated worktree prevents conflicts with your main work
+- Auto-sync: receives git diffs when you save spec files
+- Independent commits on peripheral branch
+- Dual statusline indicators: `[CL]` (local) | `[CP]` (peripheral)
+- Color-coded states: green (active), blue (peripheral), red (suspended)
+
+Example workflow:
+```bash
+:Pairup peripheral              # Spawn peripheral Claude
+# Edit design-docs/feature.md
+:w                              # Peripheral auto-receives diff
+# Watch [CP:processing] → [CP:2/5] → [CP:ready] in statusline
+:Pairup peripheral-toggle       # View peripheral's terminal
+```
+
+The peripheral works from [`peripheral-prompt.md`](peripheral-prompt.md) which instructs it to:
+- Read specification changes from diffs
+- Implement features autonomously
+- Commit work with descriptive messages
+- Rebase periodically to stay synced
 
 ## Neovim-Native Operators
 
@@ -231,15 +268,32 @@ Key bindings are optional — the plugin works with `:Pairup` commands alone.
 | `edit` | Open floating editor for proposal |
 | `next` | Jump to next proposal |
 | `prev` | Jump to previous proposal |
+| **Peripheral Claude** | |
+| `peripheral` | Spawn peripheral Claude in sibling worktree |
+| `peripheral-stop` | Stop peripheral Claude |
+| `peripheral-toggle` | Show/hide peripheral terminal |
+| `peripheral-diff` | Send current diff to peripheral |
 
 ## Status Indicator
 
 Automatically injected into lualine (or native statusline if no lualine). No config needed.
 
-- `[C]` — Claude running
-- `[C:pending]` — Waiting for Claude
-- `[C:2/5]` — Todo progress (2 of 5 tasks done)
-- `[C:ready]` — All tasks complete
+**Local Claude:**
+- `[CL]` — Claude running (green)
+- `[CL]` — Claude suspended (red, auto-processing paused)
+- `[CL:pending]` — Waiting for Claude
+- `[CL:2/5]` — Todo progress (2 of 5 tasks done)
+- `[CL:ready]` — All tasks complete
+
+**Peripheral Claude:**
+- `[CP]` — Peripheral running (blue)
+- `[CP:processing]` — Processing spec changes
+- `[CP:2/5]` — Todo progress
+- `[CP:ready]` — All tasks complete
+
+**Dual display:**
+- `[CL] | [CP]` — Both running
+- `[CL:2/5] | [CP:ready]` — With progress
 
 ### Progress Tracking
 

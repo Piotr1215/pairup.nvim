@@ -148,6 +148,122 @@ local function check_statusline()
   end
 end
 
+---Get peripheral worktree path
+---@return string|nil worktree_path
+local function get_peripheral_worktree_path()
+  local git = require('pairup.utils.git')
+  local git_root = git.get_root()
+  if not git_root then
+    return nil
+  end
+
+  local repo_name = vim.fn.fnamemodify(git_root, ':t')
+  local parent_dir = vim.fn.fnamemodify(git_root, ':h')
+  local worktree_base = parent_dir .. '/' .. repo_name .. '-worktrees'
+  return worktree_base .. '/peripheral'
+end
+
+---Check peripheral worktree status
+local function check_peripheral_worktree()
+  local worktree_path = get_peripheral_worktree_path()
+
+  if not worktree_path then
+    info('Not in a git repository')
+    info('  Peripheral Claude requires git')
+    return
+  end
+
+  -- Check if worktree directory exists
+  if vim.fn.isdirectory(worktree_path) ~= 1 then
+    info('Peripheral worktree not created yet')
+    info('  Create with: :Pairup peripheral')
+    return
+  end
+
+  ok('Peripheral worktree exists: ' .. worktree_path)
+
+  -- Check git config
+  local configs = {
+    { key = 'pairup.peripheral', expected = 'true', label = 'Peripheral marker' },
+    { key = 'user.email', expected = nil, label = 'Git user email' },
+    { key = 'user.name', expected = nil, label = 'Git user name' },
+  }
+
+  for _, cfg in ipairs(configs) do
+    local cmd = string.format('git -C %s config %s 2>/dev/null', vim.fn.shellescape(worktree_path), cfg.key)
+    local handle = io.popen(cmd)
+    if handle then
+      local value = handle:read('*l')
+      handle:close()
+
+      if value and value ~= '' then
+        if cfg.expected and value ~= cfg.expected then
+          warn(string.format('%s: %s (expected: %s)', cfg.label, value, cfg.expected))
+        else
+          ok(string.format('%s: %s', cfg.label, value))
+        end
+      else
+        warn(string.format('%s not configured', cfg.label))
+      end
+    end
+  end
+
+  -- Check for uncommitted changes
+  local status_cmd = string.format('git -C %s status --porcelain 2>/dev/null', vim.fn.shellescape(worktree_path))
+  local handle = io.popen(status_cmd)
+  if handle then
+    local changes = handle:read('*a')
+    handle:close()
+
+    if changes and changes ~= '' then
+      local line_count = select(2, changes:gsub('\n', '\n'))
+      info(string.format('Uncommitted changes: %d files', line_count))
+    else
+      ok('Working directory clean')
+    end
+  end
+
+  -- Check for conflicts
+  local conflict_cmd =
+    string.format('git -C %s diff --name-only --diff-filter=U 2>/dev/null', vim.fn.shellescape(worktree_path))
+  handle = io.popen(conflict_cmd)
+  if handle then
+    local conflicts = handle:read('*a')
+    handle:close()
+
+    if conflicts and conflicts ~= '' then
+      warn('Merge conflicts detected', {
+        'Resolve conflicts in worktree: ' .. worktree_path,
+        'Then run: git -C ' .. worktree_path .. ' rebase --continue',
+      })
+    end
+  end
+end
+
+---Check peripheral session status
+local function check_peripheral_session()
+  local peripheral = require('pairup.peripheral')
+
+  if peripheral.is_running() then
+    local buf, _, _ = peripheral.find_peripheral()
+    if buf and vim.api.nvim_buf_is_valid(buf) then
+      local buf_name = vim.api.nvim_buf_get_name(buf)
+      ok(string.format('Peripheral Claude is running (buffer: %s)', buf_name))
+
+      -- Check indicator status
+      local indicator = vim.g.pairup_peripheral_indicator
+      if indicator and indicator ~= '' then
+        info('  Status: ' .. indicator)
+      end
+    else
+      ok('Peripheral Claude is running')
+    end
+  else
+    info('Peripheral Claude not running')
+    info('  Start with: :Pairup peripheral')
+  end
+end
+
 ---Show usage examples
 local function show_usage()
   info('')
@@ -155,6 +271,12 @@ local function show_usage()
   info('  :Pairup start          Start Claude session (split terminal)')
   info('  :Pairup stop           Stop Claude session')
   info('  :Pairup toggle         Toggle Claude terminal visibility')
+  info('')
+  info('Peripheral Claude:')
+  info('  :Pairup peripheral        Spawn peripheral Claude in sibling worktree')
+  info('  :Pairup peripheral-stop   Stop peripheral Claude')
+  info('  :Pairup peripheral-toggle Toggle peripheral terminal visibility')
+  info('  :Pairup peripheral-diff   Send current diff to peripheral')
   info('')
   info('Inline Mode (cc: markers):')
   info('  gC{motion}             Insert cc: marker for text object')
@@ -192,6 +314,12 @@ function M.check()
 
   start('Session Status')
   check_session()
+
+  start('Peripheral Claude - Worktree')
+  check_peripheral_worktree()
+
+  start('Peripheral Claude - Session')
+  check_peripheral_session()
 
   start('Statusline Integration')
   check_statusline()
