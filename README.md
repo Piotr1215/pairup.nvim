@@ -17,6 +17,15 @@ Inline AI pair programming for Neovim.
 
 Write `cc:`, `cc!:`, or `ccp:` markers anywhere in your code, save, and Claude edits the file directly.
 
+| Marker | Name | What it tells Claude |
+|--------|------|----------------------|
+| `cc:` | command | Execute the instruction, edit the file in place, then remove the marker. |
+| `cc!:` | constitution | Same as `cc:`, but also extract the underlying rule and add it to `CLAUDE.md` so it applies to future work. |
+| `ccp:` | plan | Do not edit directly. Wrap the target in `CURRENT`/`PROPOSED` conflict markers so you review and accept or reject before anything changes. |
+| `uu:` | question | Claude's reply marker, not yours. When it needs clarification it adds `uu: <question>` and stops; you answer by appending a `cc:` line below it. |
+
+The three `cc` markers are what you write; `uu:` is what Claude writes back. Each has a dedicated section below.
+
 ```mermaid
 sequenceDiagram
     autonumber
